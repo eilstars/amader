@@ -48,6 +48,25 @@ create table if not exists public.hearts (
   primary key (meal_id, member_id)
 );
 
+-- "Help improve Amader". Off by default. A row is only written for a person who turned it on,
+-- one row per meal: what the app guessed and what the person said it really was.
+-- The photo itself is not copied. The row points at the family's own photo and is removed with
+-- the meal, so deleting a meal or leaving the family takes it out of the dataset as well.
+create table if not exists public.examples (
+  meal_id uuid primary key references public.meals (id) on delete cascade,
+  member_id uuid not null references public.members (id) on delete cascade,
+  photo_path text not null,
+  goal_food text not null,
+  -- What food recognition said, or null when it was off or had no answer.
+  guess jsonb,
+  -- What the person saved. This is the label.
+  handfuls int check (handfuls between 0 and 4),
+  -- How they chose it: kept the guess, tapped a number, or measured with their hand.
+  chosen_by text not null default 'tap' check (chosen_by in ('guess', 'tap', 'hand')),
+  created_at timestamptz not null default now()
+);
+create index if not exists examples_member on public.examples (member_id);
+
 -- Helpers the rules use. They run with owner rights so the rules don't loop back on themselves.
 create or replace function public.my_family_codes() returns setof text
 language sql stable security definer set search_path = public as $$
@@ -63,6 +82,24 @@ alter table public.families enable row level security;
 alter table public.members enable row level security;
 alter table public.meals enable row level security;
 alter table public.hearts enable row level security;
+alter table public.examples enable row level security;
+
+-- A person can add, see and take back only their own examples. Nobody else in the app can read them.
+drop policy if exists "examples: see my own" on public.examples;
+create policy "examples: see my own" on public.examples
+  for select to authenticated using (member_id in (select public.my_member_ids()));
+
+drop policy if exists "examples: add my own" on public.examples;
+create policy "examples: add my own" on public.examples
+  for insert to authenticated
+  with check (
+    member_id in (select public.my_member_ids())
+    and meal_id in (select m.id from public.meals m where m.member_id = examples.member_id)
+  );
+
+drop policy if exists "examples: take back my own" on public.examples;
+create policy "examples: take back my own" on public.examples
+  for delete to authenticated using (member_id in (select public.my_member_ids()));
 
 drop policy if exists "family: members can read" on public.families;
 create policy "family: members can read" on public.families
@@ -215,10 +252,10 @@ grant execute on function public.delete_me(uuid) to authenticated;
 grant execute on function public.my_family_codes() to authenticated;
 grant execute on function public.my_member_ids() to authenticated;
 
--- Meal photos. The bucket is public-read so photos load fast, but each file name is a
--- long random id that only the family ever receives. Only family members can add or remove files.
-insert into storage.buckets (id, name, public) values ('meal-photos', 'meal-photos', true)
-  on conflict (id) do nothing;
+-- Meal photos. The bucket is private: a photo only opens for a signed-in phone that belongs to
+-- the family, through a link that stops working after an hour. The file path starts with the family code.
+insert into storage.buckets (id, name, public) values ('meal-photos', 'meal-photos', false)
+  on conflict (id) do update set public = false;
 
 drop policy if exists "photos: family can add" on storage.objects;
 create policy "photos: family can add" on storage.objects

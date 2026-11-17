@@ -109,4 +109,11 @@ npx eas-cli@latest submit
 - Push notifications from the server ("Ammi shared dinner", "a heart arrived"). Today's reminders are set by the phone itself
 - Taking a break from sharing, and keeping one meal private
 - Paid plans (plan: RevenueCat over Apple and Google in-app purchase, one subscription covers the family)
-- Before a public launch: private photo storage, a privacy policy, and a DMCA agent for photo uploads
+- Before a public launch: a privacy policy that covers photos and the "Help Amader learn our food" opt-in, and a DMCA agent for photo uploads
+
+## Photos and the dataset
+
+- Meal photos sit in a private Supabase bucket. Only a signed-in phone in the family can open them, through links that stop working after an hour. If you ran an older `schema.sql`, run the new one again and the bucket becomes private.
+- "Help Amader learn our food" in Me is off by default. When a person turns it on, each new meal with a photo adds one row to the `examples` table: what the app guessed, the portion they saved, and how they chose it (kept the guess, tapped, or measured by hand). Only you can read that table, from the Supabase dashboard.
+- The photo is not copied. Each row points at the family's own photo and is removed when the meal is removed, when the person turns the setting off, or when they leave.
+- The checkup screen shows the person's recent plate photos to hold up at an appointment. The shared text summary has no photos in it.

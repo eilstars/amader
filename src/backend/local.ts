@@ -106,6 +106,12 @@ export const localBackend: Backend & { seedDemo(): Promise<Session>; clear(): Pr
     await write(FAMILY, { ...family, goalFood, goalHandfuls });
   },
 
+  async saveExample() {
+    // Nothing leaves this phone in on-phone mode.
+  },
+
+  async removeExamples() {},
+
   async deleteMe() {
     await this.clear();
   },

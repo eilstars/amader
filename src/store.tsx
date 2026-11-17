@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { cloudBackend, localBackend, webUrl } from './backend';
-import { Backend, Family, Guess, Meal, Member, Photo, Role, Session } from './types';
+import { ChosenBy, Backend, Family, Guess, Meal, Member, Photo, Role, Session } from './types';
 import { syncReminders } from './reminders';
 import { refreshWidgets } from './widgets';
 import { MILESTONES, newId, newestFirst, sameDay, slotAt } from './words';
@@ -16,8 +16,10 @@ interface Prefs {
   guessOn: boolean;
   reminderOn: boolean;
   reminderHour: number;
+  /** Let Amader keep my photos and answers to improve recognition. Off unless the person turns it on. */
+  improveOn: boolean;
 }
-const DEFAULT_PREFS: Prefs = { guessOn: true, reminderOn: false, reminderHour: 19 };
+const DEFAULT_PREFS: Prefs = { guessOn: true, reminderOn: false, reminderHour: 19, improveOn: false };
 
 interface Store {
   ready: boolean;
@@ -44,11 +46,13 @@ interface Store {
   inviteInfo(code: string): Promise<{ parentName: string | null; fromName: string | null } | null>;
   joinFamily(input: { code: string; name: string; role: Role }): Promise<void>;
   loadDemo(): Promise<void>;
-  addMeal(photo: Photo | null, handfuls: number | null, guess?: Guess | null): Promise<Meal>;
+  addMeal(photo: Photo | null, handfuls: number | null, guess?: Guess | null, chosenBy?: ChosenBy): Promise<Meal>;
   /** Asks food recognition what is in the photo. Null when it is off or cannot tell. */
   recognize(photo: Photo): Promise<Guess | null>;
   prefs: Prefs;
   setGuessOn(on: boolean): void;
+  /** Turning this off also takes back what was already shared. Resolves false if that failed. */
+  setImproveOn(on: boolean): Promise<boolean>;
   /** Turns the daily reminder on or off. Resolves false if the phone refused. */
   setReminder(on: boolean, hour?: number): Promise<boolean>;
   /** Set by a widget, reminder or link that should open the camera or log a quick meal. */
@@ -212,6 +216,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setGuessOn(on) {
         savePrefs({ ...prefs, guessOn: on });
       },
+      async setImproveOn(on) {
+        if (!on && session) {
+          try {
+            await backendFor(session).removeExamples(session.meId);
+          } catch {
+            return false;
+          }
+        }
+        savePrefs({ ...prefs, improveOn: on });
+        return true;
+      },
       async setReminder(on, hour) {
         const reminderHour = hour ?? prefs.reminderHour;
         if (!on) {
@@ -233,12 +248,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return backendFor(session).recognize(photo, goalFood).catch(() => null);
       },
 
-      async addMeal(photo, handfuls, guess) {
+      async addMeal(photo, handfuls, guess, chosenBy = 'tap') {
         if (!session) throw new Error('No family yet.');
         const now = new Date();
         const draft: Meal = { id: newId(), memberId: session.meId, date: now.toISOString(), slot: slotAt(now), photo: null, handfuls, hearts: [], dish: guess?.dish || null, parts: guess?.parts ?? null };
         const saved = await backendFor(session).addMeal(session.code, draft, photo);
         setMeals((list) => newestFirst([saved, ...list.filter((m) => m.id !== saved.id)]));
+        if (photo && prefs.improveOn && !session.demo) {
+          // Never holds up saving the meal.
+          backendFor(session)
+            .saveExample({ mealId: saved.id, memberId: session.meId, code: session.code, goalFood, guess: guess && !guess.sample ? guess : null, handfuls, chosenBy })
+            .catch(() => undefined);
+        }
         if (session.demo) {
           // The sample family answers, so the heart can be seen arriving.
           const other = family?.members.find((m) => m.id !== session.meId);

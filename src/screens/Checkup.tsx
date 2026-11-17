@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Image, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../store';
 import { C } from '../theme';
@@ -30,6 +30,8 @@ export default function Checkup({ onClose }: { onClose: () => void }) {
   const usual = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
   const daysLogged = new Set(mine.map((m) => new Date(m.date).toDateString())).size;
   const slots = ['breakfast', 'lunch', 'dinner'].map((s) => ({ s, n: mine.filter((m) => m.slot === s).length })).sort((a, b) => b.n - a.n);
+
+  const plates = mine.filter((m) => m.photo).slice(0, 12);
 
   const checkup = store.checkupDate ? new Date(store.checkupDate) : null;
   const daysToGo = checkup ? daysBetween(now, checkup) : null;
@@ -83,6 +85,28 @@ export default function Checkup({ onClose }: { onClose: () => void }) {
         ))}
       </Card>
 
+      {plates.length ? (
+        <Card style={{ gap: 12 }}>
+          <Eyebrow>Your recent plates</Eyebrow>
+          <T size={13} color={C.muted}>
+            Hold up your phone and show these at the checkup. A photo says more than a list.
+          </T>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 }}>
+            {plates.map((m) => (
+              <View key={m.id} style={{ width: '33.33%', padding: 4 }}>
+                <Image source={{ uri: m.photo as string }} accessibilityLabel={`${m.dish || m.slot}, ${dateText(new Date(m.date))}`} style={{ width: '100%', aspectRatio: 1, borderRadius: 12, backgroundColor: C.soft }} />
+                <T size={12} w="semibold" style={{ marginTop: 4 }}>
+                  {dateText(new Date(m.date))}, {m.slot}
+                </T>
+                <T size={11} color={C.muted}>
+                  {portionLine(m.handfuls, food) ?? ''}
+                </T>
+              </View>
+            ))}
+          </View>
+        </Card>
+      ) : null}
+
       <View style={{ gap: 8 }}>
         <T w="semibold" size={14}>
           Questions you might ask
@@ -103,7 +127,7 @@ export default function Checkup({ onClose }: { onClose: () => void }) {
         }}
       />
       <T center color={C.muted} size={12}>
-        A simple log of what you shared. No readings or medical advice. Only you can send it.
+        A simple log of what you shared. No readings or medical advice. Only you can send it. The photos stay on your phone screen and are not part of the shared text.
       </T>
     </ScrollView>
   );

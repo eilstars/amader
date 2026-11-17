@@ -103,7 +103,7 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setNote(null);
     try {
-      await store.addMeal(photo, amount, photo ? guess : null);
+      await store.addMeal(photo, amount, photo ? guess : null, byHand ? 'hand' : touched.current || !guess || amount === 0 ? 'tap' : 'guess');
       setStep('saved');
     } catch (e) {
       setNote(e instanceof Error ? `We couldn't save that. ${e.message}` : "We couldn't save that. Please try again.");

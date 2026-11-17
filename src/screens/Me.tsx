@@ -13,6 +13,7 @@ export default function Me({ onClose, onCheckup, onTeach }: { onClose: () => voi
   const store = useStore();
   const insets = useSafeAreaInsets();
   const [confirming, setConfirming] = useState(false);
+  const [improveNote, setImproveNote] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [refused, setRefused] = useState(false);
   const { family, me } = store;
@@ -151,6 +152,32 @@ export default function Me({ onClose, onCheckup, onTeach }: { onClose: () => voi
           </View>
           <Switch value={store.prefs.guessOn} trackColor={{ true: C.leaf, false: C.line }} onValueChange={(on) => store.setGuessOn(on)} />
         </Row>
+        <View style={{ height: 1, backgroundColor: '#EDF0EA', marginVertical: 4 }} />
+        <Row style={{ justifyContent: 'space-between' }}>
+          <View style={{ flex: 1 }}>
+            <T w="semibold">Help Amader learn our food</T>
+            <T size={13} color={C.muted}>
+              Off unless you turn it on. If on, Amader keeps your own plate photos and the portion you chose, to teach it to recognise home cooking better. Your family's photos are not included. Turn it off any time and what you shared is removed.
+            </T>
+            {improveNote ? (
+              <T size={13} color={C.deep} w="semibold">
+                {improveNote}
+              </T>
+            ) : null}
+          </View>
+          <Switch
+            value={store.prefs.improveOn}
+            trackColor={{ true: C.leaf, false: C.line }}
+            accessibilityLabel="Help Amader learn our food"
+            onValueChange={async (on) => {
+              const ok = await store.setImproveOn(on);
+              setImproveNote(!ok ? "We couldn't reach the server to remove what you shared. It is still on. Please try again." : on ? (store.cloud && !store.session?.demo ? 'Thank you. From now on, your new plate photos help.' : 'On. This is a sample on this phone only, so nothing is kept.') : 'Turned off. What you shared has been removed.');
+            }}
+          />
+        </Row>
+        <T size={12} color={C.muted}>
+          Photos are private to your family. Nobody outside it can open them.
+        </T>
       </Card>
 
       <Eyebrow>My data</Eyebrow>
