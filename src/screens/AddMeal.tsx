@@ -4,10 +4,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Hand, findHand } from '../hand';
 import { useStore } from '../store';
 import { C } from '../theme';
 import { Guess, Photo } from '../types';
 import { Btn, Plate, Puti, Row, T } from '../ui';
+import HandMeasure from './HandMeasure';
 import { DAY_LETTERS, amountText, sameDay, slotAt, unitHint, weekDays } from '../words';
 
 type Step = 'photo' | 'portion' | 'saved';
@@ -24,6 +26,26 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
   const [guess, setGuess] = useState<Guess | null>(null);
   const [guessing, setGuessing] = useState(false);
   const touched = useRef(false);
+  // The hand in the photo, if there is one. It becomes the ruler for the portion.
+  const [hand, setHand] = useState<Hand | null>(null);
+  const [looking, setLooking] = useState(false);
+  const [measuring, setMeasuring] = useState(false);
+  const [byHand, setByHand] = useState(false);
+  const shot = useRef(0);
+
+  function findRuler(at: Photo) {
+    const mine = ++shot.current;
+    setHand(null);
+    setByHand(false);
+    setLooking(true);
+    findHand(at)
+      .then((found) => {
+        if (mine === shot.current) setHand(found);
+      })
+      .finally(() => {
+        if (mine === shot.current) setLooking(false);
+      });
+  }
 
   // Ask what is on the plate while the person looks at the portion screen. Never blocks saving.
   function look(at: Photo) {
@@ -65,6 +87,7 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
         const taken = { uri: small.uri, base64: small.base64 ?? null };
         setPhoto(taken);
         look(taken);
+        findRuler(taken);
       } catch {
         setPhoto({ uri: asset.uri, base64: asset.base64 ?? null });
       }
@@ -142,6 +165,7 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
             onPress={() => {
               setPhoto(null);
               setGuess(null);
+              setHand(null);
               setStep('portion');
             }}
             disabled={busy}
@@ -165,6 +189,21 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
             {slot[0].toUpperCase() + slot.slice(1)}
           </T>
         </Row>
+        {measuring && photo && hand ? (
+          <HandMeasure
+            photo={photo}
+            hand={hand}
+            food={food}
+            onBack={() => setMeasuring(false)}
+            onUse={(n) => {
+              touched.current = true;
+              setHandfuls(n);
+              setByHand(true);
+              setMeasuring(false);
+            }}
+          />
+        ) : (
+          <>
         <View style={{ alignItems: 'center', gap: 4 }}>
           <T w="bold" size={28} center>
             How much {food.toLowerCase()}?
@@ -192,7 +231,7 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
             {amountText(handfuls, food)}
           </T>
           <T color={C.muted} size={14}>
-            {line}
+            {byHand ? 'Measured against your own hand' : line}
           </T>
         </View>
 
@@ -204,6 +243,7 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
                 key={n}
                 onPress={() => {
                   touched.current = true;
+                  setByHand(false);
                   setHandfuls(n);
                 }}
                 accessibilityRole="button"
@@ -218,6 +258,16 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
             );
           })}
         </Row>
+
+        {photo && food.toLowerCase() === 'rice' ? (
+          hand ? (
+            <Btn kind="ghost" icon="hand-left-outline" label="Measure with my hand" onPress={() => setMeasuring(true)} />
+          ) : (
+            <T center color={C.muted} size={13}>
+              {looking ? 'Looking for your hand in the photo...' : 'Tip: put your hand flat next to the plate in the photo and Amader can measure for you.'}
+            </T>
+          )
+        ) : null}
 
         {photo && (guessing || guess) ? (
           <View style={{ backgroundColor: C.mint, borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -254,6 +304,8 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
         ) : null}
         <Btn label={busy ? 'Saving...' : `Save ${slot}`} disabled={busy} onPress={() => save(handfuls)} />
         <Btn kind="line" label={`No ${food.toLowerCase()} this time`} disabled={busy} onPress={() => save(0)} />
+          </>
+        )}
       </ScrollView>
     );
   }

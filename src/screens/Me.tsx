@@ -9,7 +9,7 @@ import { Avatar, Btn, Card, Eyebrow, RoundButton, Row, T, Tag } from '../ui';
 import { MILESTONES } from '../words';
 import { Chip, GOAL_FOODS, Stepper } from './SetupFamily';
 
-export default function Me({ onClose, onCheckup }: { onClose: () => void; onCheckup: () => void }) {
+export default function Me({ onClose, onCheckup, onTeach }: { onClose: () => void; onCheckup: () => void; onTeach: () => void }) {
   const store = useStore();
   const insets = useSafeAreaInsets();
   const [confirming, setConfirming] = useState(false);
@@ -156,6 +156,7 @@ export default function Me({ onClose, onCheckup }: { onClose: () => void; onChec
       <Eyebrow>My data</Eyebrow>
       <Card style={{ gap: 12 }}>
         <Btn kind="ghost" icon="document-text-outline" label="My meal summary for a checkup" onPress={onCheckup} />
+        <Btn kind="ghost" icon="hand-left-outline" label="Drag the rice: the idea in ten seconds" onPress={onTeach} />
         {confirming ? (
           <View style={{ gap: 8 }}>
             <T size={14}>

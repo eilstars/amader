@@ -5,7 +5,7 @@ import { useStore } from '../store';
 import { C, images } from '../theme';
 import { Btn, Card, Hero, Plate, Puti, Row, T } from '../ui';
 
-export default function Welcome({ onSetup, onJoin }: { onSetup: () => void; onJoin: () => void }) {
+export default function Welcome({ onSetup, onJoin, onTeach }: { onSetup: () => void; onJoin: () => void; onTeach: () => void }) {
   const store = useStore();
   const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState(false);
@@ -55,6 +55,22 @@ export default function Welcome({ onSetup, onJoin }: { onSetup: () => void; onJo
                 </T>
                 <T color={C.muted} size={14}>
                   Enter the family code. No account, no forms.
+                </T>
+              </View>
+            </Row>
+          </Card>
+        </Pressable>
+
+        <Pressable onPress={onTeach} accessibilityRole="button">
+          <Card>
+            <Row gap={14}>
+              <Plate size={56} handfuls={4} />
+              <View style={{ flex: 1 }}>
+                <T w="semibold" size={17}>
+                  Feel the idea in ten seconds
+                </T>
+                <T color={C.muted} size={14}>
+                  Drag the rice on a plate and see what changes.
                 </T>
               </View>
             </Row>

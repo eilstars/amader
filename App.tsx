@@ -9,6 +9,7 @@ import { C, fontFiles, images } from './src/theme';
 import { Btn, T } from './src/ui';
 import { cleanCode } from './src/words';
 import Welcome from './src/screens/Welcome';
+import Teach from './src/screens/Teach';
 import SetupFamily from './src/screens/SetupFamily';
 import Join from './src/screens/Join';
 import Main from './src/screens/Main';
@@ -28,7 +29,7 @@ function actionFromUrl(url: string | null): PendingAction | null {
 
 function Root() {
   const store = useStore();
-  const [step, setStep] = useState<'welcome' | 'setup' | 'join'>('welcome');
+  const [step, setStep] = useState<'welcome' | 'setup' | 'join' | 'teach'>('welcome');
   const [justJoined, setJustJoined] = useState(false);
 
   // An invite link (…?join=CODE) drops the person straight on the join screen.
@@ -83,7 +84,8 @@ function Root() {
     );
   }
   if (step === 'setup') return <SetupFamily onBack={() => setStep('welcome')} />;
-  return <Welcome onSetup={() => setStep('setup')} onJoin={() => setStep('join')} />;
+  if (step === 'teach') return <Teach onClose={() => setStep('welcome')} />;
+  return <Welcome onSetup={() => setStep('setup')} onJoin={() => setStep('join')} onTeach={() => setStep('teach')} />;
 }
 
 export default function App() {

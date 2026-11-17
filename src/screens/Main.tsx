@@ -10,9 +10,10 @@ import OurTable from './OurTable';
 import Recap from './Recap';
 import AddMeal from './AddMeal';
 import Me from './Me';
+import Teach from './Teach';
 import Checkup from './Checkup';
 
-type Sheet = 'add' | 'me' | 'checkup' | null;
+type Sheet = 'add' | 'me' | 'checkup' | 'teach' | null;
 
 export default function Main({ openCamera }: { openCamera: boolean }) {
   const insets = useSafeAreaInsets();
@@ -106,7 +107,8 @@ export default function Main({ openCamera }: { openCamera: boolean }) {
         <View style={{ flex: 1, backgroundColor: sheet === 'add' ? C.night : C.rice, alignItems: 'center' }}>
           <View style={{ flex: 1, width: '100%', maxWidth: 480 }}>
             {sheet === 'add' ? <AddMeal onClose={() => setSheet(null)} /> : null}
-            {sheet === 'me' ? <Me onClose={() => setSheet(null)} onCheckup={() => setSheet('checkup')} /> : null}
+            {sheet === 'me' ? <Me onClose={() => setSheet(null)} onCheckup={() => setSheet('checkup')} onTeach={() => setSheet('teach')} /> : null}
+            {sheet === 'teach' ? <Teach onClose={() => setSheet(null)} /> : null}
             {sheet === 'checkup' ? <Checkup onClose={() => setSheet(null)} /> : null}
           </View>
         </View>
