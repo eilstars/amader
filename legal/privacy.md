@@ -17,7 +17,7 @@ Questions or requests: [CONTACT EMAIL]. Mail: [MAILING ADDRESS, a PO box is fine
 - An AI service reads a meal photo only after you say yes, and you can turn it off.
 - "Help Amader learn our food" is off unless you turn it on.
 - When you measure with your hand, the hand is worked out on your phone and never saved or sent to us.
-- Meals and photos are deleted automatically 12 months after the meal. You can delete any meal, or everything, at any time in the app.
+- Your family's meals stay while your family uses Amader. A family with no meals for 12 months is deleted. You can delete any meal, or everything, at any time in the app.
 
 ## What we collect
 
@@ -81,7 +81,9 @@ This is off unless you turn it on, under Me. If you turn it on, each new meal ph
 
 We use these examples only to improve how Amader recognises home cooking. We do not sell them or give them to anyone else. In the future we may use them to train our own recognition model; that model would not contain your photos or your name. [If you ever want to share examples with a researcher or partner, ask again first.]
 
-Turn it off and your examples are deleted. Deleting a meal deletes its example too.
+Turn it off and your examples are deleted. Deleting a meal deletes its example too, and so does "Delete my meals and leave".
+
+If your family table is deleted because nobody shared a meal for 12 months, we keep the learning examples you shared, so Amader can keep learning. We keep them without your name, your family, your family code or your sign-in id, and with only the month they were shared. After that they can no longer be linked to you, so we cannot find them to delete them on request. We keep these for as long as they are useful for improving food recognition. A photo can still show what is in it, such as a hand, a table or a room, so only share photos you are comfortable with.
 
 ## Companies that help us run Amader
 
@@ -100,9 +102,9 @@ We may also share information if the law requires it, to protect someone's safet
 
 | Information | How long |
 | --- | --- |
-| Meals, photos, portions, dish names and hearts | Deleted automatically 12 months after the meal, or sooner when you delete them |
-| Learning examples | Deleted with their meal, or when you turn the setting off |
-| A family table | Deleted when the last person leaves, or after 12 months with no meals shared |
+| Meals, photos, portions, dish names and hearts | While your family uses Amader, until you delete them. Deleted with the family table |
+| A family table | Deleted when the last person leaves, or after 12 months with no meals and nobody new joining |
+| Learning examples | Deleted with their meal, when you leave, or when you turn the setting off. If the family table is deleted for being unused, kept without anything that links them to you, as long as they are useful |
 | Your name and seat at a family | Until you leave the family, or the family is deleted |
 | Sign-in ids not linked to any family | Deleted after 30 days |
 | Wrong-code and photo-reading counters | 1 day and 2 days |

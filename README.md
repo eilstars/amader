@@ -120,10 +120,9 @@ npx eas-cli@latest submit
 
 ## Automatic deletion (about 10 minutes, after Supabase is set up)
 
-The privacy policy promises that meals and photos are deleted 12 months after the meal. A small function does this once a day:
+Nothing is deleted by age while a family uses Amader. People remove meals themselves, or leave. A small function runs once a day and deletes:
 
-- meals older than 12 months, with their photos, hearts and learning examples
-- family tables with no meals and no new members for 12 months, with any photos left in their folder
+- family tables with no meals and no new members for 12 months, with their members, meals, photos and hearts. First, the photos people shared with "Help Amader learn our food" are copied into the private `dataset` bucket and `dataset` table, under a new random id with no name, family or sign-in. That is the lasting learning set
 - anonymous sign-ins that are not in any family, after 30 days
 - the wrong-code and photo-reading counters, after 1 and 2 days
 
@@ -136,11 +135,11 @@ The privacy policy promises that meals and photos are deleted 12 months after th
    ```
 
    (`--no-verify-jwt` is needed because the daily job calls it with that secret instead of a sign-in. The function refuses any call without the secret.)
-3. Run `supabase/schema.sql` again (it adds a lookup the function uses).
+3. Run `supabase/schema.sql` again (it adds the `dataset` table and bucket and a lookup the function uses).
 4. Open `supabase/cleanup-schedule.sql`, put in your project ref and the same secret, and run it in the SQL editor. Do not save the filled-in copy in this repo.
 5. Check the next day: `select * from cron.job_run_details order by start_time desc limit 5;`
 
-To keep data for a different length of time, set `KEEP_DAYS` with `npx supabase secrets set KEEP_DAYS=180`, change `KEEP_MONTHS` in `src/legal.tsx`, and update the privacy policy. Untested against a real Supabase project so far; the database part was tested on a local Postgres.
+To change the idle time, set `IDLE_DAYS` with `npx supabase secrets set IDLE_DAYS=...`, change `IDLE_MONTHS` in `src/legal.tsx`, and update the privacy policy. Untested against a real Supabase project so far; the database part was tested on a local Postgres.
 
 ## Privacy policy and terms
 

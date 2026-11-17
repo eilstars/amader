@@ -348,7 +348,27 @@ create policy "photos: remove my own" on storage.objects
   using (bucket_id = 'meal-photos' and owner_id = (select auth.uid())::text);
 
 -- Automatic deletion (supabase/functions/cleanup, run daily). The privacy policy promises these limits,
--- so change them there too if you change them here.
+-- so change them there too if you change them here. Nothing is deleted by age while a family uses Amader;
+-- a family with no meals and no new members for a year is deleted.
+
+-- The lasting learning set. When an idle family is deleted, the cleanup function copies the photos its
+-- members chose to share with "Help Amader learn our food" here, under a new random id, with no name,
+-- family, meal or sign-in attached. Only the server (service role) and the dashboard can see it.
+create table if not exists public.dataset (
+  id uuid primary key,
+  goal_food text not null,
+  guess jsonb,
+  handfuls int check (handfuls between 0 and 4),
+  chosen_by text not null check (chosen_by in ('guess', 'tap', 'hand')),
+  shared_month text not null,
+  kept_at timestamptz not null default now()
+);
+alter table public.dataset enable row level security;
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+  values ('dataset', 'dataset', false, 3145728, array['image/jpeg'])
+  on conflict (id) do update set public = false;
+
 create index if not exists meals_eaten_at on public.meals (eaten_at);
 
 -- Family tables nobody has used since p_before: no meals and no one joined since then.

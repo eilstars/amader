@@ -15,7 +15,9 @@ This policy explains how [YOUR LEGAL NAME or AMADER LLC] ("Amader") handles cons
 | A summary you can bring to a checkup | A list of your own recent meals and portions, made on your phone | So you can show your meals to your own doctor if you choose |
 | Learning examples | The app's guess and the amount you saved for a meal | To improve food recognition, only if you turned on "Help Amader learn our food" |
 
-We do not collect health readings, diagnoses, medicines, or biometric data. Hand measuring happens on your phone and the hand is never saved or sent to us.
+We do not collect health readings, diagnoses, medicines, or biometric data.
+
+If a family table goes unused for 12 months, it is deleted. Learning examples that people chose to share are then kept without any name, family, code or sign-in id, and with only the month, so they are no longer linked to anyone. Hand measuring happens on your phone and the hand is never saved or sent to us.
 
 ## Where it comes from
 

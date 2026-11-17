@@ -1,8 +1,11 @@
 // Supabase Edge Function: the daily cleanup that keeps Amader's promise in the privacy policy.
 //
-// - Meals older than KEEP_DAYS (default 365) are deleted, photo first, then the row.
-//   Hearts and "Help Amader learn our food" examples go with the meal.
-// - A family table with no meals and no new members for KEEP_DAYS is deleted, with any photos left in its folder.
+// - Nothing is deleted by age while a family uses Amader. People delete meals themselves, or leave.
+// - A family table with no meals and no new members for IDLE_DAYS (default 365) is deleted:
+//   its members, meals, photos and hearts.
+//   Before that, the photos people chose to share with "Help Amader learn our food" are copied into
+//   the private `dataset` bucket and `dataset` table, with no name, family or sign-in attached.
+//   This is how the learning photos outlive the family, as the privacy policy says.
 // - Anonymous sign-ins that never joined a family, or left, are deleted after 30 days.
 // - The abuse counters (wrong codes, photos read) are trimmed to 1 and 2 days.
 //
@@ -17,7 +20,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const BUCKET = "meal-photos";
-const KEEP_DAYS = Math.max(30, Number(Deno.env.get("KEEP_DAYS") ?? "365"));
+const DATASET = "dataset";
+const IDLE_DAYS = Math.max(30, Number(Deno.env.get("IDLE_DAYS") ?? "365"));
 const ORPHAN_SIGN_IN_DAYS = 30;
 // Stops one run from going on forever if something is very wrong. The next day carries on.
 const MAX_BATCHES = 50;
@@ -31,13 +35,6 @@ function same(a: string, b: string): boolean {
   return diff === 0;
 }
 
-/** Meals saved by older versions hold a full photo address. Cut the path out of those. */
-function pathOf(saved: string): string {
-  const mark = `/${BUCKET}/`;
-  const at = saved.indexOf(mark);
-  return at >= 0 ? saved.slice(at + mark.length).split("?")[0] : saved;
-}
-
 Deno.serve(async (req) => {
   const secret = Deno.env.get("CLEANUP_SECRET") ?? "";
   const given = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
@@ -46,42 +43,60 @@ Deno.serve(async (req) => {
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const done = { meals: 0, photos: 0, families: 0, signIns: 0, errors: [] as string[] };
-  const cutoff = new Date(Date.now() - KEEP_DAYS * 86_400_000).toISOString();
+  const done = { families: 0, photos: 0, kept: 0, signIns: 0, errors: [] as string[] };
+  const cutoff = new Date(Date.now() - IDLE_DAYS * 86_400_000).toISOString();
 
-  // 1. Old meals. Photos go first; a meal row is only deleted once its photo is gone,
-  //    so a failed photo delete is retried tomorrow instead of leaving a file nobody can find.
-  for (let batch = 0; batch < MAX_BATCHES; batch++) {
-    const old = await admin.from("meals").select("id, photo_url").lt("eaten_at", cutoff).limit(100);
-    if (old.error) {
-      done.errors.push(`meals: ${old.error.message}`);
-      break;
-    }
-    const rows = old.data ?? [];
-    if (!rows.length) break;
-    const paths = rows.filter((m) => m.photo_url).map((m) => pathOf(m.photo_url as string));
-    if (paths.length) {
-      const gone = await admin.storage.from(BUCKET).remove(paths);
-      if (gone.error) {
-        done.errors.push(`photos: ${gone.error.message}`);
-        break;
+  /**
+   * Copies a family's "Help Amader learn our food" examples into the dataset, with a new random id and
+   * no member, meal, family or sign-in. Returns how many were kept, or -1 if anything failed.
+   * Only examples whose person still had the setting on exist at all: turning it off deletes them.
+   */
+  async function keepExamples(code: string): Promise<number> {
+    const rows = await admin
+      .from("examples")
+      .select("meal_id, photo_path, goal_food, guess, handfuls, chosen_by, created_at, members!inner(family_code)")
+      .eq("members.family_code", code);
+    if (rows.error) return -1;
+    let kept = 0;
+    for (const ex of rows.data ?? []) {
+      const file = await admin.storage.from(BUCKET).download(ex.photo_path as string);
+      // A photo already removed has nothing to keep. Anything else is a real failure.
+      if (file.error) {
+        if (/not.?found/i.test(file.error.message)) continue;
+        return -1;
       }
-      done.photos += paths.length;
+      const id = crypto.randomUUID();
+      const up = await admin.storage.from(DATASET).upload(`${id}.jpg`, file.data, { contentType: "image/jpeg", upsert: false });
+      if (up.error) return -1;
+      const row = await admin.from("dataset").insert({
+        id,
+        goal_food: ex.goal_food,
+        guess: ex.guess,
+        handfuls: ex.handfuls,
+        chosen_by: ex.chosen_by,
+        // Month only, so the date cannot be matched back to a family's feed.
+        shared_month: (ex.created_at as string).slice(0, 7),
+      });
+      if (row.error) return -1;
+      // Done with this one. Removing it here means a run that stops halfway never copies it twice.
+      const gone = await admin.from("examples").delete().eq("meal_id", ex.meal_id);
+      if (gone.error) return -1;
+      kept += 1;
     }
-    const del = await admin.from("meals").delete().in("id", rows.map((m) => m.id));
-    if (del.error) {
-      done.errors.push(`meals: ${del.error.message}`);
-      break;
-    }
-    done.meals += rows.length;
-    if (rows.length < 100) break;
+    return kept;
   }
 
-  // 2. Family tables nobody has used for KEEP_DAYS. Empty the photo folder, then delete the family
-  //    (members, meals, hearts and examples go with it).
+  // 1. Family tables nobody has used for IDLE_DAYS. Keep the opted-in learning photos without names,
+  //    then empty the photo folder and delete the family (members, meals, hearts and examples go with it).
   const stale = await admin.rpc("stale_families", { p_before: cutoff });
   if (stale.error) done.errors.push(`families: ${stale.error.message}`);
   for (const fam of (stale.data ?? []) as { code: string; folder: string }[]) {
+    const kept = await keepExamples(fam.code);
+    if (kept < 0) {
+      done.errors.push("families: learning photos could not be kept, so the family was left for tomorrow");
+      continue;
+    }
+    done.kept += kept;
     let ok = true;
     for (let batch = 0; batch < MAX_BATCHES; batch++) {
       const listed = await admin.storage.from(BUCKET).list(fam.folder, { limit: 100 });
@@ -107,11 +122,11 @@ Deno.serve(async (req) => {
     else done.families += 1;
   }
 
-  // 3. Abuse counters. The join functions already trim code_tries; this covers quiet days.
+  // 2. Abuse counters. The join functions already trim code_tries; this covers quiet days.
   await admin.from("code_tries").delete().lt("tried_at", new Date(Date.now() - 86_400_000).toISOString());
   await admin.from("recognitions").delete().lt("at", new Date(Date.now() - 2 * 86_400_000).toISOString());
 
-  // 4. Anonymous sign-ins with no seat at any family, older than 30 days.
+  // 3. Anonymous sign-ins with no seat at any family, older than 30 days.
   const seated = await admin.from("members").select("user_id").not("user_id", "is", null);
   if (seated.error) {
     done.errors.push(`sign-ins: ${seated.error.message}`);

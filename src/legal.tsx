@@ -4,8 +4,8 @@ import { webUrl } from './backend';
 import { C } from './theme';
 import { T } from './ui';
 
-/** How long meals and photos are kept. The cleanup function (supabase/functions/cleanup) enforces it; keep the three in step with the privacy policy. */
-export const KEEP_MONTHS = 12;
+/** A family with no meals for this long is deleted. The cleanup function (supabase/functions/cleanup, IDLE_DAYS) enforces it; keep the three in step with the privacy policy. */
+export const IDLE_MONTHS = 12;
 
 type Page = 'privacy' | 'terms' | 'health-data';
 

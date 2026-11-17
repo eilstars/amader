@@ -20,7 +20,7 @@ Anyone with your family code can join your family table and see what is shared t
 
 ## 4. What you share
 
-You keep ownership of your photos and everything else you share. So that Amader can work, you give us permission to store, copy, resize and display what you share to your family table, to send photos to our AI provider if you turned photo reading on, and, only if you turned on "Help Amader learn our food", to use your photos and portions to improve food recognition. This permission ends when the content is deleted, except for copies we have already used to train a recognition model that no longer contains the photo.
+You keep ownership of your photos and everything else you share. So that Amader can work, you give us permission to store, copy, resize and display what you share to your family table, to send photos to our AI provider if you turned photo reading on, and, only if you turned on "Help Amader learn our food", to use your photos and portions to improve food recognition. This permission ends when the content is deleted. Two exceptions: a recognition model we have already trained keeps what it learned (it does not contain the photo), and learning examples kept without your name after your family table is deleted for being unused, as the Privacy Policy explains.
 
 Only share photos you took or have the right to share. Do not share photos of other people without their permission, and never photos of children other than at a family meal with their parent's permission.
 
