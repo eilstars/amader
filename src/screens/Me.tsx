@@ -8,6 +8,7 @@ import { shareText } from '../share';
 import { Avatar, Btn, Card, Eyebrow, RoundButton, Row, T, Tag } from '../ui';
 import { MILESTONES, spacedCode } from '../words';
 import { Chip, GOAL_FOODS, Stepper } from './SetupFamily';
+import { IDLE_MONTHS, PolicyLinks } from '../legal';
 
 export default function Me({ onClose, onCheckup, onTeach }: { onClose: () => void; onCheckup: () => void; onTeach: () => void }) {
   const store = useStore();
@@ -158,7 +159,7 @@ export default function Me({ onClose, onCheckup, onTeach }: { onClose: () => voi
           <View style={{ flex: 1 }}>
             <T w="semibold">Help Amader learn our food</T>
             <T size={13} color={C.muted}>
-              Off unless you turn it on. If on, Amader keeps your own plate photos and the portion you chose, to teach it to recognise home cooking better. Your family's photos are not included. Turn it off any time and what you shared is removed.
+              Off unless you turn it on. If on, Amader keeps your own plate photos and the portion you chose, to teach it to recognise home cooking better. Your family's photos are not included. Turn it off any time and what you shared is removed. If your family stops using Amader for a year, the photos you shared here are kept without your name or family.
             </T>
             {improveNote ? (
               <T size={13} color={C.deep} w="semibold">
@@ -206,7 +207,10 @@ export default function Me({ onClose, onCheckup, onTeach }: { onClose: () => voi
       </Card>
 
       <T center color={C.muted} size={12}>
-        Amader helps with everyday eating. It isn't a medical device and doesn't give medical advice. We never sell your data or use it for ads.
+        Amader helps with everyday eating. It isn't a medical device and doesn't give medical advice. We never sell your data or use it for ads. Your meals stay while your family uses Amader. A family with no meals for {IDLE_MONTHS} months is deleted.
+      </T>
+      <T center color={C.muted} size={12}>
+        <PolicyLinks />
       </T>
     </ScrollView>
   );
