@@ -1,38 +1,66 @@
-import React, { useState } from 'react';
-import { Image, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Platform, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { C } from '../theme';
-import { Meal } from '../types';
+import { Meal, Member } from '../types';
+import { webUrl } from '../backend';
 import { shareText } from '../share';
-import { Avatar, Btn, Card, Eyebrow, Hero, Plate, Puti, Row, Soft, T, Tag } from '../ui';
-import { dayName, daysBetween, greeting, portionLine, sameDay, timeText, weekDays, whenText, spacedCode } from '../words';
+import { nudgeText, sendOnWhatsApp } from '../nudge';
+import { POINTS, pointsFor, streakGoal, streakOf } from '../game';
+import { Avatar, Btn, Chip, Eyebrow, Puti, PutiSays, Row, Stat, T, WeekStrip } from '../ui';
+import { dayCounts, dayHeading, greeting, inWeek, sameDay, spacedCode, startOfDay, weekDays, weekLabel } from '../words';
+import MealCard from './MealCard';
 
-export default function OurTable({ onAdd, onMe }: { onAdd: () => void; onMe: () => void }) {
+type Filter = { kind: 'all' } | { kind: 'person'; id: string } | { kind: 'together' };
+
+export default function OurTable({ onAdd, onMe, onPerson }: { onAdd: () => void; onMe: () => void; onPerson: (id: string) => void }) {
   const store = useStore();
+  const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
-  const { family, me, meals } = store;
+  const [offset, setOffset] = useState(0);
+  const [day, setDay] = useState<number | null>(null);
+  const [filter, setFilter] = useState<Filter>({ kind: 'all' });
+  const { family, me, meals, cheers } = store;
+
+  const days = useMemo(() => weekDays(offset), [offset]);
   if (!family || !me) return null;
 
   const today = new Date();
-  const todayOf = (memberId: string) => meals.find((m) => m.memberId === memberId && sameDay(new Date(m.date), today));
-  const sharedToday = family.members.filter((m) => todayOf(m.id)).length;
-  const iShared = !!todayOf(me.id);
+  const todaysOf = (id: string) => meals.filter((m) => m.memberId === id && sameDay(new Date(m.date), today));
+  const iShared = todaysOf(me.id).length > 0;
   const waiting = family.members.filter((m) => !m.joined);
+  const myStreak = streakOf(meals, me.id);
+  const weekStart = weekDays(0)[0];
+  const myPoints = meals.filter((m) => m.memberId === me.id && new Date(m.date) >= weekStart).reduce((sum, m) => sum + pointsFor(m), 0);
+  const heartsForMe = meals.filter((m) => m.memberId === me.id && new Date(m.date) >= weekStart).reduce((sum, m) => sum + m.hearts.length, 0);
 
-  // This week, together: everyone shares one meal a day.
-  const week = weekDays();
-  const weekMeals = meals.filter((m) => new Date(m.date) >= week[0]);
-  const weekDone = new Set(weekMeals.map((m) => `${m.memberId}-${new Date(m.date).toDateString()}`)).size;
-  const weekGoal = family.members.length * 7;
+  // Notes the family sent me this week.
+  const weekAgo = new Date(today.getTime() - 7 * 86_400_000);
+  const notesForMe = cheers.filter((c) => c.toId === me.id && new Date(c.date) >= weekAgo).slice(0, 3);
 
-  // Something to talk about: the parent's newest meal, shown to the children.
-  const parent = family.members.find((m) => m.role === 'parent' && m.id !== me.id);
-  const parentLast = parent ? meals.find((m) => m.memberId === parent.id) : undefined;
-  const quietDays = parentLast ? daysBetween(new Date(parentLast.date), today) : null;
+  // Someone who has not shared today, to say hi to. The person being cared for comes first.
+  const quiet = family.members
+    .filter((m) => m.id !== me.id && m.joined && todaysOf(m.id).length === 0)
+    .sort((a, b) => (a.role === 'parent' ? -1 : 0) - (b.role === 'parent' ? -1 : 0))[0];
 
-  const feed = meals.slice(0, 30);
+  // The feed: only the chosen week (or day), filtered, grouped by day.
+  const matches = (m: Meal) =>
+    filter.kind === 'all' ? true : filter.kind === 'person' ? m.memberId === filter.id : (m.withIds?.length ?? 0) > 0 || !!m.withOthers;
+  const weekMeals = inWeek(meals, days).filter(matches);
+  const shown = day === null ? weekMeals : weekMeals.filter((m) => sameDay(new Date(m.date), days[day]));
+  const groups: { day: Date; meals: Meal[] }[] = [];
+  for (const m of shown) {
+    const d = startOfDay(new Date(m.date));
+    const last = groups[groups.length - 1];
+    if (last && last.day.getTime() === d.getTime()) last.meals.push(m);
+    else groups.push({ day: d, meals: [m] });
+  }
+
+  const link = webUrl ? `${webUrl}` : '';
+  const goal = streakGoal(myStreak);
 
   return (
     <ScrollView
@@ -50,208 +78,263 @@ export default function OurTable({ onAdd, onMe }: { onAdd: () => void; onMe: () 
         />
       }
     >
-      <Hero>
+      {/* The table itself: everyone sitting around it, a green ring for those who shared today. */}
+      <View style={{ backgroundColor: C.mint, paddingTop: insets.top + 14, paddingHorizontal: 18, paddingBottom: 16, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, gap: 14 }}>
         <Row style={{ justifyContent: 'space-between' }}>
-          <View>
-            <T w="medium" size={14} color={C.deep}>
+          <View style={{ flex: 1 }}>
+            <T w="medium" size={15} color={C.deep}>
               {greeting()}, {me.name}
             </T>
-            <T w="bold" size={26}>
+            <T w="bold" size={28} style={{ lineHeight: 34 }}>
               Our Table
             </T>
           </View>
-          <Pressable onPress={onMe} accessibilityRole="button" accessibilityLabel="Me and settings">
-            <View style={{ borderWidth: 2, borderColor: C.white, borderRadius: 24 }}>
-              <Avatar member={me} size={42} />
-            </View>
+          <Pressable onPress={onMe} accessibilityRole="button" accessibilityLabel="Settings" style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: C.white, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="settings-outline" size={24} color={C.deep} />
           </Pressable>
         </Row>
-      </Hero>
 
-      <View style={{ padding: 20, gap: 16 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 14, paddingRight: 8 }}>
+          {family.members.map((m) => (
+            <Seat key={m.id} member={m} you={m.id === me.id} count={todaysOf(m.id).length} streak={streakOf(meals, m.id)} onPress={() => onPerson(m.id)} />
+          ))}
+        </ScrollView>
+
+        <Row gap={8}>
+          <Stat icon="flame" value={myStreak} label="day streak" tone="white" />
+          <Stat icon="star" value={myPoints} label="points" tone="white" />
+          <Stat icon="heart" value={heartsForMe} label="hearts" tone="pink" />
+        </Row>
+      </View>
+
+      <View style={{ padding: 16, gap: 14 }}>
         {store.session?.demo ? (
-          <Soft>
-            <T size={13} color={C.muted}>
-              This is a sample family. Nothing here is real. Change who you are in the top right corner.
-            </T>
-          </Soft>
+          <T size={14} color={C.muted}>
+            This is a sample family, nothing here is real. Tap anyone above to see their progress, or switch who you are in Settings.
+          </T>
         ) : null}
 
-        <Card style={{ gap: 14 }}>
-          <Row style={{ justifyContent: 'space-between' }}>
-            <T w="bold" size={19}>
-              Did you eat?
-            </T>
-            <Tag text={`${sharedToday} of ${family.members.length} today`} />
-          </Row>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-around', borderWidth: 1.5, borderColor: '#B9D6C6', borderStyle: 'dashed', borderRadius: 16, paddingVertical: 14, paddingHorizontal: 6 }}>
-            {family.members.map((m) => {
-              const meal = todayOf(m.id);
-              return (
-                <View key={m.id} style={{ alignItems: 'center', flex: 1, gap: 2 }}>
-                  <View>
-                    <Plate size={64} empty={!meal} photo={meal?.photo} handfuls={meal?.handfuls} />
-                    <View style={{ position: 'absolute', right: -6, bottom: -4, borderWidth: 2, borderColor: C.white, borderRadius: 14 }}>
-                      <Avatar member={m} size={24} />
-                    </View>
-                  </View>
-                  <T w="semibold" size={13} style={{ marginTop: 6 }} numberOfLines={1}>
-                    {m.id === me.id ? 'You' : m.name}
-                  </T>
-                  <T size={11} color={C.muted} center numberOfLines={1}>
-                    {meal ? `${meal.slot[0].toUpperCase()}${meal.slot.slice(1)}, ${timeText(meal.date)}` : m.joined ? 'Not yet' : 'Invited'}
-                  </T>
-                </View>
-              );
-            })}
-          </View>
-          {!iShared ? <Btn label="Show my plate" icon="camera-outline" onPress={onAdd} /> : null}
-        </Card>
-
-        {waiting.length > 0 && me.role === 'child' ? (
-          <Card style={{ gap: 10 }}>
-            <Eyebrow>Family code</Eyebrow>
-            <Row style={{ justifyContent: 'space-between' }}>
-              <T w="bold" size={28} style={{ letterSpacing: 4 }}>
-                {spacedCode(family.code)}
-              </T>
-              <Puti mood="hello" width={64} />
-            </Row>
-            <T size={14} color={C.muted}>
-              {waiting[0].name} hasn't joined yet. Send the code. All {waiting[0].name} does is enter it and take a photo.
-            </T>
-            <Btn
-              kind="ghost"
-              icon="paper-plane-outline"
-              label={copied ? 'Copied. Paste it in WhatsApp' : `Send ${waiting[0].name} the invite`}
-              onPress={async () => {
-                const how = await shareText(store.inviteMessage).catch(() => null);
-                if (how === 'copied') setCopied(true);
-              }}
-            />
-            {!store.cloud ? (
-              <T size={12} color={C.muted}>
-                Heads up: this copy of the app is not connected to a server yet, so phones can't see each other. See the README to connect Supabase.
-              </T>
-            ) : null}
-          </Card>
-        ) : null}
-
-        <Card style={{ gap: 8 }}>
-          <Row style={{ justifyContent: 'space-between' }}>
-            <Eyebrow>This week, together</Eyebrow>
-            <T size={12} color={C.muted}>
-              {weekDone} of {weekGoal}
-            </T>
-          </Row>
-          <T w="semibold">Everyone shares one meal a day</T>
-          <View style={{ height: 8, borderRadius: 4, backgroundColor: C.soft, overflow: 'hidden' }}>
-            <View style={{ height: 8, borderRadius: 4, backgroundColor: C.leaf, width: `${Math.min(100, Math.round((weekDone / Math.max(1, weekGoal)) * 100))}%` }} />
-          </View>
-        </Card>
-
-        {me.role === 'child' && parent && parentLast && quietDays !== null && quietDays <= 1 ? (
-          <Soft pink>
-            <Row>
-              <Puti mood="happy" width={56} />
+        {!iShared ? (
+          <View style={{ backgroundColor: C.white, borderRadius: 22, padding: 14, gap: 12, borderWidth: 2, borderColor: C.leaf }}>
+            <Row gap={10}>
+              <Puti mood="hello" width={70} />
               <View style={{ flex: 1 }}>
-                <T w="semibold" size={14}>
-                  Puti says, ask about this
+                <T w="bold" size={21}>
+                  Did you eat?
                 </T>
-                <T size={13} color="#5B4A4F">
-                  {parent.name} shared {parentLast.slot} {quietDays === 0 ? 'today' : 'yesterday'}. How did it turn out?
+                <T size={15} color={C.muted}>
+                  {myStreak > 0 ? `Share any meal or snack to keep your ${myStreak} day streak. ${goal - myStreak} more to reach ${goal}.` : `Share any meal or snack. That's +${POINTS.meal + POINTS.photo} points right away.`}
                 </T>
               </View>
             </Row>
-          </Soft>
+            <Btn label="Show my plate" icon="camera" onPress={onAdd} />
+          </View>
         ) : null}
 
-        {me.role === 'child' && parent && parentLast && quietDays !== null && quietDays >= 3 ? (
-          <Soft pink>
-            <T w="semibold" size={14}>
-              {parent.name}'s been quiet since {dayName(new Date(parentLast.date))}
-            </T>
-            <T size={13} color="#5B4A4F">
-              That happens. A call usually means more than a reminder, and we won't message {parent.name} about it.
-            </T>
-          </Soft>
+        {notesForMe.length ? (
+          <View style={{ backgroundColor: C.pinkSoft, borderRadius: 20, padding: 14, gap: 10 }}>
+            <Row gap={8}>
+              <Ionicons name="mail-open" size={20} color={C.heart} />
+              <T w="semibold" color="#8A2942">
+                Notes for you
+              </T>
+            </Row>
+            {notesForMe.map((c) => {
+              const from = store.member(c.fromId);
+              return (
+                <Row key={c.id} gap={10} style={{ alignItems: 'flex-start' }}>
+                  {from ? <Avatar member={from} size={32} /> : null}
+                  <View style={{ flex: 1, backgroundColor: C.white, borderRadius: 14, borderTopLeftRadius: 4, padding: 10 }}>
+                    <T size={16}>{c.text}</T>
+                    <T size={13} color={C.muted}>
+                      {from?.name ?? 'Family'} · {dayHeading(new Date(c.date))}
+                    </T>
+                  </View>
+                </Row>
+              );
+            })}
+          </View>
         ) : null}
 
-        {feed.length === 0 ? (
-          <Soft>
-            <T color={C.muted} size={14}>
-              The table is empty. Share the first plate and the family will see it here.
+        {quiet ? (
+          <View style={{ backgroundColor: C.white, borderRadius: 20, padding: 14, gap: 10, borderWidth: 1, borderColor: '#E6EBE6' }}>
+            <Row gap={10}>
+              <Avatar member={quiet} size={44} />
+              <View style={{ flex: 1 }}>
+                <T w="semibold">Say hi to {quiet.name}?</T>
+                <T size={14} color={C.muted}>
+                  {quiet.name} hasn't shared yet today. A kind word works better than a reminder.
+                </T>
+              </View>
+            </Row>
+            <Row gap={8}>
+              <Btn kind="ghost" icon="heart-outline" label="Send a note" onPress={() => onPerson(quiet.id)} style={{ flex: 1, alignSelf: 'auto', minHeight: 50 }} />
+              <Btn kind="ghost" icon="logo-whatsapp" label="WhatsApp" onPress={() => sendOnWhatsApp(nudgeText(quiet.name, iShared ? 'ask' : 'together', link))} style={{ flex: 1, alignSelf: 'auto', minHeight: 50 }} />
+            </Row>
+          </View>
+        ) : null}
+
+        {waiting.length > 0 && !store.session?.demo ? (
+          <View style={{ backgroundColor: C.white, borderRadius: 20, padding: 14, gap: 10, borderWidth: 1, borderColor: '#E6EBE6' }}>
+            <Eyebrow>Family code</Eyebrow>
+            <T w="bold" size={28} style={{ letterSpacing: 4 }}>
+              {spacedCode(family.code)}
             </T>
-          </Soft>
+            <T size={15} color={C.muted}>
+              {waiting[0].name} hasn't joined yet. All {waiting[0].name} does is open the link, enter the code and take a photo.
+            </T>
+            <Row gap={8}>
+              <Btn icon="logo-whatsapp" label="WhatsApp" onPress={() => sendOnWhatsApp(store.inviteMessage)} style={{ flex: 1, alignSelf: 'auto' }} />
+              <Btn
+                kind="ghost"
+                icon="share-outline"
+                label={copied ? 'Copied' : 'Other'}
+                onPress={async () => {
+                  const how = await shareText(store.inviteMessage).catch(() => null);
+                  if (how === 'copied') setCopied(true);
+                }}
+                style={{ flex: 1, alignSelf: 'auto' }}
+              />
+            </Row>
+            {!store.cloud ? (
+              <T size={13} color={C.muted}>
+                Heads up: this copy of the app isn't connected to a server yet, so phones can't see each other.
+              </T>
+            ) : null}
+          </View>
+        ) : null}
+
+        {!store.prefs.widgetSeen ? <WidgetCard onClose={() => store.setPrefs({ widgetSeen: true })} /> : null}
+
+        {/* Browse the weeks. Each ring fills as soon as anything is shared that day; the dots count the meals. */}
+        <View style={{ backgroundColor: C.white, borderRadius: 22, padding: 14, gap: 12, borderWidth: 1, borderColor: '#E6EBE6' }}>
+          <WeekStrip
+            days={days}
+            label={day === null ? weekLabel(offset, days) : dayHeading(days[day])}
+            counts={dayCounts(inWeek(meals, days).filter(matches), days)}
+            onPrev={() => {
+              setOffset(offset - 1);
+              setDay(null);
+            }}
+            onNext={offset < 0 ? () => (setOffset(offset + 1), setDay(null)) : undefined}
+            selected={day}
+            onDay={(i) => setDay(day === i ? null : i)}
+          />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            <Chip label="Everyone" on={filter.kind === 'all'} onPress={() => setFilter({ kind: 'all' })} />
+            {family.members.map((m) => (
+              <Chip key={m.id} label={m.id === me.id ? 'Me' : m.name} on={filter.kind === 'person' && filter.id === m.id} onPress={() => setFilter({ kind: 'person', id: m.id })} />
+            ))}
+            <Chip icon="people" label="Together" on={filter.kind === 'together'} onPress={() => setFilter({ kind: 'together' })} />
+          </ScrollView>
+        </View>
+
+        {groups.length === 0 ? (
+          <PutiSays mood="sleep" title={offset === 0 && day === null && filter.kind === 'all' ? 'The table is empty' : 'Nothing here'}>
+            {offset === 0 && filter.kind === 'all' ? 'Share the first plate and the family will see it here.' : 'Try another week, or tap "Everyone".'}
+          </PutiSays>
         ) : (
-          feed.map((meal) => <MealCard key={meal.id} meal={meal} />)
+          groups.map((g) => (
+            <View key={g.day.toISOString()} style={{ gap: 8 }}>
+              <Row style={{ justifyContent: 'space-between', paddingHorizontal: 4 }}>
+                <T w="bold" size={18}>
+                  {dayHeading(g.day)}
+                </T>
+                <T size={14} color={C.muted}>
+                  {g.meals.length} {g.meals.length === 1 ? 'plate' : 'plates'}
+                </T>
+              </Row>
+              {g.meals.map((meal) => (
+                <MealCard key={meal.id} meal={meal} onPerson={onPerson} />
+              ))}
+            </View>
+          ))
         )}
       </View>
     </ScrollView>
   );
 }
 
-function MealCard({ meal }: { meal: Meal }) {
-  const store = useStore();
-  const who = store.member(meal.memberId);
-  const mine = store.session ? meal.hearts.includes(store.session.meId) : false;
-  const portion = portionLine(meal.handfuls, store.goalFood);
-  const own = meal.memberId === store.session?.meId;
-  const [asking, setAsking] = useState(false);
-  const [failed, setFailed] = useState(false);
+/** A seat at the table: the person, a ring that fills when they have shared today, and their streak. */
+function Seat({ member, you, count, streak, onPress }: { member: Member; you: boolean; count: number; streak: number; onPress: () => void }) {
+  const done = count > 0;
   return (
-    <Card style={{ gap: 12 }}>
-      {meal.photo ? <Image source={{ uri: meal.photo }} style={{ width: '100%', aspectRatio: 4 / 3, borderRadius: 14, backgroundColor: C.soft }} resizeMode="cover" /> : null}
-      <Row>
-        {meal.photo ? who ? <Avatar member={who} size={40} /> : null : <Plate size={48} handfuls={meal.handfuls} />}
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${member.name}, ${done ? 'shared today' : 'not yet today'}. See progress`} style={{ alignItems: 'center', width: 72, gap: 2 }}>
+      <View style={{ padding: 3, borderRadius: 40, borderWidth: 3, borderColor: done ? C.leaf : 'rgba(31,122,90,0.18)', borderStyle: done ? 'solid' : 'dashed' }}>
+        <Avatar member={member} size={54} />
+        {done ? (
+          <View style={{ position: 'absolute', right: -4, bottom: -4, width: 24, height: 24, borderRadius: 12, backgroundColor: C.leaf, borderWidth: 2, borderColor: C.mint, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="checkmark" size={14} color={C.white} />
+          </View>
+        ) : null}
+      </View>
+      <T w="semibold" size={15} numberOfLines={1}>
+        {you ? 'You' : member.name}
+      </T>
+      <T size={12} color={C.muted} numberOfLines={1} style={{ lineHeight: 15 }}>
+        {!member.joined ? 'Invited' : streak > 0 ? `${streak} day${streak === 1 ? '' : 's'}` : done ? 'Shared' : 'Not yet'}
+      </T>
+    </Pressable>
+  );
+}
+
+/** Asks once to put the "Did you eat?" widget on the home screen, with the steps for this phone. */
+export function WidgetCard({ onClose }: { onClose: () => void }) {
+  const steps =
+    Platform.OS === 'android'
+      ? ['Press and hold an empty spot on your home screen', 'Tap Widgets, then find Amader', 'Drag "Did you eat?" onto the screen']
+      : Platform.OS === 'ios'
+        ? ['Press and hold an empty spot on your home screen', 'Tap the + in the top corner', 'Search Amader and tap Add Widget']
+        : ['Install the Amader app on your phone', 'Press and hold the home screen, then add the Amader widget', 'Log a meal with one tap, without opening the app'];
+  return (
+    <View style={{ backgroundColor: C.deep, borderRadius: 22, padding: 14, gap: 10 }}>
+      <Row gap={12}>
+        <MiniWidget />
         <View style={{ flex: 1 }}>
-          <T w="semibold">{meal.dish ? meal.dish : store.mealTitle(meal)}</T>
-          <T size={13} color={C.muted}>
-            {meal.dish ? `${store.mealTitle(meal)} · ` : ''}
-            {whenText(meal.date)}
-            {portion ? ` · ${portion}` : ''}
+          <T w="bold" size={18} color={C.white}>
+            Put "Did you eat?" on your home screen
+          </T>
+          <T size={14} color="#CFE6D9">
+            One tap logs a meal. No need to open the app.
           </T>
         </View>
-        <Pressable
-          onPress={() => store.toggleHeart(meal.id)}
-          accessibilityRole="button"
-          accessibilityLabel={mine ? 'Take back heart' : 'Send a heart'}
-          hitSlop={8}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.pinkSoft, borderRadius: 999, paddingHorizontal: 12, minHeight: 40 }}
-        >
-          <Ionicons name={mine ? 'heart' : 'heart-outline'} size={20} color={C.heart} />
-          {meal.hearts.length > 0 ? (
-            <T w="semibold" size={14} color="#8A2942">
-              {meal.hearts.length}
-            </T>
-          ) : null}
-        </Pressable>
       </Row>
-      {own ? (
-        asking ? (
-          <Row style={{ justifyContent: 'flex-end' }} gap={16}>
-            <T size={13} color={failed ? '#8A2942' : C.muted} style={{ flex: 1 }}>
-              {failed ? "We couldn't remove it. Try again." : 'Remove this meal for everyone?'}
+      {steps.map((step, i) => (
+        <Row key={i} gap={10}>
+          <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: C.leaf, alignItems: 'center', justifyContent: 'center' }}>
+            <T w="bold" size={14} color={C.white}>
+              {i + 1}
             </T>
-            <Pressable onPress={() => setAsking(false)} accessibilityRole="button" hitSlop={8}>
-              <T w="semibold" size={13} color={C.deep}>
-                Keep
-              </T>
-            </Pressable>
-            <Pressable onPress={() => store.removeMeal(meal.id).catch(() => setFailed(true))} accessibilityRole="button" hitSlop={8}>
-              <T w="semibold" size={13} color="#8A2942">
-                Remove
-              </T>
-            </Pressable>
-          </Row>
-        ) : (
-          <Pressable onPress={() => setAsking(true)} accessibilityRole="button" accessibilityLabel="Remove this meal" hitSlop={8} style={{ alignSelf: 'flex-end' }}>
-            <T size={13} color={C.muted}>
-              Remove
+          </View>
+          <T size={15} color={C.white} style={{ flex: 1 }}>
+            {step}
+          </T>
+        </Row>
+      ))}
+      <Btn kind="dark" label="Got it" onPress={onClose} />
+    </View>
+  );
+}
+
+/** A small drawing of the home screen widget. */
+export function MiniWidget({ size = 84 }: { size?: number }) {
+  return (
+    <View style={{ width: size, height: size, borderRadius: size * 0.24, backgroundColor: C.rice, padding: size * 0.09, justifyContent: 'space-between' }}>
+      <T w="bold" size={size * 0.13} color={C.deep} style={{ lineHeight: size * 0.17 }}>
+        Did you eat?
+      </T>
+      <Row gap={size * 0.05}>
+        {[1, 2, 3].map((n) => (
+          <View key={n} style={{ flex: 1, height: size * 0.26, borderRadius: size * 0.08, backgroundColor: n === 2 ? C.leaf : C.mint, alignItems: 'center', justifyContent: 'center' }}>
+            <T w="bold" size={size * 0.12} color={n === 2 ? C.white : C.deep} style={{ lineHeight: size * 0.15 }}>
+              {n}
             </T>
-          </Pressable>
-        )
-      ) : null}
-    </Card>
+          </View>
+        ))}
+      </Row>
+      <View style={{ height: size * 0.2, borderRadius: size * 0.1, backgroundColor: C.leaf, alignItems: 'center', justifyContent: 'center' }}>
+        <Ionicons name="camera" size={size * 0.13} color={C.white} />
+      </View>
+    </View>
   );
 }

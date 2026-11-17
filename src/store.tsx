@@ -2,25 +2,49 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { cloudBackend, localBackend, webUrl } from './backend';
-import { ChosenBy, Backend, Family, Guess, Meal, Member, Photo, Role, Session } from './types';
+import { Backend, Cheer, Family, Guess, Meal, Member, NewMeal, NewRecipe, Photo, Recipe, Role, Session } from './types';
 import { syncReminders } from './reminders';
 import { refreshWidgets } from './widgets';
 import { widgetData } from './widget-data';
-import { MILESTONES, newId, newestFirst, sameDay, slotAt } from './words';
+import { DEFAULT_TIMES, MILESTONES, MealTimes, newId, newestFirst, sameDay, slotAt } from './words';
 
 const SESSION = 'amader.session';
 const CHECKUP = 'amader.checkup';
 const PREFS = 'amader.prefs';
 
-interface Prefs {
+export interface Prefs {
   /** Let food recognition look at my photos. Null until the person has been asked. */
   guessOn: boolean | null;
+  /** "Did you eat?" after each usual meal. */
   reminderOn: boolean;
-  reminderHour: number;
-  /** Let Amader keep my photos and answers to improve recognition. Off unless the person turns it on. */
-  improveOn: boolean;
+  /** A surprise "having a snack?" once a day. */
+  nudgesOn: boolean;
+  /** Let Amader keep my photos and answers to improve recognition. Null until asked. */
+  improveOn: boolean | null;
+  times: MealTimes;
+  ramadan: boolean;
+  suhoorHour: number;
+  iftarHour: number;
+  /** Onboarding finished on this phone. */
+  onboarded: boolean;
+  /** The "add the widget" card was shown or closed. */
+  widgetSeen: boolean;
+  /** Lessons already answered, so new ones come first. */
+  learned: string[];
 }
-const DEFAULT_PREFS: Prefs = { guessOn: null, reminderOn: false, reminderHour: 19, improveOn: false };
+const DEFAULT_PREFS: Prefs = {
+  guessOn: null,
+  reminderOn: false,
+  nudgesOn: false,
+  improveOn: null,
+  times: DEFAULT_TIMES,
+  ramadan: false,
+  suhoorHour: 4,
+  iftarHour: 18,
+  onboarded: false,
+  widgetSeen: false,
+  learned: [],
+};
 
 interface Store {
   ready: boolean;
@@ -30,6 +54,8 @@ interface Store {
   family: Family | null;
   /** Newest first. */
   meals: Meal[];
+  cheers: Cheer[];
+  recipes: Recipe[];
   me: Member | null;
   goalFood: string;
   goalHandfuls: number;
@@ -47,19 +73,23 @@ interface Store {
   inviteInfo(code: string): Promise<{ parentName: string | null; fromName: string | null } | null>;
   joinFamily(input: { code: string; name: string; role: Role }): Promise<void>;
   loadDemo(): Promise<void>;
-  addMeal(photo: Photo | null, handfuls: number | null, guess?: Guess | null, chosenBy?: ChosenBy): Promise<Meal>;
+  addMeal(input: NewMeal): Promise<Meal>;
   /** Asks food recognition what is in the photo. Null when it is off or cannot tell. */
-  recognize(photo: Photo, justAgreed?: boolean): Promise<Guess | null>;
+  recognize(photo: Photo, options?: { justAgreed?: boolean; party?: boolean }): Promise<Guess | null>;
   prefs: Prefs;
+  setPrefs(change: Partial<Prefs>): void;
   setGuessOn(on: boolean): void;
   /** Turning this off also takes back what was already shared. Resolves false if that failed. */
   setImproveOn(on: boolean): Promise<boolean>;
-  /** Turns the daily reminder on or off. Resolves false if the phone refused. */
-  setReminder(on: boolean, hour?: number): Promise<boolean>;
+  /** Turns reminders on or off. Resolves false if the phone refused. */
+  setReminders(change: Partial<Pick<Prefs, 'reminderOn' | 'nudgesOn' | 'times' | 'ramadan' | 'suhoorHour' | 'iftarHour'>>): Promise<boolean>;
   /** Set by a widget, reminder or link that should open the camera or log a quick meal. */
   pendingAction: PendingAction | null;
   setPendingAction(action: PendingAction | null): void;
   toggleHeart(mealId: string): void;
+  sendCheer(toId: string, text: string, mealId?: string | null): Promise<void>;
+  addRecipe(recipe: NewRecipe): Promise<Recipe>;
+  deleteRecipe(recipeId: string): Promise<void>;
   setGoal(goalFood: string, goalHandfuls: number): void;
   /** Sample family only: look at the app as someone else. */
   viewAs(memberId: string): void;
@@ -93,13 +123,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [family, setFamily] = useState<Family | null>(null);
   const [meals, setMeals] = useState<Meal[]>([]);
+  const [cheers, setCheers] = useState<Cheer[]>([]);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [pendingCode, setPendingCode] = useState<string | null>(null);
   const [checkupDate, setCheckup] = useState<string | null>(null);
-  const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
+  const [prefs, setPrefsState] = useState<Prefs>(DEFAULT_PREFS);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const lastSync = useRef({ remind: '', widget: '' });
   const sessionRef = useRef<Session | null>(null);
   sessionRef.current = session;
+  const prefsRef = useRef(prefs);
+  prefsRef.current = prefs;
 
   const pull = useCallback(async (s: Session | null) => {
     if (!s) return;
@@ -107,6 +141,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!data || sessionRef.current?.code !== s.code) return;
     setFamily(data.family);
     setMeals(newestFirst(data.meals));
+    setCheers([...data.cheers].sort((a, b) => (a.date < b.date ? 1 : -1)));
+    setRecipes([...data.recipes].sort((a, b) => (a.date < b.date ? 1 : -1)));
   }, []);
 
   const start = useCallback(
@@ -126,7 +162,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const raw = await AsyncStorage.getItem(SESSION);
         setCheckup(await AsyncStorage.getItem(CHECKUP));
         const savedPrefs = await AsyncStorage.getItem(PREFS);
-        if (savedPrefs) setPrefs({ ...DEFAULT_PREFS, ...(JSON.parse(savedPrefs) as Partial<Prefs>) });
+        if (savedPrefs) {
+          const old = JSON.parse(savedPrefs) as Partial<Prefs> & { reminderHour?: number };
+          // People who used the app before onboarding existed have already been through it.
+          setPrefsState({ ...DEFAULT_PREFS, onboarded: !!raw, ...old, times: { ...DEFAULT_TIMES, ...(old.times ?? {}) } });
+        }
         if (raw) {
           const s = JSON.parse(raw) as Session;
           sessionRef.current = s;
@@ -156,36 +196,47 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!ready || !session || !family) return;
     const today = new Date();
-    const mine = meals.filter((m) => m.memberId === session.meId);
-    const sharedToday = mine.some((m) => sameDay(new Date(m.date), today));
+    const doneToday = meals.filter((m) => m.memberId === session.meId && sameDay(new Date(m.date), today)).map((m) => m.slot);
     // The table is re-read every 15 seconds. Only touch reminders and widgets when something they show has changed,
     // otherwise the phone would re-plan a week of reminders and redraw the widget four times a minute.
     const widget = widgetData({ family, meals, meId: session.meId }, today);
-    const remindKey = JSON.stringify([prefs.reminderOn, prefs.reminderHour, sharedToday, today.toDateString()]);
+    const plan = {
+      on: prefs.reminderOn,
+      nudges: prefs.nudgesOn,
+      times: prefs.times,
+      ramadan: prefs.ramadan,
+      suhoorHour: prefs.suhoorHour,
+      iftarHour: prefs.iftarHour,
+      doneToday,
+    };
+    const remindKey = JSON.stringify([plan, today.toDateString()]);
     const widgetKey = JSON.stringify(widget);
     if (remindKey !== lastSync.current.remind) {
       lastSync.current.remind = remindKey;
-      syncReminders(prefs.reminderOn, prefs.reminderHour, sharedToday);
+      syncReminders(plan);
     }
     if (widgetKey !== lastSync.current.widget) {
       lastSync.current.widget = widgetKey;
       refreshWidgets({ family, meals, meId: session.meId });
     }
-  }, [ready, session, family, meals, prefs.reminderOn, prefs.reminderHour]);
+  }, [ready, session, family, meals, prefs]);
 
   const value = useMemo<Store>(() => {
-    const savePrefs = (next: Prefs) => {
-      setPrefs(next);
+    const savePrefs = (change: Partial<Prefs>) => {
+      const next = { ...prefsRef.current, ...change };
+      prefsRef.current = next;
+      setPrefsState(next);
       AsyncStorage.setItem(PREFS, JSON.stringify(next));
     };
 
     const me = family?.members.find((m) => m.id === session?.meId) ?? null;
     const goalFood = family?.goalFood ?? 'Rice';
     const goalHandfuls = family?.goalHandfuls ?? 2;
-    const myMealCount = meals.filter((m) => m.memberId === session?.meId).length;
+    const myMealCount = meals.filter((m) => m.memberId === session?.meId && m.slot !== 'fasting').length;
     const nextMilestone = MILESTONES.find((n) => n > myMealCount) ?? (Math.floor(myMealCount / 100) + 1) * 100;
     const member = (id: string) => family?.members.find((m) => m.id === id);
     const parent = family?.members.find((m) => m.role === 'parent' && m.id !== me?.id);
+    // The code sits after # so it never reaches the web host's logs or a link preview.
     const link = webUrl && family ? `\n${webUrl}/#join=${family.code}` : '';
     const inviteMessage = family
       ? `${parent?.name ?? 'Hi'}, did you eat? I set up Amader for us. ${webUrl ? 'Tap the link' : 'Open the app'} and enter our family code ${family.code}, then send me a photo of your plate. I'll send mine too.${link}`
@@ -197,6 +248,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       session,
       family,
       meals,
+      cheers,
+      recipes,
       me,
       goalFood,
       goalHandfuls,
@@ -212,8 +265,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       },
       member,
       mealTitle(meal) {
-        if (meal.memberId === session?.meId) return `Your ${meal.slot}`;
-        return `${member(meal.memberId)?.name ?? 'Someone'}'s ${meal.slot}`;
+        const what = meal.slot === 'fasting' ? 'fasting day' : meal.slot;
+        if (meal.memberId === session?.meId) return `Your ${what}`;
+        return `${member(meal.memberId)?.name ?? 'Someone'}'s ${what}`;
       },
       inviteMessage,
 
@@ -228,12 +282,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setPendingCode(null);
       },
       async loadDemo() {
+        savePrefs({ onboarded: true, guessOn: true, improveOn: false });
         await start(await localBackend.seedDemo());
       },
 
       prefs,
+      setPrefs: savePrefs,
       setGuessOn(on) {
-        savePrefs({ ...prefs, guessOn: on });
+        savePrefs({ guessOn: on });
       },
       async setImproveOn(on) {
         if (!on && session) {
@@ -243,41 +299,72 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             return false;
           }
         }
-        savePrefs({ ...prefs, improveOn: on });
+        savePrefs({ improveOn: on });
         return true;
       },
-      async setReminder(on, hour) {
-        const reminderHour = hour ?? prefs.reminderHour;
-        if (!on) {
-          savePrefs({ ...prefs, reminderOn: false, reminderHour });
-          return true;
-        }
+      async setReminders(change) {
+        const next = { ...prefsRef.current, ...change };
         const today = new Date();
-        const sharedToday = meals.some((m) => m.memberId === session?.meId && sameDay(new Date(m.date), today));
-        const ok = await syncReminders(true, reminderHour, sharedToday);
-        savePrefs({ ...prefs, reminderOn: ok, reminderHour });
+        const doneToday = meals.filter((m) => m.memberId === session?.meId && sameDay(new Date(m.date), today)).map((m) => m.slot);
+        const ok = await syncReminders({
+          on: next.reminderOn,
+          nudges: next.nudgesOn,
+          times: next.times,
+          ramadan: next.ramadan,
+          suhoorHour: next.suhoorHour,
+          iftarHour: next.iftarHour,
+          doneToday,
+        });
+        // If the phone said no, keep the times but show the reminders as off.
+        savePrefs(ok ? change : { ...change, reminderOn: false, nudgesOn: false });
         return ok;
       },
       pendingAction,
       setPendingAction,
-      async recognize(photo, justAgreed) {
+      async recognize(photo, options) {
         // A photo only goes to the AI service after the person has said yes. The sample family uses a canned guess.
-        if (!session || !(session.demo || prefs.guessOn === true || justAgreed)) return null;
+        if (!session || !(session.demo || prefs.guessOn === true || options?.justAgreed)) return null;
         // On this phone only there is no real recognition. Only the sample family shows a sample guess.
         if (backendFor(session).mode === 'local' && !session.demo) return null;
-        return backendFor(session).recognize(photo, goalFood).catch(() => null);
+        return backendFor(session).recognize(photo, goalFood, options?.party).catch(() => null);
       },
 
-      async addMeal(photo, handfuls, guess, chosenBy = 'tap') {
+      async addMeal(input) {
         if (!session) throw new Error('No family yet.');
         const now = new Date();
-        const draft: Meal = { id: newId(), memberId: session.meId, date: now.toISOString(), slot: slotAt(now), photo: null, handfuls, hearts: [], dish: guess?.dish || null, parts: guess?.parts ?? null };
-        const saved = await backendFor(session).addMeal(session.code, draft, photo);
+        const p = input.portions;
+        const draft: Meal = {
+          id: newId(),
+          memberId: session.meId,
+          date: now.toISOString(),
+          slot: input.slot,
+          photo: null,
+          handfuls: p ? p.grains : null,
+          protein: p ? p.protein : null,
+          veg: p ? p.veg : null,
+          hearts: [],
+          dish: input.guess?.dish || null,
+          parts: input.guess?.parts ?? null,
+          note: input.note?.trim() || null,
+          voice: null,
+          withIds: input.withIds ?? [],
+          withOthers: input.withOthers?.trim() || null,
+          party: !!input.party,
+        };
+        const saved = await backendFor(session).addMeal(session.code, draft, input.photo, input.voice ?? null);
         setMeals((list) => newestFirst([saved, ...list.filter((m) => m.id !== saved.id)]));
-        if (photo && prefs.improveOn && !session.demo) {
+        if (input.photo && prefs.improveOn === true && !session.demo) {
           // Never holds up saving the meal.
           backendFor(session)
-            .saveExample({ mealId: saved.id, memberId: session.meId, code: session.code, goalFood, guess: guess && !guess.sample ? guess : null, handfuls, chosenBy })
+            .saveExample({
+              mealId: saved.id,
+              memberId: session.meId,
+              code: session.code,
+              goalFood,
+              guess: input.guess && !input.guess.sample ? input.guess : null,
+              handfuls: saved.handfuls,
+              chosenBy: input.chosenBy ?? 'tap',
+            })
             .catch(() => undefined);
         }
         if (session.demo) {
@@ -302,6 +389,39 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           list.map((m) => (m.id === mealId ? { ...m, hearts: on ? [...m.hearts, session.meId] : m.hearts.filter((id) => id !== session.meId) } : m)),
         );
         backendFor(session).setHeart(mealId, session.meId, on).catch(() => pull(session));
+      },
+
+      async sendCheer(toId, text, mealId) {
+        if (!session) return;
+        const cheer: Cheer = { id: newId(), fromId: session.meId, toId, text: text.trim().slice(0, 200), date: new Date().toISOString(), mealId: mealId ?? null };
+        if (!cheer.text) return;
+        await backendFor(session).sendCheer(session.code, cheer);
+        setCheers((list) => [cheer, ...list]);
+      },
+
+      async addRecipe(input) {
+        if (!session) throw new Error('No family yet.');
+        const draft: Recipe = {
+          id: newId(),
+          addedBy: session.meId,
+          title: input.title.trim(),
+          from: input.from.trim(),
+          ingredients: input.ingredients.trim(),
+          steps: input.steps.trim(),
+          story: input.story?.trim() || null,
+          photo: null,
+          voice: null,
+          date: new Date().toISOString(),
+        };
+        const saved = await backendFor(session).addRecipe(session.code, draft, input.photo, input.voice);
+        setRecipes((list) => [saved, ...list]);
+        return saved;
+      },
+
+      async deleteRecipe(recipeId) {
+        if (!session) return;
+        await backendFor(session).deleteRecipe(session.code, recipeId);
+        setRecipes((list) => list.filter((r) => r.id !== recipeId));
       },
 
       setGoal(food, handfuls) {
@@ -332,12 +452,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         }
         await localBackend.clear();
         await AsyncStorage.multiRemove([SESSION, CHECKUP, PREFS]);
-        await syncReminders(false, 19, false);
-        setPrefs(DEFAULT_PREFS);
+        await syncReminders({ on: false, nudges: false, times: DEFAULT_TIMES, ramadan: false, suhoorHour: 4, iftarHour: 18, doneToday: [] });
+        prefsRef.current = DEFAULT_PREFS;
+        setPrefsState(DEFAULT_PREFS);
         sessionRef.current = null;
         setSession(null);
         setFamily(null);
         setMeals([]);
+        setCheers([]);
+        setRecipes([]);
         setCheckup(null);
       },
 
@@ -345,7 +468,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         await pull(session);
       },
     };
-  }, [ready, session, family, meals, pendingCode, checkupDate, prefs, pendingAction, pull, start]);
+  }, [ready, session, family, meals, cheers, recipes, pendingCode, checkupDate, prefs, pendingAction, pull, start]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
+
+export { slotAt };

@@ -18,7 +18,8 @@
       "bundleIdentifier": "app.amader.mobile",
       "infoPlist": {
         "NSCameraUsageDescription": "Amader uses the camera so you can share a photo of your meal with your family.",
-        "NSPhotoLibraryUsageDescription": "Amader lets you pick a photo of your meal to share with your family."
+        "NSPhotoLibraryUsageDescription": "Amader lets you pick a photo of your meal to share with your family.",
+        "NSMicrophoneUsageDescription": "Amader uses the microphone so you can send your family a voice note about your meal or a recipe."
       }
     },
     "android": {
@@ -43,6 +44,12 @@
         {
           "cameraPermission": "Amader uses the camera so you can share a photo of your meal with your family.",
           "photosPermission": "Amader lets you pick a photo of your meal to share with your family."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Amader uses the microphone so you can send your family a voice note about your meal or a recipe."
         }
       ],
       [

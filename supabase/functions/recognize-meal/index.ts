@@ -36,13 +36,17 @@ const Guess = z.object({
   veg_percent: z.number().describe("Share that is vegetables, dal, beans or salad, 0 to 100."),
   protein_percent: z.number().describe("Share that is fish, meat, eggs, paneer or tofu, 0 to 100."),
   other_percent: z.number().describe("Share that is anything else, such as sweets, fried snacks or sauces, 0 to 100."),
-  goal_food_amount: z.number().describe("Rough amount of the goal food on the plate, as a whole number from 0 to 4. 0 means none, 4 means four or more."),
+  goal_food_amount: z.number().describe("Rough amount of rice, roti or other grains on the plate in closed fists (one fist is about half a cup), whole number 0 to 4."),
+  protein_palms: z.number().describe("Rough amount of fish, meat, eggs, dal, paneer or tofu in palms (palm sized portions), whole number 0 to 4."),
+  veg_handfuls: z.number().describe("Rough amount of vegetables, sabzi or salad in open handfuls, whole number 0 to 4."),
+  items: z.array(z.string()).describe("For a buffet or party plate, a short name for each separate food on it, at most 10. Empty for an ordinary plate."),
   confident: z.boolean().describe("False if the photo is too dark, blurry or far away to judge."),
 });
 
 const SYSTEM = `You look at a photo of a home meal and describe what is on the plate for a family meal-sharing app.
 Many of the families are South Asian, so expect dishes like biryani, khichdi, dal, sabzi, roti, paratha, curry, raita and mithai, and name them the way a family would.
-Estimate the goal food in the unit given by the user. For rice, one handful is one cupped palm of cooked rice, roughly half a cup.
+Estimate portions with hands: grains in closed fists (about half a cup each), protein in palms, vegetables in open handfuls.
+If the user says it is a party or buffet plate, list each separate food in items.
 The four percentages describe the food you can see and should add up to about 100.
 Be honest about uncertainty: if you cannot tell, set confident to false rather than guessing.
 Never mention calories, carbohydrates, blood sugar, health or advice.`;
@@ -73,7 +77,7 @@ Deno.serve(async (req) => {
     const noted = await admin.from("recognitions").insert({ user_id: user.id });
     if (noted.error) return json({ error: "Something went wrong." }, 500);
 
-    const { image, goal_food, unit } = await req.json();
+    const { image, goal_food, unit, party } = await req.json();
     if (typeof image !== "string" || image.length < 100) return json({ error: "No photo was sent." }, 400);
     // About 3 MB of photo. The app shrinks photos well below this before sending.
     if (image.length > 4_200_000) return json({ error: "That photo is too large." }, 413);
@@ -94,7 +98,10 @@ Deno.serve(async (req) => {
           role: "user",
           content: [
             { type: "image", source: { type: "base64", media_type: "image/jpeg", data: image } },
-            { type: "text", text: `The family's goal food is ${food}, counted in ${measure}. What is on this plate?` },
+            {
+              type: "text",
+              text: `The family's main grain is ${food}, counted in ${measure}. ${party === true ? "This is a buffet or party plate. " : ""}What is on this plate?`,
+            },
           ],
         },
       ],
@@ -115,6 +122,9 @@ Deno.serve(async (req) => {
           other: clamp(guess.other_percent),
         },
         amount: guess.confident ? Math.max(0, Math.min(4, Math.round(guess.goal_food_amount))) : null,
+        protein: guess.confident ? Math.max(0, Math.min(4, Math.round(guess.protein_palms))) : null,
+        veg: guess.confident ? Math.max(0, Math.min(4, Math.round(guess.veg_handfuls))) : null,
+        items: guess.items.map((x) => x.trim().slice(0, 40)).filter(Boolean).slice(0, 10),
         confident: guess.confident,
       },
     });

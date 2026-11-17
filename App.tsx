@@ -13,6 +13,7 @@ import Teach from './src/screens/Teach';
 import SetupFamily from './src/screens/SetupFamily';
 import Join from './src/screens/Join';
 import Main from './src/screens/Main';
+import Onboarding from './src/screens/Onboarding';
 
 function codeFromUrl(url: string | null): string | null {
   const match = url ? /[?&#]join=([A-Za-z0-9]+)/.exec(url) : null;
@@ -32,6 +33,15 @@ function Root() {
   const store = useStore();
   const [step, setStep] = useState<'welcome' | 'setup' | 'join' | 'teach'>('welcome');
   const [justJoined, setJustJoined] = useState(false);
+
+  // After leaving a family, start again from the first screen, not the screen used to join.
+  const hasSession = !!store.session;
+  useEffect(() => {
+    if (!hasSession) {
+      setStep('welcome');
+      setJustJoined(false);
+    }
+  }, [hasSession]);
 
   // The link uses # so the code never reaches the web host's logs or link previews.
   // An invite link (…#join=CODE) drops the person straight on the join screen.
@@ -82,6 +92,7 @@ function Root() {
   }
 
   if (store.session && store.family) {
+    if (!store.prefs.onboarded) return <Onboarding />;
     return <Main openCamera={justJoined} />;
   }
 

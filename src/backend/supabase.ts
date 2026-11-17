@@ -1,12 +1,32 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Backend, Family, Guess, Meal, Member, Parts, Role, Slot } from '../types';
+import { Backend, Cheer, Family, Guess, Meal, Member, Parts, Recipe, Role, Slot, Voice } from '../types';
 import { unitWord } from '../words';
 
 const BUCKET = 'meal-photos';
+const VOICE = 'meal-voice';
 
 type MemberRow = { id: string; name: string; role: Role; tint: number; joined: boolean; created_at: string };
-type MealRow = { id: string; member_id: string; eaten_at: string; slot: Slot; photo_url: string | null; handfuls: number | null; dish: string | null; parts: Parts | null; hearts: { member_id: string }[] | null };
+type MealRow = {
+  id: string;
+  member_id: string;
+  eaten_at: string;
+  slot: Slot;
+  photo_url: string | null;
+  handfuls: number | null;
+  protein: number | null;
+  veg: number | null;
+  dish: string | null;
+  parts: Parts | null;
+  note: string | null;
+  voice_url: string | null;
+  with_ids: string[] | null;
+  with_others: string | null;
+  party: boolean | null;
+  hearts: { member_id: string }[] | null;
+};
+type CheerRow = { id: string; from_id: string; to_id: string; meal_id: string | null; text: string; created_at: string };
+type RecipeRow = { id: string; added_by: string; title: string; from_whom: string; ingredients: string; steps: string; story: string | null; photo_url: string | null; voice_url: string | null; created_at: string };
 
 function base64ToBytes(base64: string): Uint8Array {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -53,19 +73,37 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
 
   /** The saved value is a file path. Older rows saved a full public address, so cut the path out of those. */
   function pathOf(saved: string): string {
-    const mark = `/${BUCKET}/`;
-    const at = saved.indexOf(mark);
-    return at >= 0 ? saved.slice(at + mark.length).split('?')[0] : saved;
+    for (const bucket of [BUCKET, VOICE]) {
+      const mark = `/${bucket}/`;
+      const at = saved.indexOf(mark);
+      if (at >= 0) return saved.slice(at + mark.length).split('?')[0];
+    }
+    return saved;
   }
 
-  async function sign(paths: string[]): Promise<void> {
+  async function sign(paths: string[], bucket = BUCKET): Promise<void> {
     const now = Date.now();
-    const need = [...new Set(paths)].filter((p) => (links.get(p)?.until ?? 0) < now + 5 * 60_000);
+    const need = [...new Set(paths)].filter((p) => (links.get(bucket + ':' + p)?.until ?? 0) < now + 5 * 60_000);
     if (!need.length) return;
-    const { data } = await db.storage.from(BUCKET).createSignedUrls(need, LINK_SECONDS);
+    const { data } = await db.storage.from(bucket).createSignedUrls(need, LINK_SECONDS);
     (data ?? []).forEach((row) => {
-      if (row.path && row.signedUrl) links.set(row.path, { url: row.signedUrl, until: now + LINK_SECONDS * 1000 });
+      if (row.path && row.signedUrl) links.set(bucket + ':' + row.path, { url: row.signedUrl, until: now + LINK_SECONDS * 1000 });
     });
+  }
+  const linkOf = (saved: string | null, bucket = BUCKET) => (saved ? (links.get(bucket + ':' + pathOf(saved))?.url ?? null) : null);
+
+  /** Voice notes are recorded as m4a on phones and webm in browsers. Both are stored under .m4a so the rules can check the name. */
+  async function uploadVoice(path: string, voice: Voice) {
+    const blob = await (await fetch(voice.uri)).blob();
+    const type = blob.type && blob.type.startsWith('audio/') ? blob.type : 'audio/mp4';
+    const up = await db.storage.from(VOICE).upload(path, blob, { contentType: type, upsert: false });
+    fail(up.error);
+  }
+
+  async function uploadPhoto(path: string, photo: { uri: string; base64: string | null }) {
+    const body = photo.base64 ? base64ToBytes(photo.base64) : await (await fetch(photo.uri)).arrayBuffer();
+    const up = await db.storage.from(BUCKET).upload(path, body, { contentType: 'image/jpeg', upsert: false });
+    fail(up.error);
   }
 
   // Each family's photos sit in a folder with a random name, separate from the family code.
@@ -120,41 +158,75 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
       const mem = await db.from('members').select('id, name, role, tint, joined, created_at').eq('family_code', code).order('created_at');
       fail(mem.error);
       const since = new Date(Date.now() - 120 * 86_400_000).toISOString();
-      const mealRows = await db
-        .from('meals')
-        .select('id, member_id, eaten_at, slot, photo_url, handfuls, dish, parts, hearts(member_id)')
-        .eq('family_code', code)
-        .gte('eaten_at', since)
-        .order('eaten_at', { ascending: false });
+      const [mealRows, cheerRows, recipeRows] = await Promise.all([
+        db
+          .from('meals')
+          .select('id, member_id, eaten_at, slot, photo_url, handfuls, protein, veg, dish, parts, note, voice_url, with_ids, with_others, party, hearts(member_id)')
+          .eq('family_code', code)
+          .gte('eaten_at', since)
+          .order('eaten_at', { ascending: false }),
+        db.from('cheers').select('id, from_id, to_id, meal_id, text, created_at').eq('family_code', code).gte('created_at', since).order('created_at', { ascending: false }),
+        db.from('recipes').select('id, added_by, title, from_whom, ingredients, steps, story, photo_url, voice_url, created_at').eq('family_code', code).order('created_at', { ascending: false }),
+      ]);
       fail(mealRows.error);
+      fail(cheerRows.error);
+      fail(recipeRows.error);
       const members: Member[] = ((mem.data ?? []) as MemberRow[]).map((m) => ({ id: m.id, name: m.name, role: m.role, tint: m.tint, joined: m.joined }));
       const family: Family = { code: fam.data.code, members, goalFood: fam.data.goal_food, goalHandfuls: fam.data.goal_handfuls };
       const rows = (mealRows.data ?? []) as unknown as MealRow[];
-      await sign(rows.filter((m) => m.photo_url).map((m) => pathOf(m.photo_url as string)));
+      const recipeList = (recipeRows.data ?? []) as RecipeRow[];
+      await Promise.all([
+        sign([...rows.filter((m) => m.photo_url).map((m) => pathOf(m.photo_url as string)), ...recipeList.filter((r) => r.photo_url).map((r) => pathOf(r.photo_url as string))]),
+        sign([...rows.filter((m) => m.voice_url).map((m) => pathOf(m.voice_url as string)), ...recipeList.filter((r) => r.voice_url).map((r) => pathOf(r.voice_url as string))], VOICE),
+      ]);
       const meals: Meal[] = rows.map((m) => ({
         id: m.id,
         memberId: m.member_id,
         date: m.eaten_at,
         slot: m.slot,
-        photo: m.photo_url ? (links.get(pathOf(m.photo_url))?.url ?? null) : null,
+        photo: linkOf(m.photo_url),
         handfuls: m.handfuls,
+        protein: m.protein,
+        veg: m.veg,
         dish: m.dish,
         parts: m.parts,
+        note: m.note,
+        voice: linkOf(m.voice_url, VOICE),
+        withIds: m.with_ids ?? [],
+        withOthers: m.with_others,
+        party: !!m.party,
         hearts: (m.hearts ?? []).map((h) => h.member_id),
       }));
-      return { family, meals };
+      const cheers: Cheer[] = ((cheerRows.data ?? []) as CheerRow[]).map((c) => ({ id: c.id, fromId: c.from_id, toId: c.to_id, mealId: c.meal_id, text: c.text, date: c.created_at }));
+      const recipes: Recipe[] = recipeList.map((r) => ({
+        id: r.id,
+        addedBy: r.added_by,
+        title: r.title,
+        from: r.from_whom,
+        ingredients: r.ingredients,
+        steps: r.steps,
+        story: r.story,
+        photo: linkOf(r.photo_url),
+        voice: linkOf(r.voice_url, VOICE),
+        date: r.created_at,
+      }));
+      return { family, meals, cheers, recipes };
     },
 
-    async addMeal(code, meal, photo) {
+    async addMeal(code, meal, photo, voice) {
       await signedIn();
+      const folder = await folderOf(code);
       let photoPath: string | null = null;
+      let voicePath: string | null = null;
       if (photo) {
-        const path = `${await folderOf(code)}/${meal.id}.jpg`;
-        const body = photo.base64 ? base64ToBytes(photo.base64) : await (await fetch(photo.uri)).arrayBuffer();
-        const up = await db.storage.from(BUCKET).upload(path, body, { contentType: 'image/jpeg', upsert: false });
-        fail(up.error);
-        photoPath = path;
-        await sign([path]);
+        photoPath = `${folder}/${meal.id}.jpg`;
+        await uploadPhoto(photoPath, photo);
+        await sign([photoPath]);
+      }
+      if (voice) {
+        voicePath = `${folder}/${meal.id}.m4a`;
+        await uploadVoice(voicePath, voice);
+        await sign([voicePath], VOICE);
       }
       const { error } = await db.from('meals').insert({
         id: meal.id,
@@ -164,18 +236,65 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
         slot: meal.slot,
         photo_url: photoPath,
         handfuls: meal.handfuls,
+        protein: meal.protein ?? null,
+        veg: meal.veg ?? null,
         dish: meal.dish ?? null,
         parts: meal.parts ?? null,
+        note: meal.note ?? null,
+        voice_url: voicePath,
+        with_ids: meal.withIds ?? [],
+        with_others: meal.withOthers ?? null,
+        party: !!meal.party,
       });
       fail(error);
-      return { ...meal, photo: photoPath ? (links.get(photoPath)?.url ?? photo?.uri ?? null) : null };
+      return { ...meal, photo: photoPath ? (linkOf(photoPath) ?? photo?.uri ?? null) : null, voice: voicePath ? (linkOf(voicePath, VOICE) ?? voice?.uri ?? null) : null };
     },
 
-    async recognize(photo, goalFood) {
+    async sendCheer(code, cheer) {
+      await signedIn();
+      const { error } = await db.from('cheers').insert({ id: cheer.id, family_code: code, from_id: cheer.fromId, to_id: cheer.toId, meal_id: cheer.mealId ?? null, text: cheer.text });
+      fail(error);
+    },
+
+    async addRecipe(code, recipe, photo, voice) {
+      await signedIn();
+      const folder = await folderOf(code);
+      const photoPath = photo ? `${folder}/recipes/${recipe.id}.jpg` : null;
+      const voicePath = voice ? `${folder}/recipes/${recipe.id}.m4a` : null;
+      if (photo && photoPath) await uploadPhoto(photoPath, photo);
+      if (voice && voicePath) await uploadVoice(voicePath, voice);
+      const { error } = await db.from('recipes').insert({
+        id: recipe.id,
+        family_code: code,
+        added_by: recipe.addedBy,
+        title: recipe.title,
+        from_whom: recipe.from,
+        ingredients: recipe.ingredients,
+        steps: recipe.steps,
+        story: recipe.story ?? null,
+        photo_url: photoPath,
+        voice_url: voicePath,
+      });
+      fail(error);
+      if (photoPath) await sign([photoPath]);
+      if (voicePath) await sign([voicePath], VOICE);
+      return { ...recipe, photo: photoPath ? linkOf(photoPath) : null, voice: voicePath ? linkOf(voicePath, VOICE) : null };
+    },
+
+    async deleteRecipe(code, recipeId) {
+      await signedIn();
+      const folder = await folderOf(code);
+      await db.storage.from(BUCKET).remove([`${folder}/recipes/${recipeId}.jpg`]);
+      await db.storage.from(VOICE).remove([`${folder}/recipes/${recipeId}.m4a`]);
+      const { error } = await db.from('recipes').delete().eq('id', recipeId);
+      fail(error);
+    },
+
+    async recognize(photo, goalFood, party) {
       if (!photo.base64) return null;
       await signedIn();
       const { data, error } = await db.functions.invoke('recognize-meal', {
-        body: { image: photo.base64, goal_food: goalFood, unit: unitWord(goalFood) },
+        body: { image: photo.base64, goal_food: goalFood, unit: unitWord(goalFood), party: !!party },
       });
       if (error || !data?.guess) return null;
       return data.guess as Guess;
@@ -222,22 +341,31 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
     async deleteMeal(code, mealId) {
       await signedIn();
       // The photo goes first. If that fails the meal stays, so nothing is left behind without its owner.
-      const gone = await db.storage.from(BUCKET).remove([`${await folderOf(code)}/${mealId}.jpg`]);
+      const folder = await folderOf(code);
+      const gone = await db.storage.from(BUCKET).remove([`${folder}/${mealId}.jpg`]);
       fail(gone.error);
+      const quiet = await db.storage.from(VOICE).remove([`${folder}/${mealId}.m4a`]);
+      fail(quiet.error);
       const { error } = await db.from('meals').delete().eq('id', mealId);
       fail(error);
     },
 
     async deleteMe(_code, meId) {
       await signedIn();
-      const mine = await db.from('meals').select('id, photo_url').eq('member_id', meId);
+      const mine = await db.from('meals').select('id, photo_url, voice_url').eq('member_id', meId);
       fail(mine.error);
-      const paths = (mine.data ?? []).filter((m) => m.photo_url).map((m) => pathOf(m.photo_url as string));
-      // Photos go first, 100 at a time. If any batch fails, stop: the person is told and can try again,
-      // instead of being told everything is gone while photos remain.
-      for (let i = 0; i < paths.length; i += 100) {
-        const gone = await db.storage.from(BUCKET).remove(paths.slice(i, i + 100));
-        fail(gone.error);
+      const recipes = await db.from('recipes').select('id, photo_url, voice_url').eq('added_by', meId);
+      fail(recipes.error);
+      const rows = [...(mine.data ?? []), ...(recipes.data ?? [])] as { photo_url: string | null; voice_url: string | null }[];
+      const photos = rows.filter((m) => m.photo_url).map((m) => pathOf(m.photo_url as string));
+      const voices = rows.filter((m) => m.voice_url).map((m) => pathOf(m.voice_url as string));
+      // Files go first, 100 at a time. If any batch fails, stop: the person is told and can try again,
+      // instead of being told everything is gone while files remain.
+      for (const [bucket, paths] of [[BUCKET, photos], [VOICE, voices]] as const) {
+        for (let i = 0; i < paths.length; i += 100) {
+          const gone = await db.storage.from(bucket).remove(paths.slice(i, i + 100));
+          fail(gone.error);
+        }
       }
       const { error } = await db.rpc('delete_me', { p_member: meId });
       fail(error);

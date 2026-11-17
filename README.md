@@ -64,7 +64,7 @@ The photo is read by Claude on the server, so the API key never ships inside the
    npx supabase functions deploy recognize-meal
    ```
 
-3. Run `supabase/schema.sql` again if you set up the database before this was added (it adds two columns and is safe to re-run).
+3. Run `supabase/schema.sql` again if you set up the database before this was added. It is safe to re-run, and it adds the newer pieces: protein and vegetable portions, notes, voice notes (`meal-voice` bucket), who you ate with, notes between family members, and the recipe book.
 
 Cost: each photo is one request. The function uses Claude Opus 5.5 for the best read of mixed plates, roughly a cent or less per photo. To make it far cheaper, change `MODEL` at the top of `supabase/functions/recognize-meal/index.ts` to `claude-haiku-5-5` and compare the guesses on your own photos.
 
@@ -134,6 +134,9 @@ npx eas-cli@latest submit
 | --- | --- | --- |
 | Names, meals, portions, hearts | Your Supabase project | Always, once Supabase is connected |
 | Meal photos | Your Supabase project, private bucket | When a photo is shared |
+| Voice notes, notes to family, recipes | Your Supabase project. Voice notes sit in a private `meal-voice` bucket in the family's folder | When the person shares one |
+| WhatsApp nudges | WhatsApp, only the text the person chose to send. Amader never stores phone numbers | Only when the person taps the WhatsApp button |
+| Doctor summary PDF | Made on the phone. Goes only where the person sends it | Only when the person taps "Make the PDF" |
 | Meal photos | Anthropic (Claude), through your Supabase function | Only after the person taps "Yes, guess". Asked once, off until then |
 | Hand position in a photo | Nowhere. Worked out on the phone and thrown away | Never leaves the device |
 | Location | Nowhere. Photos are re-saved before upload, which strips GPS. If that step fails the photo is not used | Never |

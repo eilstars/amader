@@ -4,11 +4,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../store';
 import { C } from '../theme';
 import { Role } from '../types';
-import { Btn, Puti, RoundButton, Row, Soft, T } from '../ui';
+import { Btn, Chip, Puti, RoundButton, Row, Soft, T, field } from '../ui';
 import { CODE_LENGTH, cleanCode, spacedCode } from '../words';
-import { Chip, s } from './SetupFamily';
 
-/** The parent's whole setup: a code, a name that is usually already filled in, one button. */
+/** The whole setup for the person being looked after: a code, a name that is usually already filled in, one button. */
 export default function Join({ onBack, onJoined }: { onBack: () => void; onJoined: () => void }) {
   const store = useStore();
   const insets = useSafeAreaInsets();
@@ -65,7 +64,7 @@ export default function Join({ onBack, onJoined }: { onBack: () => void; onJoine
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.mint }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={{ padding: 24, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24, gap: 18 }} keyboardShouldPersistTaps="handled">
         <RoundButton icon="chevron-back" label="Back" onPress={onBack} />
         <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end' }}>
@@ -73,15 +72,15 @@ export default function Join({ onBack, onJoined }: { onBack: () => void; onJoine
             <T w="bold" size={28}>
               {name.trim() ? `Welcome, ${name.trim()}` : 'Come, sit'}
             </T>
-            <T color={C.muted} size={14}>
-              {from ? `${from} set the table for you. ` : ''}Once a day, share one photo of a meal. Your family shares theirs too.
+            <T color={C.muted} size={16}>
+              {from ? `${from} set the table for you. ` : ''}Share what you eat with one photo. Your family shares theirs too.
             </T>
           </View>
           <Puti mood="happy" width={84} />
         </Row>
 
         <View style={{ gap: 6 }}>
-          <T w="semibold" size={13} color="#3B4B42">
+          <T w="semibold" size={15} color="#3B4B42">
             Family code
           </T>
           <TextInput
@@ -89,32 +88,37 @@ export default function Join({ onBack, onJoined }: { onBack: () => void; onJoine
             onChangeText={(t) => setCode(cleanCode(t))}
             placeholder="8 letters"
             placeholderTextColor="#9AA79F"
-            style={[s.field, { fontSize: 22, letterSpacing: 4, height: 60 }]}
+            style={[field, { fontSize: 24, letterSpacing: 4, height: 62 }]}
             autoCapitalize="characters"
             autoCorrect={false}
             maxLength={CODE_LENGTH + 1}
           />
           {unknown ? (
-            <T color="#8A2942" size={13}>
+            <T color="#8A2942" size={15}>
               We can't find that code. Check it with your family.
             </T>
           ) : null}
         </View>
 
         <View style={{ gap: 6 }}>
-          <T w="semibold" size={13} color="#3B4B42">
+          <T w="semibold" size={15} color="#3B4B42">
             What your family calls you
           </T>
-          <TextInput value={name} onChangeText={setName} placeholder="Ammi" placeholderTextColor="#9AA79F" style={s.field} autoCapitalize="words" maxLength={24} />
+          <TextInput value={name} onChangeText={setName} placeholder="Ammi" placeholderTextColor="#9AA79F" style={field} autoCapitalize="words" maxLength={24} />
         </View>
 
-        <Row gap={8}>
-          <Chip label="I'm a parent" on={role === 'parent'} onPress={() => setRole('parent')} />
-          <Chip label="I'm a son or daughter" on={role === 'child'} onPress={() => setRole('child')} />
-        </Row>
+        <View style={{ gap: 8 }}>
+          <T w="semibold" size={15} color="#3B4B42">
+            Which fits you?
+          </T>
+          <Row gap={8} style={{ flexWrap: 'wrap' }}>
+            <Chip icon="heart" label="My family looks after me" on={role === 'parent'} onPress={() => setRole('parent')} />
+            <Chip icon="people" label="I'm a caregiver" on={role === 'child'} onPress={() => setRole('child')} />
+          </Row>
+        </View>
 
         <Soft>
-          <T size={14} color={C.muted}>
+          <T size={15} color={C.muted}>
             Only your family sees your plates. Amader asks you before any photo is read by an AI. You can delete everything any time.
           </T>
         </Soft>

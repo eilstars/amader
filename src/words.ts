@@ -1,4 +1,4 @@
-import { Meal, Slot } from './types';
+import { Meal, Role, Slot } from './types';
 
 export const MILESTONES = [10, 30, 50, 100];
 export const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -12,11 +12,62 @@ export function newId(): string {
   });
 }
 
-export function slotAt(date: Date): Slot {
-  const hour = date.getHours();
-  if (hour < 11) return 'breakfast';
-  if (hour < 16) return 'lunch';
-  return 'dinner';
+/** When the person usually eats, in hours (24 hour clock). Set during onboarding and in Me. */
+export interface MealTimes {
+  breakfast: number;
+  lunch: number;
+  dinner: number;
+}
+export const DEFAULT_TIMES: MealTimes = { breakfast: 8, lunch: 13, dinner: 20 };
+
+/** The meal closest to now, used only to pre-select a choice the person can change. */
+export function slotAt(date: Date, times: MealTimes = DEFAULT_TIMES, ramadan = false): Slot {
+  const h = date.getHours() + date.getMinutes() / 60;
+  if (ramadan) return h < 10 ? 'suhoor' : h >= 17 ? 'iftar' : 'snack';
+  const options: [Slot, number][] = [
+    ['breakfast', times.breakfast],
+    ['lunch', times.lunch],
+    ['dinner', times.dinner],
+  ];
+  const [best, gap] = options.reduce<[Slot, number]>((acc, [slot, at]) => (Math.abs(h - at) < acc[1] ? [slot, Math.abs(h - at)] : acc), ['snack', 99]);
+  return gap <= 2.5 ? best : 'snack';
+}
+
+export const SLOT_NAMES: Record<Slot, string> = {
+  breakfast: 'Breakfast',
+  lunch: 'Lunch',
+  dinner: 'Dinner',
+  snack: 'Snack',
+  suhoor: 'Suhoor',
+  iftar: 'Iftar',
+  fasting: 'Fasting today',
+};
+
+export function slotName(slot: Slot): string {
+  return SLOT_NAMES[slot] ?? 'Meal';
+}
+
+export function hourText(hour: number): string {
+  const h = ((hour + 11) % 12) + 1;
+  return `${h} ${hour < 12 || hour === 24 ? 'AM' : 'PM'}`;
+}
+
+/** What people call each role on screen. */
+export function roleName(role: Role): string {
+  return role === 'parent' ? 'Cared for' : 'Caregiver';
+}
+
+/** "1 fist rice · 1 palm protein · 2 handfuls veg" */
+export function plateLine(meal: Pick<Meal, 'handfuls' | 'protein' | 'veg' | 'slot'>, grain = 'rice'): string | null {
+  if (meal.slot === 'fasting') return null;
+  const bits: string[] = [];
+  const g = meal.handfuls;
+  if (g !== null && g !== undefined) bits.push(g <= 0 ? `no ${grain.toLowerCase()}` : `${g >= 4 ? '4+' : g} ${g === 1 ? 'fist' : 'fists'} ${grain.toLowerCase()}`);
+  const p = meal.protein;
+  if (p !== null && p !== undefined && p > 0) bits.push(`${p >= 4 ? '4+' : p} ${p === 1 ? 'palm' : 'palms'} protein`);
+  const v = meal.veg;
+  if (v !== null && v !== undefined && v > 0) bits.push(`${v >= 4 ? '4+' : v} ${v === 1 ? 'handful' : 'handfuls'} veg`);
+  return bits.length ? bits.join(' · ') : null;
 }
 
 export function greeting(date = new Date()): string {
@@ -122,4 +173,42 @@ export function unitHint(food: string): string {
 /** "handfuls", "rotis", "cups". */
 export function unitWord(food: string): string {
   return (UNITS[food.toLowerCase()] ?? UNITS.rice)[1];
+}
+
+/** "This week", "Last week", or "Nov 3 to Nov 9". */
+export function weekLabel(offset: number, days: Date[]): string {
+  if (offset === 0) return 'This week';
+  if (offset === -1) return 'Last week';
+  return `${dateText(days[0])} to ${dateText(days[6])}`;
+}
+
+/** Meals inside the seven days. */
+export function inWeek<M extends { date: string }>(list: M[], days: Date[]): M[] {
+  const end = new Date(days[6].getFullYear(), days[6].getMonth(), days[6].getDate() + 1);
+  return list.filter((m) => {
+    const d = new Date(m.date);
+    return d >= days[0] && d < end;
+  });
+}
+
+/** For each day: how many meals, and whether it was a fasting day. */
+export function dayCounts(list: Meal[], days: Date[]): { count: number; fasting: boolean }[] {
+  return days.map((d) => {
+    const that = list.filter((m) => sameDay(new Date(m.date), d));
+    return { count: that.filter((m) => m.slot !== 'fasting').length, fasting: that.some((m) => m.slot === 'fasting') };
+  });
+}
+
+/** "Today", "Yesterday", "Monday, Nov 10". */
+export function dayHeading(d: Date, now = new Date()): string {
+  const ago = daysBetween(d, now);
+  if (ago === 0) return 'Today';
+  if (ago === 1) return 'Yesterday';
+  return `${dayName(d)}, ${dateText(d)}`;
+}
+
+/** An average in hand measures, rounded to the nearest half: "1 palm", "1.5 fists", "about 2 handfuls". */
+export function handsText(n: number, one: string, many: string): string {
+  const r = Math.round(n * 2) / 2;
+  return `${r} ${r === 1 ? one : many}`;
 }
