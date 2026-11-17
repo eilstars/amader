@@ -58,8 +58,9 @@ export function roleName(role: Role): string {
 }
 
 /** "1 fist rice · 1 palm protein · 2 handfuls veg" */
-export function plateLine(meal: Pick<Meal, 'handfuls' | 'protein' | 'veg' | 'slot'>, grain = 'rice'): string | null {
+export function plateLine(meal: Pick<Meal, 'handfuls' | 'protein' | 'veg' | 'slot'> & { grain?: string | null }, fallback = 'rice'): string | null {
   if (meal.slot === 'fasting') return null;
+  const grain = meal.grain || fallback;
   const bits: string[] = [];
   const g = meal.handfuls;
   if (g !== null && g !== undefined) bits.push(g <= 0 ? `no ${grain.toLowerCase()}` : `${g >= 4 ? '4+' : g} ${g === 1 ? 'fist' : 'fists'} ${grain.toLowerCase()}`);

@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { Image, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PlateCard } from '../food';
 import { useStore } from '../store';
 import { C } from '../theme';
 import { sharePdf } from '../pdf';
 import { summaryHtml } from '../summary';
 import { plateAverage } from '../game';
-import { Btn, Chip, PageHead, Row, T, Thali } from '../ui';
+import { Btn, Chip, PageHead, Row, T } from '../ui';
 import { dateText, daysBetween, handsText, slotName } from '../words';
 
 /**
@@ -90,7 +91,7 @@ export default function Checkup({ onClose }: { onClose: () => void }) {
             <Chip label="3 months" on={range === 90} onPress={() => setRange(90)} />
           </Row>
           <Row gap={14}>
-            <Thali size={88} grains={avg.counted ? Math.round(avg.grains) : 0} protein={Math.round(avg.protein)} veg={Math.round(avg.veg)} />
+            <PlateCard size={92} grains={avg.counted ? avg.grains : 0} protein={avg.protein} veg={avg.veg} grain={store.goalFood} />
             <View style={{ flex: 1, gap: 2 }}>
               <T w="semibold">A usual plate</T>
               <T size={14} color={C.muted}>

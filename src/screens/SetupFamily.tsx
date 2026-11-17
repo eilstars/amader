@@ -4,9 +4,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { C } from '../theme';
-import { Btn, Chip, GOAL_FOODS, Puti, RoundButton, Row, T, field } from '../ui';
+import { Btn, Chip, GOAL_FOODS, Puti, RoundButton, Row, T, Toggle, field } from '../ui';
 
-const CALLED = ['Ammi', 'Abbu', 'Nani', 'Dadi', 'Mom', 'Dad', 'Amma', 'Papa'];
+const CALLED = ['Mom', 'Dad', 'Ammi', 'Abbu', 'Grandma', 'Grandpa', 'Nani', 'Mama'];
 
 /**
  * A caregiver sets the table, one question per screen. The person they look after
@@ -39,10 +39,10 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
   const screens = [
     {
       title: 'Who are you looking after?',
-      lead: 'What do you call them at home? This is the name the family will see.',
+      lead: 'What do you call them at home?',
       body: (
         <>
-          <TextInput value={parentName} onChangeText={setParentName} placeholder="Ammi" placeholderTextColor="#9AA79F" style={field} autoCapitalize="words" maxLength={24} autoFocus />
+          <TextInput value={parentName} onChangeText={setParentName} placeholder="Mom" placeholderTextColor="#9AA79F" style={field} autoCapitalize="words" maxLength={24} autoFocus />
           <Row gap={8} style={{ flexWrap: 'wrap' }}>
             {CALLED.map((n) => (
               <Chip key={n} label={n} on={parentName === n} onPress={() => setParentName(n)} />
@@ -54,13 +54,20 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
     },
     {
       title: `And what does ${them} call you?`,
-      lead: `You are ${them}'s caregiver here. Brothers, sisters, cousins and anyone else who helps can join too.`,
-      body: <TextInput value={myName} onChangeText={setMyName} placeholder="Nadia" placeholderTextColor="#9AA79F" style={field} autoCapitalize="words" maxLength={24} autoFocus />,
+      lead: 'Others who help can join later.',
+      body: (
+        <>
+          <TextInput value={myName} onChangeText={setMyName} placeholder="Your name" placeholderTextColor="#9AA79F" style={field} autoCapitalize="words" maxLength={24} autoFocus />
+          <View style={{ backgroundColor: C.white, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 8 }}>
+            <Toggle title={`I live with ${them}`} help="Then one photo can cover a meal you eat together." on={store.prefs.sameHome} onChange={(on) => store.setPrefs({ sameHome: on })} />
+          </View>
+        </>
+      ),
       ok: myName.trim().length > 0,
     },
     {
       title: 'What fills most plates?',
-      lead: 'Grains are counted in fists, protein in palms and vegetables in handfuls. This is the grain word everyone will see.',
+      lead: 'Counted in fists. You can change it on any meal.',
       body: (
         <>
           <Row gap={8} style={{ flexWrap: 'wrap' }}>

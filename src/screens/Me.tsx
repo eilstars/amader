@@ -95,13 +95,14 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
         <Eyebrow>When you usually eat</Eyebrow>
         <View style={section}>
           <T size={14} color={C.muted}>
-            Used to pick the meal for you and to time reminders. You can always change the meal when you share.
+            For reminders.
           </T>
           <TimeRow icon="sunny-outline" label="Breakfast" hour={prefs.times.breakfast} min={4} max={11} onChange={(h) => remind({ times: { ...prefs.times, breakfast: h } })} />
           <TimeRow icon="partly-sunny-outline" label="Lunch" hour={prefs.times.lunch} min={11} max={16} onChange={(h) => remind({ times: { ...prefs.times, lunch: h } })} />
           <TimeRow icon="moon-outline" label="Dinner" hour={prefs.times.dinner} min={17} max={23} onChange={(h) => remind({ times: { ...prefs.times, dinner: h } })} />
           <View style={{ height: 1, backgroundColor: '#EDF0EA', marginVertical: 4 }} />
-          <Toggle title="Ramadan mode" help="Meals become suhoor and iftar, and you can mark a day as fasting. Fasting days keep your streak." on={prefs.ramadan} onChange={(on) => remind({ ramadan: on })} />
+          <Toggle title="We live together" help="One photo can cover a meal you eat together." on={prefs.sameHome} onChange={(on) => store.setPrefs({ sameHome: on })} />
+          <Toggle title="Ramadan mode" help="Suhoor and iftar. Fasting days keep your streak." on={prefs.ramadan} onChange={(on) => remind({ ramadan: on })} />
           {prefs.ramadan ? (
             <>
               <TimeRow icon="cloudy-night-outline" label="Suhoor" hour={prefs.suhoorHour} min={2} max={6} onChange={(h) => remind({ suhoorHour: h })} />
@@ -112,8 +113,8 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
 
         <Eyebrow>Reminders</Eyebrow>
         <View style={section}>
-          <Toggle title='"Did you eat?" after meals' help="45 minutes after each meal time. Skipped when you already shared that meal." on={prefs.reminderOn} onChange={(on) => remind({ reminderOn: on })} />
-          <Toggle title="A surprise snack check" help='Once a day at a different time in the afternoon: "Having a snack?"' on={prefs.nudgesOn} onChange={(on) => remind({ nudgesOn: on })} />
+          <Toggle title='"Did you eat?" after meals' help="45 minutes after each meal, if you haven't shared it." on={prefs.reminderOn} onChange={(on) => remind({ reminderOn: on })} />
+          <Toggle title="A surprise snack check" help='Once an afternoon: "Having a snack?"' on={prefs.nudgesOn} onChange={(on) => remind({ nudgesOn: on })} />
           {refused ? (
             <T size={14} color="#8A2942">
               {Platform.OS === 'web' ? 'Reminders need the phone app. They are not available in the browser.' : 'Notifications are turned off for Amader. Turn them on in your phone settings, then try again.'}
@@ -125,7 +126,7 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
         <Eyebrow>Your main grain</Eyebrow>
         <View style={section}>
           <T size={14} color={C.muted}>
-            What fills most plates. It is counted in fists. The same for the whole family.
+            Counted in fists. You can change it on any meal.
           </T>
           <Row gap={8} style={{ flexWrap: 'wrap', marginTop: 4 }}>
             {GOAL_FOODS.map((f) => (

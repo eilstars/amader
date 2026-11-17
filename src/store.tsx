@@ -31,6 +31,14 @@ export interface Prefs {
   widgetSeen: boolean;
   /** Lessons already answered, so new ones come first. */
   learned: string[];
+  /** Points from Learn, by day, so they count toward this week's points. Kept on this phone. */
+  learnLog: { d: string; p: number }[];
+  /** Lives in the same home as the person they look after, so they often eat the same meals. */
+  sameHome: boolean;
+  /** What this person wants to stay healthy for, in their own words or a tapped choice. */
+  why: string | null;
+  /** Small things the person said they would try, from Learn. */
+  pledges: string[];
 }
 const DEFAULT_PREFS: Prefs = {
   guessOn: null,
@@ -44,6 +52,10 @@ const DEFAULT_PREFS: Prefs = {
   onboarded: false,
   widgetSeen: false,
   learned: [],
+  learnLog: [],
+  sameHome: false,
+  why: null,
+  pledges: [],
 };
 
 interface Store {
@@ -333,23 +345,28 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (!session) throw new Error('No family yet.');
         const now = new Date();
         const p = input.portions;
+        // "I ate this too" is filed at the time of the meal it joins, so it lands on the right day.
+        const original = input.sameAs ? meals.find((m) => m.id === input.sameAs) : undefined;
+        const when = original && new Date(original.date) <= now && now.getTime() - new Date(original.date).getTime() < 3 * 86400000 ? original.date : now.toISOString();
         const draft: Meal = {
           id: newId(),
           memberId: session.meId,
-          date: now.toISOString(),
+          date: when,
           slot: input.slot,
           photo: null,
           handfuls: p ? p.grains : null,
           protein: p ? p.protein : null,
           veg: p ? p.veg : null,
           hearts: [],
-          dish: input.guess?.dish || null,
+          dish: input.guess?.dish || original?.dish || null,
           parts: input.guess?.parts ?? null,
           note: input.note?.trim() || null,
           voice: null,
           withIds: input.withIds ?? [],
           withOthers: input.withOthers?.trim() || null,
           party: !!input.party,
+          grain: input.grain?.trim() || null,
+          sameAs: input.sameAs ?? null,
         };
         const saved = await backendFor(session).addMeal(session.code, draft, input.photo, input.voice ?? null);
         setMeals((list) => newestFirst([saved, ...list.filter((m) => m.id !== saved.id)]));

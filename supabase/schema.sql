@@ -65,6 +65,9 @@ alter table public.meals add column if not exists voice_url text check (voice_ur
 alter table public.meals add column if not exists with_ids uuid[] not null default '{}' check (cardinality(with_ids) <= 8);
 alter table public.meals add column if not exists with_others text check (with_others is null or char_length(with_others) <= 80);
 alter table public.meals add column if not exists party boolean not null default false;
+-- Which grain was on the plate this time, and "I ate this too" for a meal shared by someone at the same table.
+alter table public.meals add column if not exists grain text check (grain is null or char_length(grain) <= 24);
+alter table public.meals add column if not exists same_as uuid references public.meals (id) on delete set null;
 
 -- Notes between family members: "You're doing great, Ammi!"
 create table if not exists public.cheers (
@@ -151,6 +154,12 @@ create or replace function public.my_family_folders() returns setof text
 language sql stable security definer set search_path = public as $$
   select f.folder::text from public.families f
   where f.code in (select family_code from public.members where user_id = auth.uid())
+$$;
+
+-- The family a meal belongs to, for "I ate this too" links. Only answers for the caller's own families.
+create or replace function public.meal_family(m uuid) returns text
+language sql stable security definer set search_path = public as $$
+  select family_code from public.meals where id = m and family_code in (select family_code from public.members where user_id = auth.uid())
 $$;
 
 create or replace function public.my_member_ids() returns setof uuid
@@ -252,6 +261,8 @@ create policy "meals: add my own" on public.meals
     and (voice_url is null or voice_url = (select f.folder::text from public.families f where f.code = family_code) || '/' || id || '.m4a')
     -- Only people from this family can be tagged.
     and with_ids <@ array(select m.id from public.members m where m.family_code = meals.family_code)
+    -- "I ate this too" can only point at a meal in the same family.
+    and (same_as is null or public.meal_family(same_as) = family_code)
   );
 
 drop policy if exists "meals: delete my own" on public.meals;
@@ -399,6 +410,7 @@ grant execute on function public.join_family(text, text, text) to authenticated;
 grant execute on function public.delete_me(uuid) to authenticated;
 revoke execute on function public.check_code_tries() from public, anon, authenticated;
 grant execute on function public.my_family_codes() to authenticated;
+grant execute on function public.meal_family(uuid) to authenticated;
 grant execute on function public.my_family_folders() to authenticated;
 grant execute on function public.my_member_ids() to authenticated;
 

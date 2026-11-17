@@ -445,17 +445,15 @@ export function PageHead({ title, onBack, right }: { title: string; onBack?: () 
 }
 
 /** Counts up portions with your hands: a big minus, the number, a big plus. */
-export function HandCount({ label, unit, value, onChange, icon, color }: { label: string; unit: [string, string]; value: number; onChange: (n: number) => void; icon: keyof typeof Ionicons.glyphMap; color: string }) {
+export function HandCount({ label, unit, value, onChange, art }: { label: string; unit: [string, string]; value: number; onChange: (n: number) => void; art: React.ReactNode }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.white, borderRadius: 18, padding: 10, borderWidth: 1, borderColor: '#E6EBE6' }}>
-      <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: color, alignItems: 'center', justifyContent: 'center' }}>
-        <Ionicons name={icon} size={22} color={color === FOOD.grain ? '#8C7A45' : C.white} />
-      </View>
+      <View style={{ width: 52, height: 52, borderRadius: 14, backgroundColor: C.soft, alignItems: 'center', justifyContent: 'center' }}>{art}</View>
       <View style={{ flex: 1 }}>
-        <T w="semibold" size={17}>
+        <T w="semibold" size={17} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
           {label}
         </T>
-        <T size={14} color={C.muted}>
+        <T size={14} color={C.muted} numberOfLines={1}>
           {value === 0 ? 'None' : `${value >= 4 ? '4+' : value} ${value === 1 ? unit[0] : unit[1]}`}
         </T>
       </View>
@@ -472,7 +470,8 @@ export function HandCount({ label, unit, value, onChange, icon, color }: { label
   );
 }
 
-export const GOAL_FOODS = ['Rice', 'Roti', 'Naan', 'Bread'];
+/** Staples people count in fists. The family picks a usual one; each meal can be different. */
+export const GOAL_FOODS = ['Rice', 'Bread', 'Roti', 'Naan', 'Pasta', 'Tortilla', 'Potato', 'Noodles'];
 
 /** A text field big enough for older eyes and thumbs. */
 export const field = {

@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { Image, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { PlateCard } from '../food';
 import { useStore } from '../store';
 import { C, images } from '../theme';
-import { Avatar, Btn, Puti, Row, T, Thali } from '../ui';
+import { Avatar, Btn, Puti, Row, T } from '../ui';
 
 /** The first screen: a family around one thali, and the question every family asks. */
 export default function Welcome({ onSetup, onJoin, onTeach }: { onSetup: () => void; onJoin: () => void; onTeach: () => void }) {
@@ -37,7 +38,7 @@ export default function Welcome({ onSetup, onJoin, onTeach }: { onSetup: () => v
       {/* The table: one thali, the family around it. */}
       <View style={{ height: 270, alignItems: 'center', justifyContent: 'center' }} accessibilityLabel="A family around one plate">
         <View style={{ width: 250, height: 250, borderRadius: 125, backgroundColor: '#D3E8DC', alignItems: 'center', justifyContent: 'center' }}>
-          <Thali size={180} grains={1} protein={1} veg={2} />
+          <PlateCard size={190} grains={1} protein={1} veg={2} />
         </View>
         {seat('Ammi', 0, { top: 6, left: '14%' }, true)}
         {seat('Nadia', 1, { top: 20, right: '12%' })}

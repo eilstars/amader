@@ -194,16 +194,24 @@ export const localBackend: Backend & { seedDemo(): Promise<Session>; clear(): Pr
       ['Khichdi with salad', 2, 1, 2, { grain: 50, veg: 35, protein: 10, other: 5 }],
       ['Roti, sabzi and dal', 1, 1, 2, { grain: 30, veg: 50, protein: 15, other: 5 }],
       ['Bhuna khichuri and egg', 3, 1, 1, { grain: 55, veg: 15, protein: 25, other: 5 }],
+      ['Pasta with chicken and salad', 2, 1, 2, { grain: 40, veg: 35, protein: 20, other: 5 }],
+      ['Eggs on toast', 1, 1, 0, { grain: 45, veg: 0, protein: 45, other: 10 }],
     ];
     const meal = (who: Member, back: number, hour: number, slot: Meal['slot'], i: number, extra: Partial<Meal> = {}): Meal => {
       const [dish, g, p, v, parts] = dishes[i % dishes.length];
-      return { id: newId(), memberId: who.id, date: at(back, hour, (i * 7) % 60), slot, photo: null, handfuls: g, protein: p, veg: v, hearts: [], dish, parts, ...extra };
+      const grain = /Roti/.test(dish) ? 'Roti' : /Pasta/.test(dish) ? 'Pasta' : /toast/.test(dish) ? 'Bread' : 'Rice';
+      return { id: newId(), memberId: who.id, date: at(back, hour, (i * 7) % 60), slot, photo: null, handfuls: g, protein: p, veg: v, hearts: [], dish, parts, grain, ...extra };
     };
     for (let back = 0; back <= 20; back++) {
       // Ammi: dinner almost every day, the streak runs back 12 days.
       if (back <= 12 || back % 3 !== 0) {
         const m = meal(ammi, back, 20, 'dinner', back, { hearts: back % 2 === 0 ? [nadia.id, tanvir.id] : [nadia.id] });
         if (back === 2) Object.assign(m, { withIds: [abbu.id, nadia.id], note: 'Nadia came home for dinner!' });
+        if (back === 1) {
+          // Dinner at home together: Ammi shares one plate, Abbu says "I ate this too" with his own portion.
+          Object.assign(m, { withIds: [abbu.id, nadia.id], note: 'Dinner at home, all of us' });
+          meals.push({ ...meal(abbu, back, 20, 'dinner', back), date: at(back, 20, 40), dish: m.dish, sameAs: m.id, withIds: [ammi.id, nadia.id], handfuls: 3, protein: 1, veg: 1, hearts: [] });
+        }
         if (back === 0 && now.getHours() < 20) continue;
         meals.push(m);
       }

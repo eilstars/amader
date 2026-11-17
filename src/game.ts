@@ -145,9 +145,9 @@ export function badgesFor(memberId: string, meals: Meal[], cheers: Cheer[], reci
   if (best >= 3) list.push({ id: 's3', title: 'Three in a Row', how: '3 days in a row', icon: 'flame' });
   if (best >= 7) list.push({ id: 's7', title: 'One Week', how: '7 days in a row', icon: 'flame' });
   if (best >= 30) list.push({ id: 's30', title: 'Month at the Table', how: '30 days in a row', icon: 'trophy' });
-  if (mine.filter(isBalanced).length >= 5) list.push({ id: 'bal5', title: 'Half Sabzi', how: '5 balanced plates', icon: 'leaf' });
-  if (mine.filter((m) => (m.withIds?.length ?? 0) > 0 || m.withOthers).length >= 3) list.push({ id: 'tog3', title: 'Dawat', how: '3 meals eaten together', icon: 'people' });
-  if (mine.some((m) => m.slot === 'fasting')) list.push({ id: 'fast', title: 'Roza', how: 'Shared a fasting day', icon: 'moon' });
+  if (mine.filter(isBalanced).length >= 5) list.push({ id: 'bal5', title: 'Half Veggies', how: '5 balanced plates', icon: 'leaf' });
+  if (mine.filter((m) => (m.withIds?.length ?? 0) > 0 || m.withOthers).length >= 3) list.push({ id: 'tog3', title: 'Shared Table', how: '3 meals eaten together', icon: 'people' });
+  if (mine.some((m) => m.slot === 'fasting')) list.push({ id: 'fast', title: 'Fasting Day', how: 'Shared a fasting day', icon: 'moon' });
   if (cheers.filter((c) => c.fromId === memberId).length >= 3) list.push({ id: 'cheer3', title: 'Cheerleader', how: 'Sent 3 notes', icon: 'heart' });
   if (recipesAdded >= 1) list.push({ id: 'recipe', title: 'Keeper of Recipes', how: 'Saved a family recipe', icon: 'book' });
   if (shared >= 50) list.push({ id: 'm50', title: 'Fifty Plates', how: '50 meals shared', icon: 'star' });
@@ -190,19 +190,19 @@ export function nextIdea(avg: { grains: number; protein: number; veg: number; co
   if (avg.counted === 0) return { title: 'Start with one plate', body: 'Share one meal and Puti will find one small idea for next week.' };
   if (avg.veg < avg.grains) {
     return {
-      title: `Try sabzi first, then ${g}`,
-      body: `This week your plates had more ${g} than vegetables. Eating the sabzi or salad first, then the ${g}, helps the body take the ${g} in more slowly. Same food, just a different order.`,
+      title: `Try vegetables first, then ${g}`,
+      body: `This week your plates had more ${g} than vegetables. Eating the vegetables or salad first, then the ${g}, helps the body take the ${g} in more slowly. Same food, just a different order.`,
     };
   }
   if (avg.protein < 1) {
     return {
-      title: 'Add one palm of dal, egg or fish',
-      body: 'A palm of protein keeps you full for longer, so the next snack comes later. Dal counts.',
+      title: 'Add one palm of protein',
+      body: 'Eggs, beans, lentils, fish or meat. A palm of protein keeps you full for longer, so the next snack comes later.',
     };
   }
   if (avg.grains > 2.5) {
     return {
-      title: `Swap one fist of ${g} for sabzi`,
+      title: `Swap one fist of ${g} for vegetables`,
       body: `Keep the plate just as full. Moving one fist from ${g} to vegetables is the smallest change with the biggest effect.`,
     };
   }
@@ -210,4 +210,9 @@ export function nextIdea(avg: { grains: number; protein: number; veg: number; co
     title: 'Your plates look balanced',
     body: 'Half vegetables, a quarter grains, a quarter protein. Try a ten minute walk after dinner this week, it helps the body use the meal.',
   };
+}
+
+/** Points earned in Learn since a date. Kept on this phone. */
+export function learnPointsSince(log: { d: string; p: number }[], from: Date): number {
+  return log.filter((e) => new Date(e.d) >= from).reduce((sum, e) => sum + e.p, 0);
 }

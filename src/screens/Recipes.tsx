@@ -11,7 +11,7 @@ import { Btn, Chip, PageHead, Puti, Row, T, field } from '../ui';
 import { VoicePlayer, VoiceRecorder } from '../voice';
 import { dateText } from '../words';
 
-const WHOSE = ['Nani', 'Dadi', 'Ammi', 'Abbu', 'Khala', 'Mine'];
+const WHOSE = ['Grandma', 'Nani', 'Mom', 'Dad', 'Auntie', 'Mine'];
 
 /** The family recipe book. So many recipes live only in one person's hands; this keeps them. */
 export default function Recipes() {
@@ -33,7 +33,7 @@ export default function Recipes() {
               Family recipes
             </T>
             <T size={16} color={C.muted}>
-              Nani's khichuri, Abbu's chai. Write them down, or record them telling it, before they're lost.
+              Write them down or record them, before they're lost.
             </T>
           </View>
         </Row>
@@ -48,7 +48,7 @@ export default function Recipes() {
               No recipes yet
             </T>
             <T size={15} color={C.muted} center>
-              Ask the best cook in the family to tell you one. Press record and let them talk.
+              Ask the best cook to tell you one. Press record.
             </T>
           </View>
         ) : (
@@ -167,7 +167,7 @@ function AddRecipe({ onDone }: { onDone: () => void }) {
   const store = useStore();
   const insets = useSafeAreaInsets();
   const [title, setTitle] = useState('');
-  const [from, setFrom] = useState('Nani');
+  const [from, setFrom] = useState('Grandma');
   const [ingredients, setIngredients] = useState('');
   const [steps, setSteps] = useState('');
   const [story, setStory] = useState('');
@@ -215,7 +215,7 @@ function AddRecipe({ onDone }: { onDone: () => void }) {
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: insets.bottom + 24, gap: 14 }} keyboardShouldPersistTaps="handled">
         <View style={{ gap: 6 }}>
           {label('What is it called?')}
-          <TextInput value={title} onChangeText={setTitle} placeholder="Bhuna khichuri" placeholderTextColor="#9AA79F" style={field} maxLength={80} />
+          <TextInput value={title} onChangeText={setTitle} placeholder="Grandma's chicken soup" placeholderTextColor="#9AA79F" style={field} maxLength={80} />
         </View>
         <View style={{ gap: 8 }}>
           {label('Whose recipe is it?')}
@@ -224,7 +224,7 @@ function AddRecipe({ onDone }: { onDone: () => void }) {
               <Chip key={w} label={w} on={from === w} onPress={() => setFrom(w)} />
             ))}
           </Row>
-          <TextInput value={WHOSE.includes(from) ? '' : from} onChangeText={(t) => setFrom(t || 'Nani')} placeholder="Someone else? Type their name" placeholderTextColor="#9AA79F" style={field} maxLength={40} />
+          <TextInput value={WHOSE.includes(from) ? '' : from} onChangeText={(t) => setFrom(t || 'Grandma')} placeholder="Someone else? Type their name" placeholderTextColor="#9AA79F" style={field} maxLength={40} />
         </View>
 
         <View style={{ backgroundColor: C.pinkSoft, borderRadius: 18, padding: 12, gap: 8 }}>
@@ -237,15 +237,15 @@ function AddRecipe({ onDone }: { onDone: () => void }) {
 
         <View style={{ gap: 6 }}>
           {label('What you need (one per line)')}
-          <TextInput value={ingredients} onChangeText={setIngredients} multiline placeholder={'1 cup rice\n1/2 cup moong dal\n1 onion'} placeholderTextColor="#9AA79F" style={[field, { minHeight: 110, paddingTop: 12, textAlignVertical: 'top' }]} maxLength={2000} />
+          <TextInput value={ingredients} onChangeText={setIngredients} multiline placeholder={'1 onion\n2 carrots\n1 cup rice'} placeholderTextColor="#9AA79F" style={[field, { minHeight: 110, paddingTop: 12, textAlignVertical: 'top' }]} maxLength={2000} />
         </View>
         <View style={{ gap: 6 }}>
           {label('How to make it (one step per line)')}
-          <TextInput value={steps} onChangeText={setSteps} multiline placeholder={'Fry the onion until golden\nAdd rice and dal, roast for 2 minutes'} placeholderTextColor="#9AA79F" style={[field, { minHeight: 130, paddingTop: 12, textAlignVertical: 'top' }]} maxLength={4000} />
+          <TextInput value={steps} onChangeText={setSteps} multiline placeholder={'Fry the onion until golden\nAdd the rest and simmer for 20 minutes'} placeholderTextColor="#9AA79F" style={[field, { minHeight: 130, paddingTop: 12, textAlignVertical: 'top' }]} maxLength={4000} />
         </View>
         <View style={{ gap: 6 }}>
           {label('A memory with it (optional)')}
-          <TextInput value={story} onChangeText={setStory} multiline placeholder="Nani made this every time it rained" placeholderTextColor="#9AA79F" style={[field, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' }]} maxLength={500} />
+          <TextInput value={story} onChangeText={setStory} multiline placeholder="She made this every time it rained" placeholderTextColor="#9AA79F" style={[field, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' }]} maxLength={500} />
         </View>
 
         <Pressable onPress={pickPhoto} accessibilityRole="button" accessibilityLabel={photo ? 'Change photo' : 'Add a photo'}>
@@ -269,7 +269,7 @@ function AddRecipe({ onDone }: { onDone: () => void }) {
         <Btn label={busy ? 'Saving...' : 'Save to the family book'} icon={busy ? undefined : 'book'} disabled={!canSave} onPress={save} />
         {busy ? <ActivityIndicator color={C.leaf} /> : null}
         <T size={13} color={C.muted} center>
-          Only your family can see recipes. Your first one earns the Keeper of Recipes badge.
+          Only your family can see recipes.
         </T>
       </ScrollView>
     </KeyboardAvoidingView>

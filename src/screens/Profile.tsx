@@ -2,12 +2,13 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { PlateCard } from '../food';
 import { useStore } from '../store';
 import { C } from '../theme';
 import { webUrl } from '../backend';
 import { nudgeText, sendOnWhatsApp } from '../nudge';
 import { Badge, badgesFor, bestStreak, isBalanced, plateAverage, pointsFor, streakGoal, streakOf, streakReward } from '../game';
-import { Avatar, Btn, Chip, Eyebrow, PageHead, Row, Stat, T, Thali, WeekStrip, field } from '../ui';
+import { Avatar, Btn, Chip, Eyebrow, PageHead, Row, Stat, T, WeekStrip, field } from '../ui';
 import { dayCounts, dayHeading, handsText, inWeek, roleName, weekDays, weekLabel } from '../words';
 import MealCard from './MealCard';
 
@@ -18,11 +19,11 @@ const ALL_BADGES: Badge[] = [
   { id: 'first', title: 'First Bite', how: 'Share a first meal', icon: 'restaurant' },
   { id: 's3', title: 'Three in a Row', how: '3 days in a row', icon: 'flame' },
   { id: 's7', title: 'One Week', how: '7 days in a row', icon: 'flame' },
-  { id: 'bal5', title: 'Half Sabzi', how: '5 balanced plates', icon: 'leaf' },
-  { id: 'tog3', title: 'Dawat', how: 'Eat together 3 times', icon: 'people' },
+  { id: 'bal5', title: 'Half Veggies', how: '5 balanced plates', icon: 'leaf' },
+  { id: 'tog3', title: 'Shared Table', how: 'Eat together 3 times', icon: 'people' },
   { id: 'cheer3', title: 'Cheerleader', how: 'Send 3 notes', icon: 'heart' },
   { id: 'recipe', title: 'Keeper of Recipes', how: 'Save a family recipe', icon: 'book' },
-  { id: 'fast', title: 'Roza', how: 'Share a fasting day', icon: 'moon' },
+  { id: 'fast', title: 'Fasting Day', how: 'Share a fasting day', icon: 'moon' },
   { id: 's30', title: 'Month at the Table', how: '30 days in a row', icon: 'trophy' },
   { id: 'm50', title: 'Fifty Plates', how: '50 meals shared', icon: 'star' },
 ];
@@ -117,7 +118,7 @@ export default function Profile({ memberId, onClose }: { memberId: string; onClo
               Send {person.name} a note
             </T>
             <T size={14} color="#5B4A4F">
-              It shows up on their table. Small words go a long way.
+              Small words go a long way.
             </T>
             <Row gap={8} style={{ flexWrap: 'wrap' }}>
               {QUICK_NOTES.map((q) => (
@@ -153,7 +154,7 @@ export default function Profile({ memberId, onClose }: { memberId: string; onClo
         <View style={{ backgroundColor: C.white, borderRadius: 20, padding: 14, gap: 12, borderWidth: 1, borderColor: '#E6EBE6' }}>
           <WeekStrip days={days} label={weekLabel(offset, days)} counts={dayCounts(theirs, days)} onPrev={() => setOffset(offset - 1)} onNext={offset < 0 ? () => setOffset(offset + 1) : undefined} />
           <Row gap={14}>
-            <Thali size={92} grains={avg.counted ? Math.round(avg.grains) : 0} protein={Math.round(avg.protein)} veg={Math.round(avg.veg)} />
+            <PlateCard size={96} grains={avg.counted ? avg.grains : 0} protein={avg.protein} veg={avg.veg} grain={store.goalFood} />
             <View style={{ flex: 1, gap: 2 }}>
               <T w="semibold">{avg.counted ? 'A usual plate that week' : 'No plates that week'}</T>
               {avg.counted ? (
@@ -196,7 +197,7 @@ export default function Profile({ memberId, onClose }: { memberId: string; onClo
               {person.name}'s circle this week
             </T>
             <T size={14} color={C.muted}>
-              Who has reached out with a heart or a note. Take turns, so it never falls on one person.
+              Take turns, so it never falls on one person.
             </T>
             {circle.map((c) => (
               <Row key={c.member.id} gap={10}>

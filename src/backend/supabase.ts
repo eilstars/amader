@@ -23,6 +23,8 @@ type MealRow = {
   with_ids: string[] | null;
   with_others: string | null;
   party: boolean | null;
+  grain: string | null;
+  same_as: string | null;
   hearts: { member_id: string }[] | null;
 };
 type CheerRow = { id: string; from_id: string; to_id: string; meal_id: string | null; text: string; created_at: string };
@@ -161,7 +163,7 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
       const [mealRows, cheerRows, recipeRows] = await Promise.all([
         db
           .from('meals')
-          .select('id, member_id, eaten_at, slot, photo_url, handfuls, protein, veg, dish, parts, note, voice_url, with_ids, with_others, party, hearts(member_id)')
+          .select('id, member_id, eaten_at, slot, photo_url, handfuls, protein, veg, dish, parts, note, voice_url, with_ids, with_others, party, grain, same_as, hearts(member_id)')
           .eq('family_code', code)
           .gte('eaten_at', since)
           .order('eaten_at', { ascending: false }),
@@ -195,6 +197,8 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
         withIds: m.with_ids ?? [],
         withOthers: m.with_others,
         party: !!m.party,
+        grain: m.grain,
+        sameAs: m.same_as,
         hearts: (m.hearts ?? []).map((h) => h.member_id),
       }));
       const cheers: Cheer[] = ((cheerRows.data ?? []) as CheerRow[]).map((c) => ({ id: c.id, fromId: c.from_id, toId: c.to_id, mealId: c.meal_id, text: c.text, date: c.created_at }));
@@ -245,6 +249,8 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
         with_ids: meal.withIds ?? [],
         with_others: meal.withOthers ?? null,
         party: !!meal.party,
+        grain: meal.grain ?? null,
+        same_as: meal.sameAs ?? null,
       });
       fail(error);
       return { ...meal, photo: photoPath ? (linkOf(photoPath) ?? photo?.uri ?? null) : null, voice: voicePath ? (linkOf(voicePath, VOICE) ?? voice?.uri ?? null) : null };

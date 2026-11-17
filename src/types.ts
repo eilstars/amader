@@ -54,6 +54,10 @@ export interface Meal {
   withOthers?: string | null;
   /** A buffet, wedding or dawat plate. */
   party?: boolean;
+  /** The grain on this plate ("Rice", "Naan"). Families mix staples from day to day. */
+  grain?: string | null;
+  /** Set when this person ate a meal someone else shared ("I ate this too"). Its photo is shown. */
+  sameAs?: string | null;
 }
 
 /** Rough share of the plate, in percent. */
@@ -156,6 +160,8 @@ export type NewMeal = {
   withIds?: string[];
   withOthers?: string;
   party?: boolean;
+  grain?: string;
+  sameAs?: string | null;
 };
 
 export type NewRecipe = Omit<Recipe, 'id' | 'addedBy' | 'date' | 'photo' | 'voice'> & { photo: Photo | null; voice: Voice | null };

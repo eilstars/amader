@@ -5,7 +5,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { C } from '../theme';
 import { amountText, slotAt } from '../words';
-import { T } from '../ui';
+import { PageHead, T } from '../ui';
+import { WidgetCard } from './Widget';
 import OurTable from './OurTable';
 import Recap from './Recap';
 import AddMeal from './AddMeal';
@@ -16,7 +17,7 @@ import Profile from './Profile';
 import Learn from './Learn';
 import Recipes from './Recipes';
 
-type Sheet = 'add' | 'me' | 'checkup' | 'teach' | { profile: string } | null;
+type Sheet = 'add' | 'me' | 'checkup' | 'teach' | 'widget' | { profile: string } | null;
 type Tab = 'table' | 'recap' | 'recipes' | 'learn';
 
 export default function Main({ openCamera }: { openCamera: boolean }) {
@@ -87,7 +88,7 @@ export default function Main({ openCamera }: { openCamera: boolean }) {
         }}
       >
         <TabButton icon="restaurant" label="Our Table" on={tab === 'table'} onPress={() => setTab('table')} />
-        <TabButton icon="calendar" label="Recap" on={tab === 'recap'} onPress={() => setTab('recap')} />
+        <TabButton icon="calendar" label="Progress" on={tab === 'recap'} onPress={() => setTab('recap')} />
         <Pressable
           onPress={() => setSheet('add')}
           accessibilityRole="button"
@@ -149,12 +150,21 @@ export default function Main({ openCamera }: { openCamera: boolean }) {
                 onCheckup={() => setSheet('checkup')}
                 onTeach={() => setSheet('teach')}
                 onPerson={person}
-                onWidget={() => {
-                  store.setPrefs({ widgetSeen: false });
-                  setTab('table');
-                  setSheet(null);
-                }}
+                onWidget={() => setSheet('widget')}
               />
+            ) : null}
+            {sheet === 'widget' ? (
+              <View style={{ flex: 1 }}>
+                <PageHead title="Home screen widget" onBack={() => setSheet('me')} />
+                <View style={{ padding: 16 }}>
+                  <WidgetCard
+                    onClose={() => {
+                      store.setPrefs({ widgetSeen: true });
+                      setSheet(null);
+                    }}
+                  />
+                </View>
+              </View>
             ) : null}
             {typeof sheet === 'object' && sheet ? <Profile memberId={sheet.profile} onClose={() => setSheet(null)} /> : null}
             {sheet === 'teach' ? <Teach onClose={() => setSheet(null)} /> : null}

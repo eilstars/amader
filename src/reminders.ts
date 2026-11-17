@@ -26,7 +26,7 @@ const AFTER: Record<string, string[]> = {
 
 const SURPRISE = [
   'Having a snack? Share it, snacks count too.',
-  'Chai time? Tell the family what you are having.',
+  'Tea or coffee time? Tell the family what you are having.',
   'Quick check from Puti: did you eat yet?',
   'Your family is at the table. Pop in and send a heart.',
 ];

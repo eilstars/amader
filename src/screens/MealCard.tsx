@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { Image, Pressable, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { GrainArt, PlateCard, ProteinArt, VegArt } from '../food';
 import { useStore } from '../store';
 import { C } from '../theme';
 import { Meal } from '../types';
-import { Avatar, Row, T, Thali } from '../ui';
+import { Avatar, Btn, HandCount, Row, T } from '../ui';
 import { VoicePlayer } from '../voice';
-import { isBalanced, pointsFor } from '../game';
-import { plateLine, slotName, timeText } from '../words';
+import { isBalanced } from '../game';
+import { daysBetween, plateLine, slotName, timeText } from '../words';
 
 /**
  * One shared meal, compact so a week fits on a screen. Tap the picture to see it big.
@@ -24,14 +25,46 @@ export default function MealCard({ meal, onPerson }: { meal: Meal; onPerson?: (i
   const [failed, setFailed] = useState(false);
   const together = [...(meal.withIds ?? []).map((id) => (id === meId ? 'you' : store.member(id)?.name)).filter(Boolean), meal.withOthers].filter(Boolean) as string[];
   const fasting = meal.slot === 'fasting';
-  const line = plateLine(meal, store.goalFood);
   const balanced = isBalanced(meal);
+  // "I ate this too": show the photo of the meal it points at.
+  const original = meal.sameAs ? store.meals.find((m) => m.id === meal.sameAs) : undefined;
+  const photo = meal.photo ?? original?.photo ?? null;
+  // The numbers are on the picture when there is no photo, so the line is only needed under a photo.
+  const line = photo ? plateLine(meal, store.goalFood) : null;
+  // Tagged at someone else's table and not logged yet: one tap to say "I ate this too".
+  const canJoin =
+    !!meId && !own && !fasting && !meal.sameAs && (meal.withIds ?? []).includes(meId) && daysBetween(new Date(meal.date), new Date()) <= 1 && !store.meals.some((m) => m.memberId === meId && m.sameAs === meal.id);
+  const [joining, setJoining] = useState(false);
+  const [mine3, setMine3] = useState({ grains: meal.handfuls ?? 1, protein: meal.protein ?? 1, veg: meal.veg ?? 1 });
+  const [joinBusy, setJoinBusy] = useState(false);
+  const [joinFailed, setJoinFailed] = useState(false);
 
-  const picture = meal.photo ? (
-    <Image source={{ uri: meal.photo }} accessibilityLabel={meal.dish || 'Meal photo'} style={big ? { width: '100%', aspectRatio: 4 / 3, borderRadius: 14, backgroundColor: C.soft } : { width: 76, height: 76, borderRadius: 14, backgroundColor: C.soft }} />
+  async function join() {
+    setJoinBusy(true);
+    setJoinFailed(false);
+    try {
+      await store.addMeal({
+        slot: meal.slot,
+        photo: null,
+        portions: mine3,
+        sameAs: meal.id,
+        grain: meal.grain ?? undefined,
+        withIds: [meal.memberId, ...(meal.withIds ?? []).filter((id) => id !== meId)],
+        chosenBy: 'tap',
+      });
+      setJoining(false);
+    } catch {
+      setJoinFailed(true);
+    } finally {
+      setJoinBusy(false);
+    }
+  }
+
+  const picture = photo ? (
+    <Image source={{ uri: photo }} accessibilityLabel={meal.dish || 'Meal photo'} style={big ? { width: '100%', aspectRatio: 4 / 3, borderRadius: 14, backgroundColor: C.soft } : { width: 76, height: 76, borderRadius: 14, backgroundColor: C.soft }} />
   ) : (
     <View style={{ width: 76, height: 76, alignItems: 'center', justifyContent: 'center' }}>
-      <Thali size={74} grains={meal.handfuls} protein={meal.protein} veg={meal.veg} party={meal.party} fasting={fasting} />
+      <PlateCard size={76} grains={meal.handfuls} protein={meal.protein} veg={meal.veg} grain={meal.grain ?? store.goalFood} party={meal.party} fasting={fasting} />
     </View>
   );
 
@@ -44,7 +77,7 @@ export default function MealCard({ meal, onPerson }: { meal: Meal; onPerson?: (i
       ) : null}
       <Row gap={10} style={{ alignItems: 'flex-start' }}>
         {!big ? (
-          <Pressable onPress={() => meal.photo && setBig(true)} accessibilityRole={meal.photo ? 'button' : undefined} accessibilityLabel={meal.photo ? 'See the photo big' : undefined}>
+          <Pressable onPress={() => photo && setBig(true)} accessibilityRole={photo ? 'button' : undefined} accessibilityLabel={photo ? 'See the photo big' : undefined}>
             {picture}
           </Pressable>
         ) : null}
@@ -101,11 +134,23 @@ export default function MealCard({ meal, onPerson }: { meal: Meal; onPerson?: (i
         </View>
       ) : null}
       {meal.voice ? <VoicePlayer uri={meal.voice} label={`${who?.name ?? 'their'} voice note`} /> : null}
+      {canJoin && !joining ? <Btn kind="ghost" icon="restaurant" label="I ate this too" onPress={() => setJoining(true)} style={{ minHeight: 48 }} /> : null}
+      {joining ? (
+        <View style={{ gap: 8, backgroundColor: C.soft, borderRadius: 14, padding: 10 }}>
+          <T w="semibold">How much did you have?</T>
+          <HandCount label={meal.grain ?? store.goalFood} unit={['fist', 'fists']} art={<GrainArt kind={meal.grain ?? store.goalFood} size={36} />} value={mine3.grains} onChange={(n) => setMine3({ ...mine3, grains: n })} />
+          <HandCount label="Protein" unit={['palm', 'palms']} art={<ProteinArt size={36} />} value={mine3.protein} onChange={(n) => setMine3({ ...mine3, protein: n })} />
+          <HandCount label="Vegetables" unit={['handful', 'handfuls']} art={<VegArt size={36} />} value={mine3.veg} onChange={(n) => setMine3({ ...mine3, veg: n })} />
+          {joinFailed ? (
+            <T size={14} color="#8A2942">
+              That didn't save. Please try again.
+            </T>
+          ) : null}
+          <Btn label={joinBusy ? 'Saving...' : 'Share my plate'} disabled={joinBusy} onPress={join} />
+        </View>
+      ) : null}
       {own ? (
-        <Row style={{ justifyContent: 'space-between' }}>
-          <T size={13} color={C.leaf} w="semibold">
-            +{pointsFor(meal)} points
-          </T>
+        <Row style={{ justifyContent: 'flex-end' }}>
           {asking ? (
             <Row gap={16}>
               <T size={13} color={failed ? '#8A2942' : C.muted}>

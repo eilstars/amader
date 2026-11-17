@@ -1,18 +1,20 @@
 /**
- * Learning in small bites. Each card asks a question first and lets the person guess,
- * so they come to the idea themselves ("you need to understand", not "you need to change").
- * Plain words, one idea per card, never a lecture. Not medical advice.
+ * Learning as a card game. Each card asks first, so people come to the idea themselves
+ * ("you need to understand", not "you need to change"). Then it says, honestly and briefly,
+ * what is at stake, and one small thing that helps. Short on purpose. Not medical advice.
  */
 export interface Lesson {
   id: string;
-  /** The question on the front of the card. */
+  /** The question on the front of the card. Twelve words or fewer. */
   ask: string;
   /** Two or three answers to tap. */
   options: string[];
   /** Index of the answer that fits best. */
   answer: number;
-  /** What the person sees after tapping, in two or three short sentences. */
+  /** The answer explained, in one or two short sentences. */
   why: string;
+  /** What it means for the people you love. Honest, never a threat. */
+  stake?: string;
   /** One small thing to try. */
   tryThis: string;
   icon: string;
@@ -22,83 +24,123 @@ export interface Lesson {
 
 export const LESSONS: Lesson[] = [
   {
-    id: 'quiet',
-    ask: 'In a US study of South Asian adults over 40, how many had diabetes?',
-    options: ['About 1 in 20', 'About 1 in 10', 'About 1 in 4'],
+    id: 'hidden',
+    ask: 'How many US adults have prediabetes or diabetes?',
+    options: ['About 1 in 20', 'About 1 in 10', 'More than 1 in 3'],
     answer: 2,
-    why: 'About 1 in 4, several times the rate for white Americans in the same years. Many of them felt completely fine. That is why small habits matter before anything feels wrong.',
-    tryThis: 'Share one plate a day this week. Noticing is the first step.',
+    why: 'More than 1 in 3. Most people with prediabetes do not know they have it, because it feels like nothing.',
+    stake: 'Feeling fine is not the same as being fine.',
+    tryThis: 'Ask your doctor about a blood sugar test at your next checkup.',
+    icon: 'eye-off',
+  },
+  {
+    id: 'half',
+    ask: 'Can small changes stop prediabetes becoming diabetes?',
+    options: ['No, it is in the genes', 'Yes, often'],
+    answer: 1,
+    why: 'In a large US study, eating differently, losing a little weight and walking 30 minutes most days cut the chance by more than half. For people over 60, by about 70%.',
+    stake: 'This is one of the few health stories where small habits win.',
+    tryThis: 'A 10 minute walk after one meal a day.',
+    icon: 'trending-down',
+  },
+  {
+    id: 'takes',
+    ask: 'Diabetes is a leading cause of which of these?',
+    options: ['Losing eyesight', 'Kidney failure', 'All of these, and losing a foot'],
+    answer: 2,
+    why: 'All of them. It works quietly over years, which is why the habits matter now and not later.',
+    stake: 'The things it takes are the things you need to hold a grandchild, drive to a wedding, cook for everyone.',
+    tryThis: 'Share one plate today. Noticing is where it starts.',
+    icon: 'heart-half',
+  },
+  {
+    id: 'kids',
+    ask: 'Whose eating do children copy most?',
+    options: ['Their friends', 'Their parents', 'TV adverts'],
+    answer: 1,
+    why: 'Studies keep finding that children eat a lot like the adults at home. The plate you fill is a lesson they learn.',
+    stake: 'Your habits become theirs, and their children\'s.',
+    tryThis: 'Put the vegetables on the table first tonight.',
     icon: 'people',
   },
   {
+    id: 'southasian',
+    ask: 'In a US study of South Asian adults over 40, how many had diabetes?',
+    options: ['About 1 in 20', 'About 1 in 4'],
+    answer: 1,
+    why: 'About 1 in 4, several times the rate for white Americans. Many felt completely fine.',
+    tryThis: 'If this is your family, a blood sugar test is worth asking for.',
+    icon: 'globe',
+  },
+  {
     id: 'fist',
-    ask: 'How much cooked rice fits in your closed fist?',
+    ask: 'How much cooked rice or pasta fits in your fist?',
     options: ['About half a cup', 'About two cups'],
     answer: 0,
-    why: 'Your fist is about half a cup, and it grows with you, so it is a ruler you always carry. Most home plates of rice are three or four fists.',
-    tryThis: 'Tonight, look at the rice and count it in fists. No need to change it yet.',
+    why: 'About half a cup. Your fist is a ruler you always carry. Most home plates hold three or four.',
+    tryThis: 'Tonight, count the rice in fists. No need to change it yet.',
     icon: 'hand-left',
   },
   {
     id: 'order',
-    ask: 'Same plate, same food. Does the order you eat it in change anything?',
-    options: ['No, it all ends up the same', 'Yes, sabzi first helps'],
+    ask: 'Same plate. Does the order you eat it in matter?',
+    options: ['No', 'Yes, vegetables first helps'],
     answer: 1,
-    why: 'Studies have found that eating vegetables and protein before rice or roti makes sugar in the blood rise more slowly. Nothing is taken away from the plate.',
-    tryThis: 'Start with a few bites of sabzi or salad, then the rice.',
+    why: 'Eating vegetables and protein before the rice or bread makes blood sugar rise more slowly. Nothing is taken away.',
+    tryThis: 'Start with a few bites of vegetables or salad.',
     icon: 'leaf',
   },
   {
     id: 'walk',
-    ask: 'What helps the body use a big meal?',
-    options: ['A short walk after eating', 'A nap after eating'],
+    ask: 'After a big meal, which helps the body more?',
+    options: ['A short walk', 'A nap'],
     answer: 0,
-    why: 'Moving your legs for ten or fifteen minutes after a meal helps muscles use the sugar from it. A walk around the house or to the corner shop counts.',
-    tryThis: 'Walk for ten minutes after dinner, maybe with someone on the phone.',
+    why: 'Ten or fifteen minutes of walking helps muscles use the sugar from the meal. Around the house counts.',
+    tryThis: 'Walk ten minutes after dinner, maybe on the phone with family.',
     icon: 'walk',
   },
   {
-    id: 'chai',
-    ask: 'Two cups of chai a day, two spoons of sugar each. How much sugar is that in a week?',
+    id: 'soda',
+    ask: 'How many teaspoons of sugar are in one can of soda?',
+    options: ['About 2', 'About 10'],
+    answer: 1,
+    why: 'About 10. Sweet drinks are the fastest sugar there is, because nothing slows them down.',
+    tryThis: 'Swap one sweet drink this week for water or tea.',
+    icon: 'cube',
+  },
+  {
+    id: 'tea',
+    ask: 'Two sweet teas a day, two spoons each. Sugar per week?',
     options: ['About 7 spoons', 'About 28 spoons'],
     answer: 1,
-    why: 'Twenty eight spoons, more than half a cup of sugar every week, just from chai. Going from two spoons to one halves it, and most people stop noticing in a week or two.',
-    tryThis: 'Make one cup a day with one spoon instead of two.',
+    why: 'Twenty eight spoons, more than half a cup. One spoon instead of two halves it, and most people stop noticing in a couple of weeks.',
+    tryThis: 'Make one cup a day with one spoon less.',
     icon: 'cafe',
   },
   {
-    id: 'plate',
-    ask: 'What does a balanced plate look like with your hands?',
-    options: ['Two handfuls of veg, a fist of rice, a palm of protein', 'Three fists of rice and some dal'],
-    answer: 0,
-    why: 'Half the plate vegetables, a quarter grains, a quarter protein. It is the same food you already cook, in different amounts.',
-    tryThis: 'Serve the sabzi first, then fill in the rest.',
-    icon: 'restaurant',
-  },
-  {
     id: 'fruit',
-    ask: 'Which is kinder to the body: a mango, or a glass of mango juice?',
-    options: ['The juice', 'The whole mango'],
+    ask: 'Which is kinder to the body?',
+    options: ['A glass of juice', 'The whole fruit'],
     answer: 1,
-    why: 'The whole fruit keeps its fibre, which slows the sugar down and fills you up. A glass of juice can hold the sugar of three or four fruits.',
-    tryThis: 'Eat fruit whole and save juice for special days.',
+    why: 'Whole fruit keeps its fibre, which slows the sugar and fills you up. One glass of juice can hold three or four fruits of sugar.',
+    tryThis: 'Eat fruit whole. Keep juice for special days.',
     icon: 'nutrition',
   },
   {
     id: 'slow',
-    ask: 'How long does it take for better eating to show in a check up?',
+    ask: 'How long before better eating shows in a check up?',
     options: ['A few days', 'A few months'],
     answer: 1,
-    why: 'Most blood tests at the doctor look back over about three months. That is why Amader rewards every single day: the body notices long before the numbers do.',
-    tryThis: 'Keep your streak going. Every day counts, even the boring ones.',
+    why: 'Most blood tests look back about three months. Your body notices long before the numbers do, so every day counts.',
+    tryThis: 'Keep your streak going, even on boring days.',
     icon: 'time',
   },
   {
     id: 'iftar',
     ask: 'What is a gentle way to open a fast?',
-    options: ['Dates and water, then a pause before the meal', 'Straight to pakoras and sweets'],
+    options: ['Dates and water, then a pause', 'Straight to fried food and sweets'],
     answer: 0,
-    why: 'After a long fast the body takes in sugar quickly. A date and water, a short pause for prayer, then the meal, is easier on it than a rush of fried food.',
+    why: 'After a long fast the body takes in sugar quickly. A date, water and a short pause are easier on it.',
     tryThis: 'Open with one or two dates and water, then wait a few minutes.',
     icon: 'moon',
     ramadan: true,
@@ -106,13 +148,27 @@ export const LESSONS: Lesson[] = [
   {
     id: 'suhoor',
     ask: 'Which suhoor keeps you full for longer?',
-    options: ['Paratha and sweet chai', 'Eggs, yoghurt and a roti'],
+    options: ['Paratha and sweet tea', 'Eggs, yoghurt and a roti'],
     answer: 1,
-    why: 'Protein and slower grains are digested over many hours, so the day of fasting feels easier and the iftar hunger is smaller.',
-    tryThis: 'Add an egg or a bowl of yoghurt to suhoor.',
+    why: 'Protein and slower grains are digested over many hours, so the fast feels easier.',
+    tryThis: 'Add an egg or yoghurt to suhoor.',
     icon: 'sunny',
     ramadan: true,
   },
 ];
 
-export const LEARN_NOTE = 'Short, general ideas about everyday eating. Not medical advice. Ask your doctor what is right for you.';
+/** The reasons people give for wanting to stay healthy. Tapping one keeps it on their Learn page. */
+export const MY_REASONS = ['Play with my grandkids', 'Be at my kids\' weddings', 'Travel with my family', 'Stay independent', 'Keep cooking for everyone'];
+
+/** What a caregiver can tell the person they look after. Sent as a note. */
+export const THEIR_REASONS = ['I want you at my wedding', 'I want my kids to know you', 'I need you around for a long time', 'I want to travel with you'];
+
+export const LEVELS = [
+  { at: 0, name: 'Curious' },
+  { at: 30, name: 'Noticer' },
+  { at: 80, name: 'Plate Pro' },
+  { at: 150, name: 'Habit Builder' },
+  { at: 250, name: 'Table Teacher' },
+];
+
+export const LEARN_NOTE = 'General ideas about everyday eating, not medical advice. Ask your doctor what is right for you.';

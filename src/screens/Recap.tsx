@@ -2,10 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { PlateCard } from '../food';
 import { useStore } from '../store';
 import { C } from '../theme';
 import { boardTitles, isBalanced, nextIdea, plateAverage, scores } from '../game';
-import { Avatar, Eyebrow, FOOD, PutiSays, Row, Stat, T, Thali, WeekStrip } from '../ui';
+import { Avatar, Eyebrow, FOOD, PutiSays, Row, Stat, T, WeekStrip } from '../ui';
 import { handsText } from '../words';
 import { dayCounts, inWeek, weekDays, weekLabel, whenText } from '../words';
 
@@ -49,7 +50,7 @@ export default function Recap({ onCheckup, onPerson }: { onCheckup: () => void; 
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }}>
       <View style={{ backgroundColor: C.mint, paddingTop: insets.top + 14, paddingHorizontal: 18, paddingBottom: 16, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, gap: 12 }}>
         <T w="bold" size={28} style={{ lineHeight: 34 }}>
-          Recap
+          Progress
         </T>
         <View style={{ backgroundColor: C.white, borderRadius: 20, padding: 12 }}>
           <WeekStrip days={days} label={weekLabel(offset, days)} counts={dayCounts(mine, days)} onPrev={() => setOffset(offset - 1)} onNext={offset < 0 ? () => setOffset(offset + 1) : undefined} />
@@ -83,8 +84,8 @@ export default function Recap({ onCheckup, onPerson }: { onCheckup: () => void; 
             <PlateColumn title="A balanced plate" grains={1} protein={1} veg={2} grain={grain} />
           </Row>
           <View style={{ backgroundColor: C.soft, borderRadius: 14, padding: 12, gap: 4 }}>
-            <Legend color={FOOD.grain} text={`${store.goalFood} or roti: one fist`} />
-            <Legend color={FOOD.protein} text="Fish, meat, eggs or dal: one palm" />
+            <Legend color={FOOD.grain} text="Rice, bread or other grains: one fist" />
+            <Legend color={FOOD.protein} text="Meat, fish, eggs, beans or lentils: one palm" />
             <Legend color={FOOD.veg} text="Vegetables or salad: two handfuls, half the plate" />
           </View>
         </View>
@@ -104,7 +105,7 @@ export default function Recap({ onCheckup, onPerson }: { onCheckup: () => void; 
             </View>
           </Row>
           <T size={14} color={C.muted}>
-            Everyone is best at something. Points add up for the whole family.
+            Everyone is best at something.
           </T>
           {board.map((s) => (
             <Pressable key={s.member.id} onPress={() => onPerson(s.member.id)} accessibilityRole="button" accessibilityLabel={`${s.member.name}, ${titles.get(s.member.id)}`}>
@@ -139,7 +140,7 @@ export default function Recap({ onCheckup, onPerson }: { onCheckup: () => void; 
               {loved.photo ? (
                 <Image source={{ uri: loved.photo }} style={{ width: 64, height: 64, borderRadius: 14 }} />
               ) : (
-                <Thali size={64} grains={loved.handfuls} protein={loved.protein} veg={loved.veg} party={loved.party} />
+                <PlateCard size={64} grains={loved.handfuls} protein={loved.protein} veg={loved.veg} grain={loved.grain ?? store.goalFood} party={loved.party} />
               )}
               <View style={{ flex: 1 }}>
                 <T w="semibold">{loved.dish || store.mealTitle(loved)}</T>
@@ -181,7 +182,7 @@ export default function Recap({ onCheckup, onPerson }: { onCheckup: () => void; 
 function PlateColumn({ title, grains, protein, veg, grain, empty }: { title: string; grains: number; protein: number; veg: number; grain: string; empty?: boolean }) {
   return (
     <View style={{ alignItems: 'center', width: '48%', gap: 6 }}>
-      <Thali size={124} grains={empty ? 0 : Math.round(grains)} protein={empty ? 0 : Math.round(protein)} veg={empty ? 0 : Math.round(veg)} />
+      <PlateCard size={128} grains={empty ? 0 : grains} protein={empty ? 0 : protein} veg={empty ? 0 : veg} grain={grain} />
       <T w="semibold" center>
         {title}
       </T>

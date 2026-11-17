@@ -5,10 +5,12 @@ import * as ImagePicker from 'expo-image-picker';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Hand, findHand } from '../hand';
+import { GrainArt, PlateCard, ProteinArt, VegArt } from '../food';
+import { WidgetCard } from './Widget';
 import { useStore } from '../store';
 import { C, F } from '../theme';
 import { ChosenBy, Guess, Meal, Photo, Slot, Voice } from '../types';
-import { Avatar, Btn, Chip, DayRing, Eyebrow, FOOD, HandCount, Puti, Row, T, Thali } from '../ui';
+import { Avatar, Btn, Chip, DayRing, Eyebrow, GOAL_FOODS, HandCount, Puti, Row, T } from '../ui';
 import { VoiceRecorder } from '../voice';
 import { badgesFor, isBalanced, pointsFor, streakGoal, streakOf, streakReward } from '../game';
 import HandMeasure from './HandMeasure';
@@ -28,7 +30,18 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
   const [protein, setProtein] = useState(1);
   const [veg, setVeg] = useState(1);
   const [party, setParty] = useState(false);
-  const [withIds, setWithIds] = useState<string[]>([]);
+  const food = store.goalFood;
+  const me = store.me;
+  const others = (store.family?.members ?? []).filter((m) => m.id !== me?.id);
+  // The grain last time, so someone who mostly eats naan does not have to pick it every meal.
+  const lastGrain = store.meals.find((m) => m.memberId === me?.id && m.grain)?.grain ?? food;
+  const [grainName, setGrainName] = useState(lastGrain);
+  // People who live together usually eat together, so they are tagged to start with. One tap removes them.
+  const [withIds, setWithIds] = useState<string[]>(() =>
+    store.prefs.sameHome && slotAt(new Date(), store.prefs.times, ramadan) !== 'snack' ? others.filter((m) => m.joined).map((m) => m.id) : [],
+  );
+  const [more, setMore] = useState(false);
+  const [widgetLater, setWidgetLater] = useState(false);
   const [withOthers, setWithOthers] = useState('');
   const [text, setText] = useState('');
   const [voice, setVoice] = useState<Voice | null>(null);
@@ -45,9 +58,6 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
   const [measuring, setMeasuring] = useState(false);
   const [byHand, setByHand] = useState(false);
   const shot = useRef(0);
-  const food = store.goalFood;
-  const me = store.me;
-  const others = (store.family?.members ?? []).filter((m) => m.id !== me?.id);
 
   function findRuler(at: Photo) {
     const mine = ++shot.current;
@@ -140,6 +150,7 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
         withIds,
         withOthers,
         party,
+        grain: grainName,
       });
       setSaved(meal);
       setStep('saved');
@@ -194,7 +205,7 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
             </T>
           </View>
           <T size={14} color="#C9D8CF" center style={{ paddingHorizontal: 30 }}>
-            Tip: put your hand flat next to the plate and Amader can measure the rice for you.
+            Tip: put your hand flat next to the plate and Amader can measure the portion for you.
           </T>
         </Pressable>
 
@@ -214,6 +225,7 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
               setPhoto(null);
               setGuess(null);
               setHand(null);
+              setMore(true);
               setStep('details');
             }}
             disabled={busy}
@@ -268,7 +280,7 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
           {photo ? (
             <Image source={{ uri: photo.uri }} style={{ width: 132, height: 132, borderRadius: 66, borderWidth: 7, borderColor: C.steel, backgroundColor: C.soft }} />
           ) : (
-            <Thali size={132} grains={grains} protein={protein} veg={veg} party={party} />
+            <PlateCard size={132} grains={grains} protein={protein} veg={veg} party={party} />
           )}
           <View style={{ flex: 1, gap: 6 }}>
             {photo && (guessing || guess) ? (
@@ -338,10 +350,9 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
         <View style={{ gap: 8 }}>
           <Eyebrow>{snack ? 'How much? (optional for snacks)' : 'How much? Count with your hands'}</Eyebrow>
           <HandCount
-            label={food === 'Rice' ? 'Rice, roti, grains' : food}
+            label={grainName}
             unit={['fist', 'fists']}
-            icon="ellipse"
-            color={FOOD.grain}
+            art={<GrainArt kind={grainName} size={40} />}
             value={grains}
             onChange={(n) => {
               touched.current = true;
@@ -349,57 +360,75 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
               setGrains(n);
             }}
           />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingHorizontal: 2 }}>
+            {GOAL_FOODS.map((g) => (
+              <Chip key={g} label={g} on={grainName === g} onPress={() => setGrainName(g)} />
+            ))}
+          </ScrollView>
           {photo && hand ? (
-            <Btn kind="ghost" icon="hand-left-outline" label={byHand ? 'Measured with your hand' : 'Measure rice with my hand'} onPress={() => setMeasuring(true)} />
+            <Btn kind="ghost" icon="hand-left-outline" label={byHand ? 'Measured with your hand' : 'Measure with my hand'} onPress={() => setMeasuring(true)} />
           ) : photo && looking ? (
             <T size={14} color={C.muted}>
               Looking for your hand in the photo...
             </T>
           ) : null}
-          <HandCount label="Fish, meat, egg, dal" unit={['palm', 'palms']} icon="fish" color={FOOD.protein} value={protein} onChange={(n) => { touched.current = true; setProtein(n); }} />
-          <HandCount label="Sabzi and salad" unit={['handful', 'handfuls']} icon="leaf" color={C.leaf} value={veg} onChange={(n) => { touched.current = true; setVeg(n); }} />
+          <HandCount label="Protein" unit={['palm', 'palms']} art={<ProteinArt size={40} />} value={protein} onChange={(n) => { touched.current = true; setProtein(n); }} />
+          <HandCount label="Vegetables" unit={['handful', 'handfuls']} art={<VegArt size={40} />} value={veg} onChange={(n) => { touched.current = true; setVeg(n); }} />
           {!snack ? (
-            <View style={{ backgroundColor: balanced ? C.mint : C.white, borderRadius: 14, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: balanced ? 0 : 1, borderColor: '#E6EBE6' }}>
-              <Ionicons name={balanced ? 'checkmark-circle' : 'bulb-outline'} size={24} color={C.leaf} />
+            <Row gap={8} style={{ paddingHorizontal: 4 }}>
+              <Ionicons name={balanced ? 'checkmark-circle' : 'bulb-outline'} size={20} color={C.leaf} />
               <T size={15} color={C.deep} style={{ flex: 1 }}>
-                {balanced ? 'Balanced plate! +10 bonus points.' : veg < Math.max(1, grains) ? `One more handful of sabzi makes this a balanced plate (+10).` : 'Add a palm of dal, egg or fish for a balanced plate (+10).'}
+                {balanced ? 'Balanced plate! +10 bonus points.' : veg < Math.max(1, grains) ? 'One more handful of vegetables makes it balanced (+10).' : 'A palm of protein makes it balanced (+10).'}
               </T>
-            </View>
+            </Row>
           ) : null}
         </View>
 
         {others.length ? (
           <View style={{ gap: 8 }}>
-            <Eyebrow>Who did you eat with?</Eyebrow>
+            <Eyebrow>Who ate with you?</Eyebrow>
             <Row gap={8} style={{ flexWrap: 'wrap' }}>
               {others.map((m) => (
                 <Chip key={m.id} label={m.name} on={withIds.includes(m.id)} onPress={() => setWithIds((list) => (list.includes(m.id) ? list.filter((x) => x !== m.id) : [...list, m.id]))} />
               ))}
             </Row>
+            {withIds.length && photo ? (
+              <T size={14} color={C.muted}>
+                They'll see this photo and can tap "I ate this too" with their own portion. No second photo needed.
+              </T>
+            ) : null}
+          </View>
+        ) : null}
+
+        {more ? (
+          <View style={{ gap: 8 }}>
+            <TextInput
+              value={text}
+              onChangeText={setText}
+              placeholder={photo ? 'A few words (optional)' : 'What did you eat?'}
+              placeholderTextColor="#8A988F"
+              maxLength={280}
+              multiline
+              style={{ minHeight: 56, borderRadius: 14, borderWidth: 1.5, borderColor: C.line, backgroundColor: C.white, paddingHorizontal: 14, paddingVertical: 12, fontFamily: F.regular, fontSize: 17, color: C.ink, textAlignVertical: 'top' }}
+            />
+            <VoiceRecorder value={voice} onChange={setVoice} />
             <TextInput
               value={withOthers}
               onChangeText={setWithOthers}
-              placeholder="Anyone else? (Shila Auntie, friends)"
+              placeholder="Anyone else at the table? (friends, Auntie)"
               placeholderTextColor="#8A988F"
               maxLength={80}
               style={{ minHeight: 52, borderRadius: 14, borderWidth: 1.5, borderColor: C.line, backgroundColor: C.white, paddingHorizontal: 14, fontFamily: F.regular, fontSize: 17, color: C.ink }}
             />
           </View>
-        ) : null}
-
-        <View style={{ gap: 8 }}>
-          <Eyebrow>Tell the family</Eyebrow>
-          <TextInput
-            value={text}
-            onChangeText={setText}
-            placeholder={photo ? 'A few words (optional)' : 'What did you eat? (dal, rice and begun bhaji)'}
-            placeholderTextColor="#8A988F"
-            maxLength={280}
-            multiline
-            style={{ minHeight: 60, borderRadius: 14, borderWidth: 1.5, borderColor: C.line, backgroundColor: C.white, paddingHorizontal: 14, paddingVertical: 12, fontFamily: F.regular, fontSize: 17, color: C.ink, textAlignVertical: 'top' }}
-          />
-          <VoiceRecorder value={voice} onChange={setVoice} />
-        </View>
+        ) : (
+          <Pressable onPress={() => setMore(true)} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 }}>
+            <Ionicons name="add-circle-outline" size={24} color={C.leaf} />
+            <T w="semibold" color={C.deep}>
+              Add a note or a voice message
+            </T>
+          </Pressable>
+        )}
 
         {note ? (
           <T center color="#8A2942" size={15}>
@@ -492,6 +521,11 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
             {goal - streak} more {goal - streak === 1 ? 'day' : 'days'} to unlock {streakReward(goal)}.
           </T>
         </View>
+
+        {/* Now and then, not every meal: the second plate, then every sixth, until it's added. */}
+        {!store.prefs.widgetSeen && !widgetLater && (store.myMealCount === 2 || store.myMealCount % 6 === 0) ? (
+          <WidgetCard onClose={() => store.setPrefs({ widgetSeen: true })} onLater={() => setWidgetLater(true)} />
+        ) : null}
 
         {others.length ? (
           <Row gap={8} style={{ alignItems: 'center' }}>
