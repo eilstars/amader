@@ -2,18 +2,24 @@
 // the plate, and roughly how much of the family's goal food there is.
 //
 // The Anthropic API key lives here on the server (supabase secrets set ANTHROPIC_API_KEY=...).
-// It is never shipped inside the app. Only signed-in phones can call this function,
-// because Supabase checks the caller's token before this code runs.
+// It is never shipped inside the app.
+//
+// Who can call it: only a signed-in phone that has a seat in a family, and at most
+// DAILY_LIMIT photos per phone per day. Without these checks anyone holding the app's
+// public key could send photos here and run up the AI bill.
 //
 // Deliberately not medical: no calories, no carbs, no advice. Just what the plate looks like.
 
 import Anthropic from "npm:@anthropic-ai/sdk";
 import { z } from "npm:zod";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { zodOutputFormat } from "npm:@anthropic-ai/sdk/helpers/zod";
 
 // Opus gives the best read of mixed South Asian plates. If cost matters more than
 // accuracy, "claude-haiku-5-5" is far cheaper per photo. Change it here.
 const MODEL = "claude-opus-5-5";
+
+const DAILY_LIMIT = 30;
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -44,12 +50,32 @@ Deno.serve(async (req) => {
     new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
   try {
+    // Supabase puts these two in every function. The service key never leaves the server.
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+    const { data: who } = await admin.auth.getUser(token);
+    const user = who?.user;
+    if (!user) return json({ error: "Please open the app again." }, 401);
+    const seats = await admin.from("members").select("id", { count: "exact", head: true }).eq("user_id", user.id);
+    if (seats.error || !seats.count) return json({ error: "Join a family first." }, 403);
+    const since = new Date(Date.now() - 86_400_000).toISOString();
+    const used = await admin.from("recognitions").select("user_id", { count: "exact", head: true }).eq("user_id", user.id).gte("at", since);
+    if (used.error) return json({ error: "Something went wrong." }, 500);
+    if ((used.count ?? 0) >= DAILY_LIMIT) return json({ guess: null, limit: true });
+    const noted = await admin.from("recognitions").insert({ user_id: user.id });
+    if (noted.error) return json({ error: "Something went wrong." }, 500);
+
     const { image, goal_food, unit } = await req.json();
     if (typeof image !== "string" || image.length < 100) return json({ error: "No photo was sent." }, 400);
     // About 3 MB of photo. The app shrinks photos well below this before sending.
     if (image.length > 4_200_000) return json({ error: "That photo is too large." }, 413);
-    const food = typeof goal_food === "string" && goal_food.length < 30 ? goal_food : "Rice";
-    const measure = typeof unit === "string" && unit.length < 30 ? unit : "handfuls";
+    // These two go into the question the model reads, so only plain words are let through.
+    const plain = (value: unknown, fallback: string) =>
+      typeof value === "string" && /^[\p{L} ]{1,30}$/u.test(value) ? value : fallback;
+    const food = plain(goal_food, "Rice");
+    const measure = plain(unit, "handfuls");
 
     const client = new Anthropic(); // reads ANTHROPIC_API_KEY from the function's secrets
     const response = await client.messages.parse({

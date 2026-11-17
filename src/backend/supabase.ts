@@ -206,11 +206,26 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
       fail(error);
     },
 
+    async deleteMeal(code, mealId) {
+      await signedIn();
+      // The photo goes first. If that fails the meal stays, so nothing is left behind without its owner.
+      const gone = await db.storage.from(BUCKET).remove([`${code}/${mealId}.jpg`]);
+      fail(gone.error);
+      const { error } = await db.from('meals').delete().eq('id', mealId);
+      fail(error);
+    },
+
     async deleteMe(code, meId) {
       await signedIn();
       const mine = await db.from('meals').select('id, photo_url').eq('member_id', meId);
+      fail(mine.error);
       const paths = (mine.data ?? []).filter((m) => m.photo_url).map((m) => `${code}/${m.id}.jpg`);
-      if (paths.length) await db.storage.from(BUCKET).remove(paths);
+      // Photos go first, 100 at a time. If any batch fails, stop: the person is told and can try again,
+      // instead of being told everything is gone while photos remain.
+      for (let i = 0; i < paths.length; i += 100) {
+        const gone = await db.storage.from(BUCKET).remove(paths.slice(i, i + 100));
+        fail(gone.error);
+      }
       const { error } = await db.rpc('delete_me', { p_member: meId });
       fail(error);
       await db.auth.signOut();

@@ -95,6 +95,8 @@ export interface Backend {
   saveExample(example: Example): Promise<void>;
   /** Takes back everything this person shared to improve recognition. */
   removeExamples(meId: string): Promise<void>;
+  /** Removes one of this person's own meals and its photo. */
+  deleteMeal(code: string, mealId: string): Promise<void>;
   /** Removes this person's meals and photos. */
   deleteMe(code: string, meId: string): Promise<void>;
 }

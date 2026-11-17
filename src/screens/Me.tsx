@@ -6,13 +6,14 @@ import { C } from '../theme';
 import { REMINDER_TIMES } from '../reminders';
 import { shareText } from '../share';
 import { Avatar, Btn, Card, Eyebrow, RoundButton, Row, T, Tag } from '../ui';
-import { MILESTONES } from '../words';
+import { MILESTONES, spacedCode } from '../words';
 import { Chip, GOAL_FOODS, Stepper } from './SetupFamily';
 
 export default function Me({ onClose, onCheckup, onTeach }: { onClose: () => void; onCheckup: () => void; onTeach: () => void }) {
   const store = useStore();
   const insets = useSafeAreaInsets();
   const [confirming, setConfirming] = useState(false);
+  const [deleteFailed, setDeleteFailed] = useState(false);
   const [improveNote, setImproveNote] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [refused, setRefused] = useState(false);
@@ -72,7 +73,7 @@ export default function Me({ onClose, onCheckup, onTeach }: { onClose: () => voi
                 Family code
               </T>
               <T w="bold" size={18} style={{ letterSpacing: 3 }}>
-                {family.code}
+                {spacedCode(family.code)}
               </T>
             </Row>
             <Btn
@@ -189,9 +190,14 @@ export default function Me({ onClose, onCheckup, onTeach }: { onClose: () => voi
             <T size={14}>
               {store.session?.demo ? 'Leave the sample family?' : 'This removes your meals and photos for good. Your family will no longer see them.'}
             </T>
+            {deleteFailed ? (
+              <T size={14} color="#8A2942">
+                We couldn't reach the server, so nothing was deleted. Check your connection and try again.
+              </T>
+            ) : null}
             <Row>
               <Btn kind="ghost" label="Keep" onPress={() => setConfirming(false)} style={{ flex: 1, alignSelf: 'auto' }} />
-              <Btn label={store.session?.demo ? 'Leave' : 'Delete'} onPress={() => store.deleteEverything()} style={{ flex: 1, alignSelf: 'auto', backgroundColor: C.deep }} />
+              <Btn label={store.session?.demo ? 'Leave' : 'Delete'} onPress={() => store.deleteEverything().catch(() => setDeleteFailed(true))} style={{ flex: 1, alignSelf: 'auto', backgroundColor: C.deep }} />
             </Row>
           </View>
         ) : (

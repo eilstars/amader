@@ -117,3 +117,13 @@ npx eas-cli@latest submit
 - "Help Amader learn our food" in Me is off by default. When a person turns it on, each new meal with a photo adds one row to the `examples` table: what the app guessed, the portion they saved, and how they chose it (kept the guess, tapped, or measured by hand). Only you can read that table, from the Supabase dashboard.
 - The photo is not copied. Each row points at the family's own photo and is removed when the meal is removed, when the person turns the setting off, or when they leave.
 - The checkup screen shows the person's recent plate photos to hold up at an appointment. The shared text summary has no photos in it.
+
+## Security notes (review of 2026-11-16)
+
+- Family codes are 8 letters. A phone that types 10 wrong codes in an hour is locked out for an hour (`code_tries`).
+- Food recognition only answers a signed-in phone with a seat in a family, 30 photos a day per phone (`recognitions`). This protects the AI bill.
+- Photos: private bucket, JPEG only, 3 MB limit. A photo cannot be replaced after sharing, and only the person who added it can remove it.
+- A meal can only point at a photo in its own family's folder, and can only be dated within the last two days.
+- Deleting: if the server cannot be reached, the app says so and deletes nothing, instead of pretending.
+- Worth adding before a public launch: a CAPTCHA on anonymous sign-ins (Supabase supports Turnstile), a way to remove a family member, and a way to change the family code if it leaks.
+- Known limit: there are no accounts, so a person who clears their browser data or reinstalls the app comes back as a new member.

@@ -21,9 +21,10 @@ function codeFromUrl(url: string | null): string | null {
 
 function actionFromUrl(url: string | null): PendingAction | null {
   if (!url) return null;
-  const quick = /quick\?h=(\d)/.exec(url);
+  // Only the app's own links count. A web page address that happens to contain these words must not log a meal.
+  const quick = /^amader:\/\/quick\?h=(\d)$/.exec(url);
   if (quick) return { kind: 'quick', handfuls: Math.min(4, Math.max(0, Number(quick[1]))) };
-  if (/:\/\/add\b/.test(url)) return { kind: 'add' };
+  if (/^amader:\/\/add\b/.test(url)) return { kind: 'add' };
   return null;
 }
 
@@ -37,13 +38,37 @@ function Root() {
     // Widgets and reminders open the app with amader://add or amader://quick?h=2.
     const open = (url: string | null) => {
       const code = codeFromUrl(url);
-      if (code) store.setPendingCode(code);
+      if (code) {
+        store.setPendingCode(code);
+        // On the web, take the code back out of the address bar so it is not passed on in a copied link or a screenshot.
+        if (Platform.OS === 'web' && typeof window !== 'undefined' && window.history?.replaceState) {
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+      }
       const action = actionFromUrl(url);
       if (action) store.setPendingAction(action);
     };
     Linking.getInitialURL().then(open);
     const sub = Linking.addEventListener('url', ({ url }) => open(url));
-    return () => sub.remove();
+    // Tapping a "Did you eat?" reminder opens the camera.
+    let stopReminders = () => {};
+    if (Platform.OS !== 'web') {
+      import('expo-notifications')
+        .then((N) => {
+          const fromReminder = (response: { notification: { request: { content: { data?: Record<string, unknown> } } } } | null) => {
+            const link = response?.notification.request.content.data?.url;
+            if (typeof link === 'string') open(link);
+          };
+          N.getLastNotificationResponseAsync().then(fromReminder).catch(() => undefined);
+          const listener = N.addNotificationResponseReceivedListener(fromReminder);
+          stopReminders = () => listener.remove();
+        })
+        .catch(() => undefined);
+    }
+    return () => {
+      sub.remove();
+      stopReminders();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -67,7 +92,7 @@ function Root() {
           We can't reach your family table right now. Check your connection and try again.
         </T>
         <Btn label="Try again" onPress={() => store.refresh().catch(() => undefined)} />
-        <Btn kind="line" label="Start over" onPress={() => store.deleteEverything()} />
+        <Btn kind="line" label="Start over on this phone" onPress={() => store.deleteEverything({ onlyThisPhone: true })} />
       </View>
     );
   }

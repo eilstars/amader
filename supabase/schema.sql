@@ -3,7 +3,8 @@
 --
 -- How privacy works: nobody makes an account. Each phone signs in anonymously,
 -- and the rules below only show a phone the families it has joined.
--- The 6 letter family code is the only way in, so treat it like a house key.
+-- The 8 letter family code is the only way in, so treat it like a house key.
+-- A phone that types 10 wrong codes in an hour has to wait before trying again.
 
 create extension if not exists pgcrypto;
 
@@ -47,6 +48,34 @@ create table if not exists public.hearts (
   created_at timestamptz not null default now(),
   primary key (meal_id, member_id)
 );
+
+-- Keep what a phone can write small and sane, so one bad actor in a family cannot fill the database.
+alter table public.families drop constraint if exists families_goal_food_len;
+alter table public.families add constraint families_goal_food_len check (char_length(goal_food) between 1 and 30);
+alter table public.meals drop constraint if exists meals_dish_len;
+alter table public.meals add constraint meals_dish_len check (dish is null or char_length(dish) <= 80);
+alter table public.meals drop constraint if exists meals_parts_small;
+alter table public.meals add constraint meals_parts_small check (parts is null or pg_column_size(parts) <= 400);
+alter table public.meals drop constraint if exists meals_photo_len;
+alter table public.meals add constraint meals_photo_len check (photo_url is null or char_length(photo_url) <= 200);
+
+-- Wrong family codes typed by each phone, so codes cannot be guessed by trying many.
+-- No rules are written for this table, which means no phone can read or change it directly.
+create table if not exists public.code_tries (
+  user_id uuid not null,
+  tried_at timestamptz not null default now()
+);
+create index if not exists code_tries_user on public.code_tries (user_id, tried_at);
+alter table public.code_tries enable row level security;
+
+-- Photos sent to food recognition by each phone, so nobody can run up the AI bill.
+-- Written only by the recognize-meal function. No phone can read or change it directly.
+create table if not exists public.recognitions (
+  user_id uuid not null,
+  at timestamptz not null default now()
+);
+create index if not exists recognitions_user on public.recognitions (user_id, at);
+alter table public.recognitions enable row level security;
 
 -- "Help improve Amader". Off by default. A row is only written for a person who turned it on,
 -- one row per meal: what the app guessed and what the person said it really was.
@@ -95,6 +124,8 @@ create policy "examples: add my own" on public.examples
   with check (
     member_id in (select public.my_member_ids())
     and meal_id in (select m.id from public.meals m where m.member_id = examples.member_id)
+    -- The row may only point at that meal's own photo.
+    and photo_path = (select m.family_code || '/' || m.id || '.jpg' from public.meals m where m.id = examples.meal_id)
   );
 
 drop policy if exists "examples: take back my own" on public.examples;
@@ -125,6 +156,9 @@ create policy "meals: add my own" on public.meals
   with check (
     member_id in (select public.my_member_ids())
     and family_code in (select m.family_code from public.members m where m.id = member_id)
+    and eaten_at between now() - interval '2 days' and now() + interval '1 day'
+    -- A photo may only point into this family's own folder.
+    and (photo_url is null or photo_url = family_code || '/' || id || '.jpg')
   );
 
 drop policy if exists "meals: delete my own" on public.meals;
@@ -155,9 +189,12 @@ begin
   if auth.uid() is null then
     raise exception 'Not signed in';
   end if;
+  if (select count(*) from public.members where user_id = auth.uid()) >= 5 then
+    raise exception 'This phone is already in the most families allowed.';
+  end if;
   loop
     select string_agg(substr(v_letters, 1 + floor(random() * length(v_letters))::int, 1), '')
-      into v_code from generate_series(1, 6);
+      into v_code from generate_series(1, 8);
     exit when not exists (select 1 from public.families where code = v_code);
   end loop;
   insert into public.families (code, goal_food, goal_handfuls)
@@ -171,13 +208,29 @@ begin
 end;
 $$;
 
+-- Stops a phone that keeps typing wrong codes. Called before every code lookup.
+create or replace function public.check_code_tries() returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Not signed in';
+  end if;
+  delete from public.code_tries where tried_at < now() - interval '1 day';
+  if (select count(*) from public.code_tries where user_id = auth.uid() and tried_at > now() - interval '1 hour') >= 10 then
+    raise exception 'Too many wrong codes. Please wait an hour and try again.';
+  end if;
+end;
+$$;
+
 -- What the join screen shows before someone joins: who invited them and the name saved for them.
 create or replace function public.invite_info(p_code text)
-returns json language plpgsql stable security definer set search_path = public as $$
+returns json language plpgsql volatile security definer set search_path = public as $$
 declare
   v_code text := upper(trim(p_code));
 begin
+  perform public.check_code_tries();
   if not exists (select 1 from public.families where code = v_code) then
+    insert into public.code_tries (user_id) values (auth.uid());
     return null;
   end if;
   return json_build_object(
@@ -195,10 +248,9 @@ declare
   v_me uuid;
   v_count int;
 begin
-  if auth.uid() is null then
-    raise exception 'Not signed in';
-  end if;
+  perform public.check_code_tries();
   if not exists (select 1 from public.families where code = v_code) then
+    insert into public.code_tries (user_id) values (auth.uid());
     return null;
   end if;
   select id into v_me from public.members where family_code = v_code and user_id = auth.uid() limit 1;
@@ -215,6 +267,9 @@ begin
         where id = v_me;
       return json_build_object('code', v_code, 'me_id', v_me);
     end if;
+  end if;
+  if (select count(*) from public.members where user_id = auth.uid()) >= 5 then
+    raise exception 'This phone is already in the most families allowed.';
   end if;
   select count(*) into v_count from public.members where family_code = v_code;
   if v_count >= 8 then
@@ -249,30 +304,33 @@ grant execute on function public.create_family(text, text, text, int) to authent
 grant execute on function public.invite_info(text) to authenticated;
 grant execute on function public.join_family(text, text, text) to authenticated;
 grant execute on function public.delete_me(uuid) to authenticated;
+revoke execute on function public.check_code_tries() from public, anon, authenticated;
 grant execute on function public.my_family_codes() to authenticated;
 grant execute on function public.my_member_ids() to authenticated;
 
 -- Meal photos. The bucket is private: a photo only opens for a signed-in phone that belongs to
 -- the family, through a link that stops working after an hour. The file path starts with the family code.
-insert into storage.buckets (id, name, public) values ('meal-photos', 'meal-photos', false)
-  on conflict (id) do update set public = false;
+-- Only JPEG photos up to 3 MB are accepted, so the bucket cannot be used to host other files.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+  values ('meal-photos', 'meal-photos', false, 3145728, array['image/jpeg'])
+  on conflict (id) do update set public = false, file_size_limit = 3145728, allowed_mime_types = array['image/jpeg'];
 
 drop policy if exists "photos: family can add" on storage.objects;
 create policy "photos: family can add" on storage.objects
   for insert to authenticated
   with check (bucket_id = 'meal-photos' and (storage.foldername(name))[1] in (select public.my_family_codes()));
 
+-- Nobody can swap a photo for another one after it is shared.
 drop policy if exists "photos: family can replace" on storage.objects;
-create policy "photos: family can replace" on storage.objects
-  for update to authenticated
-  using (bucket_id = 'meal-photos' and (storage.foldername(name))[1] in (select public.my_family_codes()));
 
 drop policy if exists "photos: family can read" on storage.objects;
 create policy "photos: family can read" on storage.objects
   for select to authenticated
   using (bucket_id = 'meal-photos' and (storage.foldername(name))[1] in (select public.my_family_codes()));
 
+-- Only the person who added a photo can remove it.
 drop policy if exists "photos: family can remove" on storage.objects;
-create policy "photos: family can remove" on storage.objects
+drop policy if exists "photos: remove my own" on storage.objects;
+create policy "photos: remove my own" on storage.objects
   for delete to authenticated
-  using (bucket_id = 'meal-photos' and (storage.foldername(name))[1] in (select public.my_family_codes()));
+  using (bucket_id = 'meal-photos' and owner_id = (select auth.uid())::text);

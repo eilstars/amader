@@ -5,6 +5,7 @@ import { cloudBackend, localBackend, webUrl } from './backend';
 import { ChosenBy, Backend, Family, Guess, Meal, Member, Photo, Role, Session } from './types';
 import { syncReminders } from './reminders';
 import { refreshWidgets } from './widgets';
+import { widgetData } from './widget-data';
 import { MILESTONES, newId, newestFirst, sameDay, slotAt } from './words';
 
 const SESSION = 'amader.session';
@@ -62,7 +63,13 @@ interface Store {
   setGoal(goalFood: string, goalHandfuls: number): void;
   /** Sample family only: look at the app as someone else. */
   viewAs(memberId: string): void;
-  deleteEverything(): Promise<void>;
+  /** Removes one of my own meals. */
+  removeMeal(mealId: string): Promise<void>;
+  /**
+   * Deletes my meals and photos and leaves. Throws if the server could not be reached, so the person
+   * is never told their data is gone when it is not. `onlyThisPhone` skips the server (used when the family cannot be loaded).
+   */
+  deleteEverything(options?: { onlyThisPhone?: boolean }): Promise<void>;
   refresh(): Promise<void>;
 }
 
@@ -90,6 +97,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [checkupDate, setCheckup] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const lastSync = useRef({ remind: '', widget: '' });
   const sessionRef = useRef<Session | null>(null);
   sessionRef.current = session;
 
@@ -150,8 +158,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const today = new Date();
     const mine = meals.filter((m) => m.memberId === session.meId);
     const sharedToday = mine.some((m) => sameDay(new Date(m.date), today));
-    syncReminders(prefs.reminderOn, prefs.reminderHour, sharedToday);
-    refreshWidgets({ family, meals, meId: session.meId });
+    // The table is re-read every 15 seconds. Only touch reminders and widgets when something they show has changed,
+    // otherwise the phone would re-plan a week of reminders and redraw the widget four times a minute.
+    const widget = widgetData({ family, meals, meId: session.meId }, today);
+    const remindKey = JSON.stringify([prefs.reminderOn, prefs.reminderHour, sharedToday, today.toDateString()]);
+    const widgetKey = JSON.stringify(widget);
+    if (remindKey !== lastSync.current.remind) {
+      lastSync.current.remind = remindKey;
+      syncReminders(prefs.reminderOn, prefs.reminderHour, sharedToday);
+    }
+    if (widgetKey !== lastSync.current.widget) {
+      lastSync.current.widget = widgetKey;
+      refreshWidgets({ family, meals, meId: session.meId });
+    }
   }, [ready, session, family, meals, prefs.reminderOn, prefs.reminderHour]);
 
   const value = useMemo<Store>(() => {
@@ -298,9 +317,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setSession(next);
       },
 
-      async deleteEverything() {
-        if (session) {
-          await backendFor(session).deleteMe(session.code, session.meId).catch(() => undefined);
+      async removeMeal(mealId) {
+        if (!session) return;
+        const meal = meals.find((m) => m.id === mealId);
+        if (!meal || meal.memberId !== session.meId) return;
+        await backendFor(session).deleteMeal(session.code, mealId);
+        setMeals((list) => list.filter((m) => m.id !== mealId));
+      },
+
+      async deleteEverything(options) {
+        if (session && !options?.onlyThisPhone) {
+          await backendFor(session).deleteMe(session.code, session.meId);
         }
         await localBackend.clear();
         await AsyncStorage.multiRemove([SESSION, CHECKUP, PREFS]);
