@@ -3,7 +3,8 @@ import { Pressable, ScrollView, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { C } from '../theme';
-import { Avatar, Card, Eyebrow, Hero, Plate, Row, Soft, T, Tag } from '../ui';
+import { Parts } from '../types';
+import { Avatar, Card, Eyebrow, Hero, PART_COLORS, PART_NAMES, Plate, PlatePie, Row, Soft, T, Tag } from '../ui';
 import { DAY_LETTERS, amountText, dateText, sameDay, weekDays, whenText } from '../words';
 
 /** The weekly recap: who came to the table, how the goal food went, what the family loved. */
@@ -26,12 +27,34 @@ export default function Recap({ onCheckup }: { onCheckup: () => void }) {
   const loved = [...weekMeals].sort((a, b) => b.hearts.length - a.hearts.length)[0];
   const food = store.goalFood;
 
+  // The week's plate: the average of what the photos showed.
+  const average = (list: typeof meals): Parts | null => {
+    const seen = list.filter((m) => m.parts);
+    if (seen.length === 0) return null;
+    const sum = { grain: 0, veg: 0, protein: 0, other: 0 };
+    seen.forEach((m) => {
+      const p = m.parts as Parts;
+      const total = p.grain + p.veg + p.protein + p.other || 1;
+      sum.grain += (p.grain / total) * 100;
+      sum.veg += (p.veg / total) * 100;
+      sum.protein += (p.protein / total) * 100;
+      sum.other += (p.other / total) * 100;
+    });
+    return { grain: Math.round(sum.grain / seen.length), veg: Math.round(sum.veg / seen.length), protein: Math.round(sum.protein / seen.length), other: Math.round(sum.other / seen.length) };
+  };
+  const plate = average(mine);
+  const plateCount = mine.filter((m) => m.parts).length;
+
   // Compare with the week before, in plain words.
   const before = weekDays(offset - 1);
   const mineBefore = meals.filter((m) => {
     const d = new Date(m.date);
     return m.memberId === me.id && d >= before[0] && d < days[0];
   }).length;
+  const plateBefore = average(meals.filter((m) => {
+    const d = new Date(m.date);
+    return m.memberId === me.id && d >= before[0] && d < days[0];
+  }));
   const trend =
     mine.length === 0
       ? 'No plates from you this week yet. One photo is enough to start.'
@@ -105,6 +128,41 @@ export default function Recap({ onCheckup }: { onCheckup: () => void }) {
             A full plate is a shared meal. An empty plate is a day off.
           </T>
         </Card>
+
+        {plate ? (
+          <Card style={{ gap: 12 }}>
+            <Row style={{ justifyContent: 'space-between' }}>
+              <T w="bold" size={18}>
+                Your plate this week
+              </T>
+              <Tag text={`from ${plateCount} ${plateCount === 1 ? 'photo' : 'photos'}`} />
+            </Row>
+            <Row gap={16}>
+              <PlatePie parts={plate} size={132} />
+              <View style={{ flex: 1, gap: 8 }}>
+                {(['grain', 'veg', 'protein', 'other'] as const).map((k) => (
+                  <Row key={k} gap={8}>
+                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: PART_COLORS[k], borderWidth: k === 'grain' ? 1 : 0, borderColor: '#D9CFB0' }} />
+                    <T size={13} style={{ flex: 1 }}>
+                      {PART_NAMES[k]}
+                    </T>
+                    <T w="semibold" size={13}>
+                      {plate[k]}%
+                    </T>
+                  </Row>
+                ))}
+              </View>
+            </Row>
+            {plateBefore && plate.veg !== plateBefore.veg ? (
+              <T size={13} color={C.muted}>
+                Dal and vegetables were {plateBefore.veg}% of your plate last week and {plate.veg}% this week.
+              </T>
+            ) : null}
+            <T size={12} color={C.muted}>
+              A rough picture from your photos, not a measurement.
+            </T>
+          </Card>
+        ) : null}
 
         <Card style={{ gap: 10 }}>
           <Row style={{ justifyContent: 'space-between' }}>

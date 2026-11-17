@@ -3,7 +3,8 @@ import { Image, Pressable, StyleProp, StyleSheet, Text, TextProps, View, ViewSty
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { C, F, Weight, shadow } from './theme';
-import { Member } from './types';
+import Svg, { Circle, Path } from 'react-native-svg';
+import { Member, Parts } from './types';
 
 type TProps = TextProps & { w?: Weight; size?: number; color?: string; center?: boolean };
 
@@ -216,3 +217,35 @@ const s = StyleSheet.create({
     elevation: 3,
   },
 });
+
+export const PART_COLORS = { grain: '#F2EAD3', veg: C.leaf, protein: C.lightGreen, other: '#C9D3CD' } as const;
+export const PART_NAMES = { grain: 'Rice, roti and grains', veg: 'Dal and vegetables', protein: 'Fish, meat and eggs', other: 'Everything else' } as const;
+
+/** The week's plate drawn as a pie on a steel plate. */
+export function PlatePie({ parts, size }: { parts: Parts; size: number }) {
+  const keys = ['grain', 'veg', 'protein', 'other'] as const;
+  const total = keys.reduce((sum, k) => sum + Math.max(0, parts[k]), 0) || 1;
+  const c = size / 2;
+  const r = size * 0.33;
+  let angle = -Math.PI / 2;
+  const wedges = keys
+    .filter((k) => parts[k] > 0)
+    .map((k) => {
+      const sweep = (Math.max(0, parts[k]) / total) * Math.PI * 2;
+      const from = angle;
+      angle += sweep;
+      if (sweep >= Math.PI * 2 - 0.001) return <Circle key={k} cx={c} cy={c} r={r} fill={PART_COLORS[k]} />;
+      const x1 = c + r * Math.cos(from);
+      const y1 = c + r * Math.sin(from);
+      const x2 = c + r * Math.cos(angle);
+      const y2 = c + r * Math.sin(angle);
+      return <Path key={k} d={`M ${c} ${c} L ${x1} ${y1} A ${r} ${r} 0 ${sweep > Math.PI ? 1 : 0} 1 ${x2} ${y2} Z`} fill={PART_COLORS[k]} />;
+    });
+  return (
+    <Svg width={size} height={size}>
+      <Circle cx={c} cy={c} r={c} fill={C.steel} />
+      <Circle cx={c} cy={c} r={c * 0.86} fill={C.white} stroke="#CCD4CF" strokeWidth={1} />
+      {wedges}
+    </Svg>
+  );
+}

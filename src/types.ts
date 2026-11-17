@@ -23,6 +23,27 @@ export interface Meal {
   handfuls: number | null;
   /** Ids of the family members who sent a heart. */
   hearts: string[];
+  /** What the photo looks like, from food recognition. Missing when there was no photo or no guess. */
+  dish?: string | null;
+  parts?: Parts | null;
+}
+
+/** Rough share of the plate, in percent. */
+export interface Parts {
+  grain: number;
+  veg: number;
+  protein: number;
+  other: number;
+}
+
+/** What food recognition thinks is in a photo. */
+export interface Guess {
+  dish: string;
+  parts: Parts;
+  /** Rough amount of the goal food, 0 to 4, or null when the photo was unclear. */
+  amount: number | null;
+  /** True when this is canned sample data, not a real reading of the photo. */
+  sample?: boolean;
 }
 
 export interface Family {
@@ -54,6 +75,8 @@ export interface Backend {
   joinFamily(input: { code: string; name: string; role: Role }): Promise<Session>;
   load(code: string): Promise<{ family: Family; meals: Meal[] } | null>;
   addMeal(code: string, meal: Meal, photo: Photo | null): Promise<Meal>;
+  /** Looks at a photo and guesses what is on the plate. Null when it cannot tell or is not available. */
+  recognize(photo: Photo, goalFood: string): Promise<Guess | null>;
   setHeart(mealId: string, memberId: string, on: boolean): Promise<void>;
   setGoal(code: string, goalFood: string, goalHandfuls: number): Promise<void>;
   /** Removes this person's meals and photos. */

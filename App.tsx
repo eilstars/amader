@@ -4,11 +4,12 @@ import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import * as Linking from 'expo-linking';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { StoreProvider, useStore } from './src/store';
+import { PendingAction, StoreProvider, useStore } from './src/store';
 import { C, fontFiles, images } from './src/theme';
 import { Btn, T } from './src/ui';
 import { cleanCode } from './src/words';
 import Welcome from './src/screens/Welcome';
+import Teach from './src/screens/Teach';
 import SetupFamily from './src/screens/SetupFamily';
 import Join from './src/screens/Join';
 import Main from './src/screens/Main';
@@ -18,21 +19,30 @@ function codeFromUrl(url: string | null): string | null {
   return match ? cleanCode(match[1]) : null;
 }
 
+function actionFromUrl(url: string | null): PendingAction | null {
+  if (!url) return null;
+  const quick = /quick\?h=(\d)/.exec(url);
+  if (quick) return { kind: 'quick', handfuls: Math.min(4, Math.max(0, Number(quick[1]))) };
+  if (/:\/\/add\b/.test(url)) return { kind: 'add' };
+  return null;
+}
+
 function Root() {
   const store = useStore();
-  const [step, setStep] = useState<'welcome' | 'setup' | 'join'>('welcome');
+  const [step, setStep] = useState<'welcome' | 'setup' | 'join' | 'teach'>('welcome');
   const [justJoined, setJustJoined] = useState(false);
 
   // An invite link (…?join=CODE) drops the person straight on the join screen.
   useEffect(() => {
-    Linking.getInitialURL().then((url) => {
+    // Widgets and reminders open the app with amader://add or amader://quick?h=2.
+    const open = (url: string | null) => {
       const code = codeFromUrl(url);
       if (code) store.setPendingCode(code);
-    });
-    const sub = Linking.addEventListener('url', ({ url }) => {
-      const code = codeFromUrl(url);
-      if (code) store.setPendingCode(code);
-    });
+      const action = actionFromUrl(url);
+      if (action) store.setPendingAction(action);
+    };
+    Linking.getInitialURL().then(open);
+    const sub = Linking.addEventListener('url', ({ url }) => open(url));
     return () => sub.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -74,7 +84,8 @@ function Root() {
     );
   }
   if (step === 'setup') return <SetupFamily onBack={() => setStep('welcome')} />;
-  return <Welcome onSetup={() => setStep('setup')} onJoin={() => setStep('join')} />;
+  if (step === 'teach') return <Teach onClose={() => setStep('welcome')} />;
+  return <Welcome onSetup={() => setStep('setup')} onJoin={() => setStep('join')} onTeach={() => setStep('teach')} />;
 }
 
 export default function App() {

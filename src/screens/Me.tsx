@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Platform, ScrollView, Switch, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../store';
 import { C } from '../theme';
+import { REMINDER_TIMES } from '../reminders';
 import { shareText } from '../share';
 import { Avatar, Btn, Card, Eyebrow, RoundButton, Row, T, Tag } from '../ui';
 import { MILESTONES } from '../words';
 import { Chip, GOAL_FOODS, Stepper } from './SetupFamily';
 
-export default function Me({ onClose, onCheckup }: { onClose: () => void; onCheckup: () => void }) {
+export default function Me({ onClose, onCheckup, onTeach }: { onClose: () => void; onCheckup: () => void; onTeach: () => void }) {
   const store = useStore();
   const insets = useSafeAreaInsets();
   const [confirming, setConfirming] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [refused, setRefused] = useState(false);
   const { family, me } = store;
   if (!family || !me) return null;
 
@@ -103,9 +105,58 @@ export default function Me({ onClose, onCheckup }: { onClose: () => void; onChec
         </T>
       </Card>
 
+      <Eyebrow>Reminders</Eyebrow>
+      <Card style={{ gap: 12 }}>
+        <Row style={{ justifyContent: 'space-between' }}>
+          <View style={{ flex: 1 }}>
+            <T w="semibold">Ask me "Did you eat?"</T>
+            <T size={13} color={C.muted}>
+              Once a day, and not on days you already shared.
+            </T>
+          </View>
+          <Switch
+            value={store.prefs.reminderOn}
+            trackColor={{ true: C.leaf, false: C.line }}
+            onValueChange={async (on) => {
+              const ok = await store.setReminder(on);
+              setRefused(on && !ok);
+            }}
+          />
+        </Row>
+        {store.prefs.reminderOn ? (
+          <Row gap={8} style={{ flexWrap: 'wrap' }}>
+            {REMINDER_TIMES.map((t) => (
+              <Chip key={t.hour} label={t.label} on={store.prefs.reminderHour === t.hour} onPress={() => store.setReminder(true, t.hour)} />
+            ))}
+          </Row>
+        ) : null}
+        {refused ? (
+          <T size={13} color="#8A2942">
+            {Platform.OS === 'web' ? 'Reminders need the phone app. They are not available in the browser.' : 'Notifications are turned off for Amader. Turn them on in your phone settings, then try again.'}
+          </T>
+        ) : null}
+        <T size={12} color={C.muted}>
+          On the phone app you can also add the "Did you eat?" widget to your home screen or lock screen.
+        </T>
+      </Card>
+
+      <Eyebrow>Photos</Eyebrow>
+      <Card style={{ gap: 8 }}>
+        <Row style={{ justifyContent: 'space-between' }}>
+          <View style={{ flex: 1 }}>
+            <T w="semibold">Guess what's on my plate</T>
+            <T size={13} color={C.muted}>
+              An AI model looks at your meal photo to name the dish and guess the portion. No person at Amader looks at it.
+            </T>
+          </View>
+          <Switch value={store.prefs.guessOn} trackColor={{ true: C.leaf, false: C.line }} onValueChange={(on) => store.setGuessOn(on)} />
+        </Row>
+      </Card>
+
       <Eyebrow>My data</Eyebrow>
       <Card style={{ gap: 12 }}>
         <Btn kind="ghost" icon="document-text-outline" label="My meal summary for a checkup" onPress={onCheckup} />
+        <Btn kind="ghost" icon="hand-left-outline" label="Drag the rice: the idea in ten seconds" onPress={onTeach} />
         {confirming ? (
           <View style={{ gap: 8 }}>
             <T size={14}>

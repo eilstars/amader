@@ -110,3 +110,8 @@ export function unitHint(food: string): string {
   if (f === 'chai') return 'Count the cups today.';
   return 'Tap a number.';
 }
+
+/** "handfuls", "rotis", "cups". */
+export function unitWord(food: string): string {
+  return (UNITS[food.toLowerCase()] ?? UNITS.rice)[1];
+}
