@@ -5,7 +5,7 @@ import { useStore } from '../store';
 import { C } from '../theme';
 import { Role } from '../types';
 import { Btn, Puti, RoundButton, Row, Soft, T } from '../ui';
-import { cleanCode } from '../words';
+import { CODE_LENGTH, cleanCode, spacedCode } from '../words';
 import { Chip, s } from './SetupFamily';
 
 /** The parent's whole setup: a code, a name that is usually already filled in, one button. */
@@ -25,7 +25,7 @@ export default function Join({ onBack, onJoined }: { onBack: () => void; onJoine
     let live = true;
     setUnknown(false);
     setFrom(null);
-    if (code.length < 6 || !store.cloud) return;
+    if (code.length < CODE_LENGTH || !store.cloud) return;
     store
       .inviteInfo(code)
       .then((info) => {
@@ -41,14 +41,16 @@ export default function Join({ onBack, onJoined }: { onBack: () => void; onJoine
           setRole('child');
         }
       })
-      .catch(() => undefined);
+      .catch((e) => {
+        if (live && e instanceof Error && /wait an hour/i.test(e.message)) setError(e.message);
+      });
     return () => {
       live = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
-  const canGo = code.length === 6 && name.trim().length > 0 && !busy && !unknown;
+  const canGo = code.length === CODE_LENGTH && name.trim().length > 0 && !busy && !unknown;
 
   async function go() {
     setBusy(true);
@@ -83,14 +85,14 @@ export default function Join({ onBack, onJoined }: { onBack: () => void; onJoine
             Family code
           </T>
           <TextInput
-            value={code}
+            value={spacedCode(code)}
             onChangeText={(t) => setCode(cleanCode(t))}
-            placeholder="6 letters"
+            placeholder="8 letters"
             placeholderTextColor="#9AA79F"
             style={[s.field, { fontSize: 22, letterSpacing: 4, height: 60 }]}
             autoCapitalize="characters"
             autoCorrect={false}
-            maxLength={6}
+            maxLength={CODE_LENGTH + 1}
           />
           {unknown ? (
             <T color="#8A2942" size={13}>
@@ -113,7 +115,7 @@ export default function Join({ onBack, onJoined }: { onBack: () => void; onJoine
 
         <Soft>
           <T size={14} color={C.muted}>
-            Only your family sees your plates. You can delete everything any time.
+            Only your family sees your plates. Amader asks you before any photo is read by an AI. You can delete everything any time.
           </T>
         </Soft>
 

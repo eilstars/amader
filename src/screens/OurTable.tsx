@@ -6,7 +6,7 @@ import { C } from '../theme';
 import { Meal } from '../types';
 import { shareText } from '../share';
 import { Avatar, Btn, Card, Eyebrow, Hero, Plate, Puti, Row, Soft, T, Tag } from '../ui';
-import { dayName, daysBetween, greeting, portionLine, sameDay, timeText, weekDays, whenText } from '../words';
+import { dayName, daysBetween, greeting, portionLine, sameDay, timeText, weekDays, whenText, spacedCode } from '../words';
 
 export default function OurTable({ onAdd, onMe }: { onAdd: () => void; onMe: () => void }) {
   const store = useStore();
@@ -113,7 +113,7 @@ export default function OurTable({ onAdd, onMe }: { onAdd: () => void; onMe: () 
             <Eyebrow>Family code</Eyebrow>
             <Row style={{ justifyContent: 'space-between' }}>
               <T w="bold" size={28} style={{ letterSpacing: 4 }}>
-                {family.code}
+                {spacedCode(family.code)}
               </T>
               <Puti mood="hello" width={64} />
             </Row>
@@ -196,6 +196,9 @@ function MealCard({ meal }: { meal: Meal }) {
   const who = store.member(meal.memberId);
   const mine = store.session ? meal.hearts.includes(store.session.meId) : false;
   const portion = portionLine(meal.handfuls, store.goalFood);
+  const own = meal.memberId === store.session?.meId;
+  const [asking, setAsking] = useState(false);
+  const [failed, setFailed] = useState(false);
   return (
     <Card style={{ gap: 12 }}>
       {meal.photo ? <Image source={{ uri: meal.photo }} style={{ width: '100%', aspectRatio: 4 / 3, borderRadius: 14, backgroundColor: C.soft }} resizeMode="cover" /> : null}
@@ -224,6 +227,31 @@ function MealCard({ meal }: { meal: Meal }) {
           ) : null}
         </Pressable>
       </Row>
+      {own ? (
+        asking ? (
+          <Row style={{ justifyContent: 'flex-end' }} gap={16}>
+            <T size={13} color={failed ? '#8A2942' : C.muted} style={{ flex: 1 }}>
+              {failed ? "We couldn't remove it. Try again." : 'Remove this meal for everyone?'}
+            </T>
+            <Pressable onPress={() => setAsking(false)} accessibilityRole="button" hitSlop={8}>
+              <T w="semibold" size={13} color={C.deep}>
+                Keep
+              </T>
+            </Pressable>
+            <Pressable onPress={() => store.removeMeal(meal.id).catch(() => setFailed(true))} accessibilityRole="button" hitSlop={8}>
+              <T w="semibold" size={13} color="#8A2942">
+                Remove
+              </T>
+            </Pressable>
+          </Row>
+        ) : (
+          <Pressable onPress={() => setAsking(true)} accessibilityRole="button" accessibilityLabel="Remove this meal" hitSlop={8} style={{ alignSelf: 'flex-end' }}>
+            <T size={13} color={C.muted}>
+              Remove
+            </T>
+          </Pressable>
+        )
+      ) : null}
     </Card>
   );
 }

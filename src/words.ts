@@ -77,8 +77,16 @@ export function newestFirst(meals: Meal[]): Meal[] {
   return [...meals].sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 
+/** Family codes are 8 letters and numbers. Long enough that they cannot be guessed. */
+export const CODE_LENGTH = 8;
+
 export function cleanCode(text: string): string {
-  return text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+  return text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, CODE_LENGTH);
+}
+
+/** "ABCD EFGH", easier to read out and type. */
+export function spacedCode(code: string): string {
+  return code.length > 4 ? `${code.slice(0, 4)} ${code.slice(4)}` : code;
 }
 
 const UNITS: Record<string, [string, string, boolean]> = {

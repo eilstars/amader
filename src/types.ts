@@ -46,6 +46,18 @@ export interface Guess {
   sample?: boolean;
 }
 
+/** One labelled photo for improving recognition. Only saved for people who turned sharing on. */
+export interface Example {
+  mealId: string;
+  memberId: string;
+  code: string;
+  goalFood: string;
+  guess: Guess | null;
+  handfuls: number | null;
+  chosenBy: ChosenBy;
+}
+export type ChosenBy = 'guess' | 'tap' | 'hand';
+
 export interface Family {
   code: string;
   members: Member[];
@@ -79,6 +91,12 @@ export interface Backend {
   recognize(photo: Photo, goalFood: string): Promise<Guess | null>;
   setHeart(mealId: string, memberId: string, on: boolean): Promise<void>;
   setGoal(code: string, goalFood: string, goalHandfuls: number): Promise<void>;
+  /** Keeps a photo and the person's own answer to help improve recognition. Only called after they opted in. */
+  saveExample(example: Example): Promise<void>;
+  /** Takes back everything this person shared to improve recognition. */
+  removeExamples(meId: string): Promise<void>;
+  /** Removes one of this person's own meals and its photo. */
+  deleteMeal(code: string, mealId: string): Promise<void>;
   /** Removes this person's meals and photos. */
   deleteMe(code: string, meId: string): Promise<void>;
 }

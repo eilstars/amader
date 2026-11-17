@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Backend, Family, Meal, Member, Photo, Session } from '../types';
-import { newId } from '../words';
+import { CODE_LENGTH, newId } from '../words';
 
 const FAMILY = 'amader.family';
 const MEALS = 'amader.meals';
@@ -19,7 +19,7 @@ async function write(key: string, value: unknown) {
 
 function newCode(): string {
   const letters = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-  return Array.from({ length: 6 }, () => letters[Math.floor(Math.random() * letters.length)]).join('');
+  return Array.from({ length: CODE_LENGTH }, () => letters[Math.floor(Math.random() * letters.length)]).join('');
 }
 
 /** Keeps everything on this phone. Used until Supabase keys are added, and for the sample family. */
@@ -104,6 +104,18 @@ export const localBackend: Backend & { seedDemo(): Promise<Session>; clear(): Pr
     const family = await read<Family>(FAMILY);
     if (!family) return;
     await write(FAMILY, { ...family, goalFood, goalHandfuls });
+  },
+
+  async saveExample() {
+    // Nothing leaves this phone in on-phone mode.
+  },
+
+  async removeExamples() {},
+
+  async deleteMeal(_code, mealId) {
+    const meals = (await read<Meal[]>(MEALS)) ?? [];
+    await write(MEALS, meals.filter((m) => m.id !== mealId));
+    await AsyncStorage.removeItem(PHOTO + mealId);
   },
 
   async deleteMe() {

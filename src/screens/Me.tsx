@@ -6,13 +6,15 @@ import { C } from '../theme';
 import { REMINDER_TIMES } from '../reminders';
 import { shareText } from '../share';
 import { Avatar, Btn, Card, Eyebrow, RoundButton, Row, T, Tag } from '../ui';
-import { MILESTONES } from '../words';
+import { MILESTONES, spacedCode } from '../words';
 import { Chip, GOAL_FOODS, Stepper } from './SetupFamily';
 
 export default function Me({ onClose, onCheckup, onTeach }: { onClose: () => void; onCheckup: () => void; onTeach: () => void }) {
   const store = useStore();
   const insets = useSafeAreaInsets();
   const [confirming, setConfirming] = useState(false);
+  const [deleteFailed, setDeleteFailed] = useState(false);
+  const [improveNote, setImproveNote] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [refused, setRefused] = useState(false);
   const { family, me } = store;
@@ -71,7 +73,7 @@ export default function Me({ onClose, onCheckup, onTeach }: { onClose: () => voi
                 Family code
               </T>
               <T w="bold" size={18} style={{ letterSpacing: 3 }}>
-                {family.code}
+                {spacedCode(family.code)}
               </T>
             </Row>
             <Btn
@@ -146,11 +148,37 @@ export default function Me({ onClose, onCheckup, onTeach }: { onClose: () => voi
           <View style={{ flex: 1 }}>
             <T w="semibold">Guess what's on my plate</T>
             <T size={13} color={C.muted}>
-              An AI model looks at your meal photo to name the dish and guess the portion. No person at Amader looks at it.
+              Your meal photo is sent to an AI service (Claude, made by Anthropic) that names the dish and guesses the portion. No person at Amader looks at it. Off means photos only go to your family.
             </T>
           </View>
-          <Switch value={store.prefs.guessOn} trackColor={{ true: C.leaf, false: C.line }} onValueChange={(on) => store.setGuessOn(on)} />
+          <Switch value={store.prefs.guessOn === true} trackColor={{ true: C.leaf, false: C.line }} onValueChange={(on) => store.setGuessOn(on)} />
         </Row>
+        <View style={{ height: 1, backgroundColor: '#EDF0EA', marginVertical: 4 }} />
+        <Row style={{ justifyContent: 'space-between' }}>
+          <View style={{ flex: 1 }}>
+            <T w="semibold">Help Amader learn our food</T>
+            <T size={13} color={C.muted}>
+              Off unless you turn it on. If on, Amader keeps your own plate photos and the portion you chose, to teach it to recognise home cooking better. Your family's photos are not included. Turn it off any time and what you shared is removed.
+            </T>
+            {improveNote ? (
+              <T size={13} color={C.deep} w="semibold">
+                {improveNote}
+              </T>
+            ) : null}
+          </View>
+          <Switch
+            value={store.prefs.improveOn}
+            trackColor={{ true: C.leaf, false: C.line }}
+            accessibilityLabel="Help Amader learn our food"
+            onValueChange={async (on) => {
+              const ok = await store.setImproveOn(on);
+              setImproveNote(!ok ? "We couldn't reach the server to remove what you shared. It is still on. Please try again." : on ? (store.cloud && !store.session?.demo ? 'Thank you. From now on, your new plate photos help.' : 'On. This is a sample on this phone only, so nothing is kept.') : 'Turned off. What you shared has been removed.');
+            }}
+          />
+        </Row>
+        <T size={12} color={C.muted}>
+          Photos are private to your family. Nobody outside it can open them.
+        </T>
       </Card>
 
       <Eyebrow>My data</Eyebrow>
@@ -162,9 +190,14 @@ export default function Me({ onClose, onCheckup, onTeach }: { onClose: () => voi
             <T size={14}>
               {store.session?.demo ? 'Leave the sample family?' : 'This removes your meals and photos for good. Your family will no longer see them.'}
             </T>
+            {deleteFailed ? (
+              <T size={14} color="#8A2942">
+                We couldn't reach the server, so nothing was deleted. Check your connection and try again.
+              </T>
+            ) : null}
             <Row>
               <Btn kind="ghost" label="Keep" onPress={() => setConfirming(false)} style={{ flex: 1, alignSelf: 'auto' }} />
-              <Btn label={store.session?.demo ? 'Leave' : 'Delete'} onPress={() => store.deleteEverything()} style={{ flex: 1, alignSelf: 'auto', backgroundColor: C.deep }} />
+              <Btn label={store.session?.demo ? 'Leave' : 'Delete'} onPress={() => store.deleteEverything().catch(() => setDeleteFailed(true))} style={{ flex: 1, alignSelf: 'auto', backgroundColor: C.deep }} />
             </Row>
           </View>
         ) : (

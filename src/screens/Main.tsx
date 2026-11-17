@@ -22,6 +22,8 @@ export default function Main({ openCamera }: { openCamera: boolean }) {
   const [sheet, setSheet] = useState<Sheet>(openCamera ? 'add' : null);
   const store = useStore();
   const [toast, setToast] = useState<string | null>(null);
+  // The meal a widget just logged, so a slip of the thumb can be undone.
+  const [quickId, setQuickId] = useState<string | null>(null);
 
   // A widget or reminder asked for the camera, or logged a meal in one tap.
   const action = store.pendingAction;
@@ -35,14 +37,20 @@ export default function Main({ openCamera }: { openCamera: boolean }) {
     setTab('table');
     store
       .addMeal(null, action.handfuls)
-      .then(() => setToast(`Logged ${amountText(action.handfuls, store.goalFood)}. Your family can see it.`))
+      .then((meal) => {
+        setQuickId(meal.id);
+        setToast(`Logged ${amountText(action.handfuls, store.goalFood)}. Your family can see it.`);
+      })
       .catch(() => setToast("We couldn't log that. Open the camera to try again."));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [action]);
 
   useEffect(() => {
     if (!toast) return;
-    const timer = setTimeout(() => setToast(null), 4000);
+    const timer = setTimeout(() => {
+      setToast(null);
+      setQuickId(null);
+    }, 6000);
     return () => clearTimeout(timer);
   }, [toast]);
 
@@ -100,6 +108,24 @@ export default function Main({ openCamera }: { openCamera: boolean }) {
           <T w="semibold" color={C.white} center size={14}>
             {toast}
           </T>
+          {quickId ? (
+            <Pressable
+              accessibilityRole="button"
+              hitSlop={10}
+              onPress={() => {
+                const id = quickId;
+                setQuickId(null);
+                store
+                  .removeMeal(id)
+                  .then(() => setToast('Removed.'))
+                  .catch(() => setToast("We couldn't remove it. You can remove it from Our Table."));
+              }}
+            >
+              <T w="bold" color={C.white} center size={14} style={{ textDecorationLine: 'underline', marginTop: 6 }}>
+                Undo
+              </T>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
 

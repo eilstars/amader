@@ -46,6 +46,40 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
     fail(error);
   }
 
+  // Photos are private. The app asks for short-lived links and reuses them until they are close to running out,
+  // so the feed does not reload every picture each time it refreshes.
+  const links = new Map<string, { url: string; until: number }>();
+  const LINK_SECONDS = 3600;
+
+  /** The saved value is a file path. Older rows saved a full public address, so cut the path out of those. */
+  function pathOf(saved: string): string {
+    const mark = `/${BUCKET}/`;
+    const at = saved.indexOf(mark);
+    return at >= 0 ? saved.slice(at + mark.length).split('?')[0] : saved;
+  }
+
+  async function sign(paths: string[]): Promise<void> {
+    const now = Date.now();
+    const need = [...new Set(paths)].filter((p) => (links.get(p)?.until ?? 0) < now + 5 * 60_000);
+    if (!need.length) return;
+    const { data } = await db.storage.from(BUCKET).createSignedUrls(need, LINK_SECONDS);
+    (data ?? []).forEach((row) => {
+      if (row.path && row.signedUrl) links.set(row.path, { url: row.signedUrl, until: now + LINK_SECONDS * 1000 });
+    });
+  }
+
+  // Each family's photos sit in a folder with a random name, separate from the family code.
+  const folders = new Map<string, string>();
+  async function folderOf(code: string): Promise<string> {
+    const known = folders.get(code);
+    if (known) return known;
+    const { data, error } = await db.from('families').select('folder').eq('code', code).maybeSingle();
+    fail(error);
+    if (!data?.folder) throw new Error('We could not find your family table.');
+    folders.set(code, data.folder as string);
+    return data.folder as string;
+  }
+
   return {
     mode: 'cloud',
 
@@ -79,9 +113,10 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
 
     async load(code) {
       await signedIn();
-      const fam = await db.from('families').select('code, goal_food, goal_handfuls').eq('code', code).maybeSingle();
+      const fam = await db.from('families').select('code, goal_food, goal_handfuls, folder').eq('code', code).maybeSingle();
       fail(fam.error);
       if (!fam.data) return null;
+      folders.set(code, fam.data.folder as string);
       const mem = await db.from('members').select('id, name, role, tint, joined, created_at').eq('family_code', code).order('created_at');
       fail(mem.error);
       const since = new Date(Date.now() - 120 * 86_400_000).toISOString();
@@ -94,12 +129,14 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
       fail(mealRows.error);
       const members: Member[] = ((mem.data ?? []) as MemberRow[]).map((m) => ({ id: m.id, name: m.name, role: m.role, tint: m.tint, joined: m.joined }));
       const family: Family = { code: fam.data.code, members, goalFood: fam.data.goal_food, goalHandfuls: fam.data.goal_handfuls };
-      const meals: Meal[] = ((mealRows.data ?? []) as unknown as MealRow[]).map((m) => ({
+      const rows = (mealRows.data ?? []) as unknown as MealRow[];
+      await sign(rows.filter((m) => m.photo_url).map((m) => pathOf(m.photo_url as string)));
+      const meals: Meal[] = rows.map((m) => ({
         id: m.id,
         memberId: m.member_id,
         date: m.eaten_at,
         slot: m.slot,
-        photo: m.photo_url,
+        photo: m.photo_url ? (links.get(pathOf(m.photo_url))?.url ?? null) : null,
         handfuls: m.handfuls,
         dish: m.dish,
         parts: m.parts,
@@ -110,13 +147,14 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
 
     async addMeal(code, meal, photo) {
       await signedIn();
-      let photoUrl: string | null = null;
+      let photoPath: string | null = null;
       if (photo) {
-        const path = `${code}/${meal.id}.jpg`;
+        const path = `${await folderOf(code)}/${meal.id}.jpg`;
         const body = photo.base64 ? base64ToBytes(photo.base64) : await (await fetch(photo.uri)).arrayBuffer();
         const up = await db.storage.from(BUCKET).upload(path, body, { contentType: 'image/jpeg', upsert: false });
         fail(up.error);
-        photoUrl = db.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+        photoPath = path;
+        await sign([path]);
       }
       const { error } = await db.from('meals').insert({
         id: meal.id,
@@ -124,13 +162,13 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
         member_id: meal.memberId,
         eaten_at: meal.date,
         slot: meal.slot,
-        photo_url: photoUrl,
+        photo_url: photoPath,
         handfuls: meal.handfuls,
         dish: meal.dish ?? null,
         parts: meal.parts ?? null,
       });
       fail(error);
-      return { ...meal, photo: photoUrl };
+      return { ...meal, photo: photoPath ? (links.get(photoPath)?.url ?? photo?.uri ?? null) : null };
     },
 
     async recognize(photo, goalFood) {
@@ -161,11 +199,46 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
       fail(error);
     },
 
-    async deleteMe(code, meId) {
+    async saveExample(example) {
+      await signedIn();
+      const { error } = await db.from('examples').insert({
+        meal_id: example.mealId,
+        member_id: example.memberId,
+        photo_path: `${await folderOf(example.code)}/${example.mealId}.jpg`,
+        goal_food: example.goalFood,
+        guess: example.guess,
+        handfuls: example.handfuls,
+        chosen_by: example.chosenBy,
+      });
+      if (error && error.code !== '23505') fail(error);
+    },
+
+    async removeExamples(meId) {
+      await signedIn();
+      const { error } = await db.from('examples').delete().eq('member_id', meId);
+      fail(error);
+    },
+
+    async deleteMeal(code, mealId) {
+      await signedIn();
+      // The photo goes first. If that fails the meal stays, so nothing is left behind without its owner.
+      const gone = await db.storage.from(BUCKET).remove([`${await folderOf(code)}/${mealId}.jpg`]);
+      fail(gone.error);
+      const { error } = await db.from('meals').delete().eq('id', mealId);
+      fail(error);
+    },
+
+    async deleteMe(_code, meId) {
       await signedIn();
       const mine = await db.from('meals').select('id, photo_url').eq('member_id', meId);
-      const paths = (mine.data ?? []).filter((m) => m.photo_url).map((m) => `${code}/${m.id}.jpg`);
-      if (paths.length) await db.storage.from(BUCKET).remove(paths);
+      fail(mine.error);
+      const paths = (mine.data ?? []).filter((m) => m.photo_url).map((m) => pathOf(m.photo_url as string));
+      // Photos go first, 100 at a time. If any batch fails, stop: the person is told and can try again,
+      // instead of being told everything is gone while photos remain.
+      for (let i = 0; i < paths.length; i += 100) {
+        const gone = await db.storage.from(BUCKET).remove(paths.slice(i, i + 100));
+        fail(gone.error);
+      }
       const { error } = await db.rpc('delete_me', { p_member: meId });
       fail(error);
       await db.auth.signOut();

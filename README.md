@@ -93,7 +93,7 @@ The web version runs in any phone browser, so a parent can join from a WhatsApp 
 npx expo export --platform web
 ```
 
-Upload the `dist` folder to Netlify (drag and drop works), then set `EXPO_PUBLIC_WEB_URL` in `.env` to that address and export again. Invites then include a link like `https://your-site/?join=ABC123`.
+Upload the `dist` folder to Netlify (drag and drop works), then set `EXPO_PUBLIC_WEB_URL` in `.env` to that address and export again. Invites then include a link like `https://your-site/#join=ABC123`.
 
 ## Put it in the App Store and Play Store later
 
@@ -109,4 +109,46 @@ npx eas-cli@latest submit
 - Push notifications from the server ("Ammi shared dinner", "a heart arrived"). Today's reminders are set by the phone itself
 - Taking a break from sharing, and keeping one meal private
 - Paid plans (plan: RevenueCat over Apple and Google in-app purchase, one subscription covers the family)
-- Before a public launch: private photo storage, a privacy policy, and a DMCA agent for photo uploads
+- Before a public launch: a privacy policy that covers photos and the "Help Amader learn our food" opt-in, and a DMCA agent for photo uploads
+
+## Photos and the dataset
+
+- Meal photos sit in a private Supabase bucket. Only a signed-in phone in the family can open them, through links that stop working after an hour. If you ran an older `schema.sql`, run the new one again and the bucket becomes private.
+- "Help Amader learn our food" in Me is off by default. When a person turns it on, each new meal with a photo adds one row to the `examples` table: what the app guessed, the portion they saved, and how they chose it (kept the guess, tapped, or measured by hand). Only you can read that table, from the Supabase dashboard.
+- The photo is not copied. Each row points at the family's own photo and is removed when the meal is removed, when the person turns the setting off, or when they leave.
+- The checkup screen shows the person's recent plate photos to hold up at an appointment. The shared text summary has no photos in it.
+
+## Security notes (review of 2026-11-16)
+
+- Family codes are 8 letters. A phone that types 10 wrong codes in an hour is locked out for an hour (`code_tries`).
+- Food recognition only answers a signed-in phone with a seat in a family, 30 photos a day per phone (`recognitions`). This protects the AI bill.
+- Photos: private bucket, JPEG only, 3 MB limit. A photo cannot be replaced after sharing, and only the person who added it can remove it.
+- A meal can only point at a photo in its own family's folder, and can only be dated within the last two days.
+- Deleting: if the server cannot be reached, the app says so and deletes nothing, instead of pretending.
+- Worth adding before a public launch: a CAPTCHA on anonymous sign-ins (Supabase supports Turnstile), a way to remove a family member, and a way to change the family code if it leaks.
+- Known limit: there are no accounts, so a person who clears their browser data or reinstalls the app comes back as a new member.
+
+## Where data goes (second review, 2026-11-16)
+
+| What | Where it goes | When |
+| --- | --- | --- |
+| Names, meals, portions, hearts | Your Supabase project | Always, once Supabase is connected |
+| Meal photos | Your Supabase project, private bucket | When a photo is shared |
+| Meal photos | Anthropic (Claude), through your Supabase function | Only after the person taps "Yes, guess". Asked once, off until then |
+| Hand position in a photo | Nowhere. Worked out on the phone and thrown away | Never leaves the device |
+| Location | Nowhere. Photos are re-saved before upload, which strips GPS. If that step fails the photo is not used | Never |
+| Family code | Supabase only. Invite links carry it after a `#`, which browsers do not send to the web host or to link previews | |
+
+## Keys: which are secret
+
+- `ANTHROPIC_API_KEY`: secret. It goes in exactly one place, `npx supabase secrets set`. Never in `.env`, never in Netlify, never in a file in this repo.
+- Supabase `service_role` key: secret. The app never needs it. Do not paste it anywhere outside the Supabase dashboard.
+- Supabase URL and anon key: public by design. They are inside every copy of the app. The database rules are what protect the data, not this key.
+- Anything named `EXPO_PUBLIC_...` is shipped inside the app for anyone to read. Never put a secret in a variable with that prefix.
+
+## Also changed in the second review
+
+- Photos are stored in a folder with a random name, not the family code, so a copied photo link cannot be used to join the family.
+- Table permissions are listed one by one at the end of `schema.sql`. Phones cannot read other members' sign-in ids or change a family's code, and a phone that is not signed in can do nothing.
+- The recognition function has a hard daily ceiling across everyone (`RECOGNIZE_DAILY_TOTAL`, default 1000 photos), so the AI bill has a known maximum.
+- `public/_headers` sets a content security policy and related headers for the Netlify site.
