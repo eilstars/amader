@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../store';
 import { C, images } from '../theme';
 import { Btn, Card, Hero, Plate, Puti, Row, T } from '../ui';
+import { PolicyLinks } from '../legal';
 
 export default function Welcome({ onSetup, onJoin, onTeach }: { onSetup: () => void; onJoin: () => void; onTeach: () => void }) {
   const store = useStore();
@@ -94,6 +95,9 @@ export default function Welcome({ onSetup, onJoin, onTeach }: { onSetup: () => v
         />
         <T center color={C.muted} size={12}>
           Amader helps with everyday eating. It isn't a medical device and doesn't give medical advice.
+        </T>
+        <T center color={C.muted} size={12}>
+          <PolicyLinks />
         </T>
       </View>
     </ScrollView>

@@ -5,6 +5,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { C, F } from '../theme';
 import { Btn, Card, RoundButton, Row, T } from '../ui';
+import { PolicyLinks } from '../legal';
 import { amountText } from '../words';
 
 const PARENT_NAMES = ['Ammi', 'Amma', 'Abbu', 'Mummy', 'Papa', 'Mom', 'Dad'];
@@ -118,9 +119,12 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
         <Pressable onPress={() => setAdult(!adult)} accessibilityRole="checkbox" accessibilityState={{ checked: adult }}>
           <Row gap={10}>
             <View style={[s.check, adult && { backgroundColor: C.leaf, borderColor: C.leaf }]}>{adult ? <Ionicons name="checkmark" size={16} color={C.white} /> : null}</View>
-            <T size={14}>I'm 18 or older</T>
+            <T size={14} style={{ flex: 1 }}>I'm 18 or older and I agree to the Terms and privacy policies</T>
           </Row>
         </Pressable>
+        <T size={12} color={C.muted}>
+          Read the <PolicyLinks />. Meals and photos are shared only with your family table.
+        </T>
 
         {error ? (
           <T color="#8A2942" size={14}>

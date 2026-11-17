@@ -32,4 +32,6 @@ npx expo prebuild --no-install    # checks the config plugins run; delete ios/ a
 - Not a medical app: no A1C, no readings, no projections, no advice.
 - Parent setup stays near zero: a code, a name, one button.
 - Brand: leaf green, deep green, rice white, Hind Siliguri. Steel only for plates, pink only for hearts and talk prompts. No red, no heavy yellow.
+- Hand measuring stays on the device. The 21 hand points are used once to size a fist and thrown away: never saved (not even on the phone), never logged, never sent to Supabase, Anthropic or any server, never compared across photos or people. Illinois' biometric law (BIPA) covers hand geometry scans; changing this needs a lawyer first.
+- The privacy policy (`legal/*.md`, built into `public/*.html` by `scripts/build-legal.py`) must match the code. If a change sends data somewhere new, keeps it longer, or adds a new kind of data, update the policy in the same change. Retention is 12 months: `KEEP_DAYS` in `supabase/functions/cleanup`, `KEEP_MONTHS` in `src/legal.tsx`, and the policy.
 - Plain English first, broadly South Asian ("Did you eat?", "Ammi"). Puti never scolds and never comments on someone's numbers.

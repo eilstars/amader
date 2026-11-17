@@ -118,6 +118,34 @@ npx eas-cli@latest submit
 - The photo is not copied. Each row points at the family's own photo and is removed when the meal is removed, when the person turns the setting off, or when they leave.
 - The checkup screen shows the person's recent plate photos to hold up at an appointment. The shared text summary has no photos in it.
 
+## Automatic deletion (about 10 minutes, after Supabase is set up)
+
+The privacy policy promises that meals and photos are deleted 12 months after the meal. A small function does this once a day:
+
+- meals older than 12 months, with their photos, hearts and learning examples
+- family tables with no meals and no new members for 12 months, with any photos left in their folder
+- anonymous sign-ins that are not in any family, after 30 days
+- the wrong-code and photo-reading counters, after 1 and 2 days
+
+1. Make a long random secret, for example with `openssl rand -hex 32`.
+2. In this folder:
+
+   ```bash
+   npx supabase secrets set CLEANUP_SECRET=the-secret-from-step-1
+   npx supabase functions deploy cleanup --no-verify-jwt
+   ```
+
+   (`--no-verify-jwt` is needed because the daily job calls it with that secret instead of a sign-in. The function refuses any call without the secret.)
+3. Run `supabase/schema.sql` again (it adds a lookup the function uses).
+4. Open `supabase/cleanup-schedule.sql`, put in your project ref and the same secret, and run it in the SQL editor. Do not save the filled-in copy in this repo.
+5. Check the next day: `select * from cron.job_run_details order by start_time desc limit 5;`
+
+To keep data for a different length of time, set `KEEP_DAYS` with `npx supabase secrets set KEEP_DAYS=180`, change `KEEP_MONTHS` in `src/legal.tsx`, and update the privacy policy. Untested against a real Supabase project so far; the database part was tested on a local Postgres.
+
+## Privacy policy and terms
+
+Drafts for a lawyer to review are in `legal/`. `python3 scripts/build-legal.py` (needs `pip install markdown`) turns them into `public/privacy.html`, `public/terms.html` and `public/health-data.html`, which are published next to the web app. The app links to them from the welcome, setup, join and Me screens (`src/legal.tsx`). Fill in every `[bracket]` before real families use the app. On the phone app the links need `EXPO_PUBLIC_WEB_URL` set; without it they show as plain text.
+
 ## Security notes (review of 2026-11-16)
 
 - Family codes are 8 letters. A phone that types 10 wrong codes in an hour is locked out for an hour (`code_tries`).
@@ -135,7 +163,7 @@ npx eas-cli@latest submit
 | Names, meals, portions, hearts | Your Supabase project | Always, once Supabase is connected |
 | Meal photos | Your Supabase project, private bucket | When a photo is shared |
 | Meal photos | Anthropic (Claude), through your Supabase function | Only after the person taps "Yes, guess". Asked once, off until then |
-| Hand position in a photo | Nowhere. Worked out on the phone and thrown away | Never leaves the device |
+| Hand position in a photo | Nowhere. Worked out on the phone and thrown away, never saved | Never leaves the device |
 | Location | Nowhere. Photos are re-saved before upload, which strips GPS. If that step fails the photo is not used | Never |
 | Family code | Supabase only. Invite links carry it after a `#`, which browsers do not send to the web host or to link previews | |
 

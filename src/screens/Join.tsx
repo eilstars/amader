@@ -5,6 +5,7 @@ import { useStore } from '../store';
 import { C } from '../theme';
 import { Role } from '../types';
 import { Btn, Puti, RoundButton, Row, Soft, T } from '../ui';
+import { PolicyLinks } from '../legal';
 import { CODE_LENGTH, cleanCode, spacedCode } from '../words';
 import { Chip, s } from './SetupFamily';
 
@@ -124,9 +125,9 @@ export default function Join({ onBack, onJoined }: { onBack: () => void; onJoine
             {error}
           </T>
         ) : null}
-        <Btn label={busy ? 'Pulling up a chair...' : "Let's eat"} disabled={!canGo} onPress={go} />
+        <Btn label={busy ? 'Pulling up a chair...' : 'Agree and join'} disabled={!canGo} onPress={go} />
         <T center color={C.muted} size={12}>
-          By continuing you confirm you're 18 or older. Amader isn't a medical device and doesn't give medical advice.
+          By tapping Agree and join you confirm you're 18 or older, agree to share your meals with this family, and agree to the <PolicyLinks />. Amader isn't a medical device and doesn't give medical advice.
         </T>
       </ScrollView>
     </KeyboardAvoidingView>

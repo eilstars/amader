@@ -8,6 +8,7 @@ import { shareText } from '../share';
 import { Avatar, Btn, Card, Eyebrow, RoundButton, Row, T, Tag } from '../ui';
 import { MILESTONES, spacedCode } from '../words';
 import { Chip, GOAL_FOODS, Stepper } from './SetupFamily';
+import { KEEP_MONTHS, PolicyLinks } from '../legal';
 
 export default function Me({ onClose, onCheckup, onTeach }: { onClose: () => void; onCheckup: () => void; onTeach: () => void }) {
   const store = useStore();
@@ -206,7 +207,10 @@ export default function Me({ onClose, onCheckup, onTeach }: { onClose: () => voi
       </Card>
 
       <T center color={C.muted} size={12}>
-        Amader helps with everyday eating. It isn't a medical device and doesn't give medical advice. We never sell your data or use it for ads.
+        Amader helps with everyday eating. It isn't a medical device and doesn't give medical advice. We never sell your data or use it for ads. Meals and photos are deleted automatically {KEEP_MONTHS} months after the meal.
+      </T>
+      <T center color={C.muted} size={12}>
+        <PolicyLinks />
       </T>
     </ScrollView>
   );

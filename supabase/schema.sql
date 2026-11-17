@@ -347,6 +347,23 @@ create policy "photos: remove my own" on storage.objects
   for delete to authenticated
   using (bucket_id = 'meal-photos' and owner_id = (select auth.uid())::text);
 
+-- Automatic deletion (supabase/functions/cleanup, run daily). The privacy policy promises these limits,
+-- so change them there too if you change them here.
+create index if not exists meals_eaten_at on public.meals (eaten_at);
+
+-- Family tables nobody has used since p_before: no meals and no one joined since then.
+-- Only the cleanup function can call this.
+create or replace function public.stale_families(p_before timestamptz)
+returns table (code text, folder text) language sql stable security definer set search_path = public as $$
+  select f.code, f.folder::text from public.families f
+  where f.created_at < p_before
+    and not exists (select 1 from public.meals m where m.family_code = f.code and m.eaten_at >= p_before)
+    and not exists (select 1 from public.members m where m.family_code = f.code and m.created_at >= p_before)
+  limit 200
+$$;
+revoke execute on function public.stale_families(timestamptz) from public, anon, authenticated;
+grant execute on function public.stale_families(timestamptz) to service_role;
+
 -- What a phone may touch at all, on top of the row rules above. Anything not listed here is refused,
 -- so a rule left out by mistake later cannot open a table.
 revoke all on all tables in schema public from anon, authenticated;
