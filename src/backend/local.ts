@@ -84,6 +84,13 @@ export const localBackend: Backend & { seedDemo(): Promise<Session>; clear(): Pr
     return { ...meal, photo: shown };
   },
 
+  async recognize() {
+    // Recognition runs on the server so the API key never ships in the app.
+    // On this phone only, show a clearly labelled sample so the flow can be seen.
+    await new Promise((done) => setTimeout(done, 900));
+    return { dish: 'Dal, rice and sabzi', parts: { grain: 40, veg: 35, protein: 15, other: 10 }, amount: 2, sample: true };
+  },
+
   async setHeart(mealId, memberId, on) {
     const meals = (await read<Meal[]>(MEALS)) ?? [];
     const meal = meals.find((m) => m.id === mealId);
@@ -120,15 +127,23 @@ export const localBackend: Backend & { seedDemo(): Promise<Session>; clear(): Pr
     const at = (back: number, hour: number, minute: number) =>
       new Date(now.getFullYear(), now.getMonth(), now.getDate() - back, hour, minute).toISOString();
     const ammiHandfuls = [2, 2, 3, 2, 2, 1, 2, 3, 2, 2, 2, 4, 2, 2];
+    const dishes: [string, Meal['parts']][] = [
+      ['Dal, rice and sabzi', { grain: 40, veg: 40, protein: 10, other: 10 }],
+      ['Chicken biryani', { grain: 60, veg: 5, protein: 30, other: 5 }],
+      ['Fish curry and rice', { grain: 45, veg: 15, protein: 35, other: 5 }],
+      ['Khichdi', { grain: 55, veg: 35, protein: 5, other: 5 }],
+      ['Roti, sabzi and dal', { grain: 35, veg: 50, protein: 10, other: 5 }],
+    ];
+    const dish = (i: number) => ({ dish: dishes[i % dishes.length][0], parts: dishes[i % dishes.length][1] });
     for (let back = 1; back <= 13; back++) {
       if (back !== 5) {
-        meals.push({ id: newId(), memberId: ammi.id, date: at(back, 20, 10), slot: 'dinner', photo: null, handfuls: ammiHandfuls[back], hearts: back % 2 === 0 ? [nadia.id, tanvir.id] : [nadia.id] });
+        meals.push({ id: newId(), memberId: ammi.id, date: at(back, 20, 10), slot: 'dinner', photo: null, handfuls: ammiHandfuls[back], hearts: back % 2 === 0 ? [nadia.id, tanvir.id] : [nadia.id], ...dish(back) });
       }
       if (back !== 3 && back !== 9) {
-        meals.push({ id: newId(), memberId: nadia.id, date: at(back, 12, 30), slot: 'lunch', photo: null, handfuls: back % 3 === 0 ? 1 : 2, hearts: [ammi.id] });
+        meals.push({ id: newId(), memberId: nadia.id, date: at(back, 12, 30), slot: 'lunch', photo: null, handfuls: back % 3 === 0 ? 1 : 2, hearts: [ammi.id], ...dish(back + 2) });
       }
       if (back % 3 !== 0) {
-        meals.push({ id: newId(), memberId: tanvir.id, date: at(back, 19, 40), slot: 'dinner', photo: null, handfuls: 3, hearts: back % 4 === 0 ? [ammi.id] : [] });
+        meals.push({ id: newId(), memberId: tanvir.id, date: at(back, 19, 40), slot: 'dinner', photo: null, handfuls: 3, hearts: back % 4 === 0 ? [ammi.id] : [], ...dish(back + 3) });
       }
     }
     const breakfast = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8, 15);

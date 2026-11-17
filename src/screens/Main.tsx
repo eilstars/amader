@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useStore } from '../store';
 import { C } from '../theme';
+import { amountText } from '../words';
 import { T } from '../ui';
 import OurTable from './OurTable';
 import Recap from './Recap';
@@ -17,6 +19,31 @@ export default function Main({ openCamera }: { openCamera: boolean }) {
   const [tab, setTab] = useState<'table' | 'recap'>('table');
   // A parent who just joined lands straight on "Did you eat?".
   const [sheet, setSheet] = useState<Sheet>(openCamera ? 'add' : null);
+  const store = useStore();
+  const [toast, setToast] = useState<string | null>(null);
+
+  // A widget or reminder asked for the camera, or logged a meal in one tap.
+  const action = store.pendingAction;
+  useEffect(() => {
+    if (!action) return;
+    store.setPendingAction(null);
+    if (action.kind === 'add') {
+      setSheet('add');
+      return;
+    }
+    setTab('table');
+    store
+      .addMeal(null, action.handfuls)
+      .then(() => setToast(`Logged ${amountText(action.handfuls, store.goalFood)}. Your family can see it.`))
+      .catch(() => setToast("We couldn't log that. Open the camera to try again."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [action]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   return (
     <View style={{ flex: 1, backgroundColor: C.rice }}>
@@ -66,6 +93,14 @@ export default function Main({ openCamera }: { openCamera: boolean }) {
         </Pressable>
         <TabButton icon="pie-chart-outline" label="Recaps" on={tab === 'recap'} onPress={() => setTab('recap')} />
       </View>
+
+      {toast ? (
+        <View style={{ position: 'absolute', left: 20, right: 20, bottom: insets.bottom + 110, backgroundColor: C.deep, borderRadius: 16, padding: 14 }}>
+          <T w="semibold" color={C.white} center size={14}>
+            {toast}
+          </T>
+        </View>
+      ) : null}
 
       <Modal visible={sheet !== null} animationType="slide" onRequestClose={() => setSheet(null)} presentationStyle="fullScreen">
         <View style={{ flex: 1, backgroundColor: sheet === 'add' ? C.night : C.rice, alignItems: 'center' }}>

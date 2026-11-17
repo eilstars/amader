@@ -1,11 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Backend, Family, Meal, Member, Role, Slot } from '../types';
+import { Backend, Family, Guess, Meal, Member, Parts, Role, Slot } from '../types';
+import { unitWord } from '../words';
 
 const BUCKET = 'meal-photos';
 
 type MemberRow = { id: string; name: string; role: Role; tint: number; joined: boolean; created_at: string };
-type MealRow = { id: string; member_id: string; eaten_at: string; slot: Slot; photo_url: string | null; handfuls: number | null; hearts: { member_id: string }[] | null };
+type MealRow = { id: string; member_id: string; eaten_at: string; slot: Slot; photo_url: string | null; handfuls: number | null; dish: string | null; parts: Parts | null; hearts: { member_id: string }[] | null };
 
 function base64ToBytes(base64: string): Uint8Array {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -86,7 +87,7 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
       const since = new Date(Date.now() - 120 * 86_400_000).toISOString();
       const mealRows = await db
         .from('meals')
-        .select('id, member_id, eaten_at, slot, photo_url, handfuls, hearts(member_id)')
+        .select('id, member_id, eaten_at, slot, photo_url, handfuls, dish, parts, hearts(member_id)')
         .eq('family_code', code)
         .gte('eaten_at', since)
         .order('eaten_at', { ascending: false });
@@ -100,6 +101,8 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
         slot: m.slot,
         photo: m.photo_url,
         handfuls: m.handfuls,
+        dish: m.dish,
+        parts: m.parts,
         hearts: (m.hearts ?? []).map((h) => h.member_id),
       }));
       return { family, meals };
@@ -123,9 +126,21 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
         slot: meal.slot,
         photo_url: photoUrl,
         handfuls: meal.handfuls,
+        dish: meal.dish ?? null,
+        parts: meal.parts ?? null,
       });
       fail(error);
       return { ...meal, photo: photoUrl };
+    },
+
+    async recognize(photo, goalFood) {
+      if (!photo.base64) return null;
+      await signedIn();
+      const { data, error } = await db.functions.invoke('recognize-meal', {
+        body: { image: photo.base64, goal_food: goalFood, unit: unitWord(goalFood) },
+      });
+      if (error || !data?.guess) return null;
+      return data.guess as Guess;
     },
 
     async setHeart(mealId, memberId, on) {

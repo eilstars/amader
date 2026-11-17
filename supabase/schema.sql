@@ -36,6 +36,9 @@ create table if not exists public.meals (
   photo_url text,
   handfuls int check (handfuls between 0 and 4)
 );
+-- Filled in by food recognition (supabase/functions/recognize-meal).
+alter table public.meals add column if not exists dish text;
+alter table public.meals add column if not exists parts jsonb;
 create index if not exists meals_family_time on public.meals (family_code, eaten_at desc);
 
 create table if not exists public.hearts (

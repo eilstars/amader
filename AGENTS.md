@@ -9,10 +9,11 @@ Read the `expo` major version in `package.json` and check the matching docs (htt
 ## Commands
 
 ```bash
-npm start                         # dev server, scan the QR code with Expo Go
+npm start                         # dev server for Expo Go (expo start --go)
 npx tsc --noEmit                  # typecheck, run before finishing any change
 npx expo export --platform web    # build the web version into dist/
 npx expo install <package>        # add packages at versions that match the SDK
+npx expo prebuild --no-install    # checks the config plugins run; delete ios/ and android/ afterwards
 ```
 
 ## Layout
@@ -23,6 +24,8 @@ npx expo install <package>        # add packages at versions that match the SDK
 - `src/backend/`: `local.ts` keeps data on the phone, `supabase.ts` syncs a family. Both follow the `Backend` type in `src/types.ts`.
 - `src/ui.tsx`, `src/theme.ts`: shared components and brand colours.
 - `supabase/schema.sql`: database tables and privacy rules.
+- `supabase/functions/recognize-meal/`: Deno function that reads a meal photo with Claude. The API key stays on the server.
+- `src/reminders.ts`: local daily reminders. `src/widgets*.tsx`, `src/widget-layout.ios.tsx`: home and lock screen widgets (native builds only, loaded lazily so Expo Go still starts).
 
 ## Product rules
 

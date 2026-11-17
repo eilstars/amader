@@ -202,8 +202,9 @@ function MealCard({ meal }: { meal: Meal }) {
       <Row>
         {meal.photo ? who ? <Avatar member={who} size={40} /> : null : <Plate size={48} handfuls={meal.handfuls} />}
         <View style={{ flex: 1 }}>
-          <T w="semibold">{store.mealTitle(meal)}</T>
+          <T w="semibold">{meal.dish ? meal.dish : store.mealTitle(meal)}</T>
           <T size={13} color={C.muted}>
+            {meal.dish ? `${store.mealTitle(meal)} · ` : ''}
             {whenText(meal.date)}
             {portion ? ` · ${portion}` : ''}
           </T>

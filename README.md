@@ -13,7 +13,11 @@ Each person shares one photo of a meal a day, taps how much of one goal food (ri
 - Our Table: who has eaten today, the family goal bar, the feed, hearts
 - Recaps: who came to the table each day, your portions, most loved meal
 - Checkup: a 90 day summary of your own meals that only you can share
-- Me: family code and invite, change the goal food, delete my data
+- Food recognition: the photo is read to name the dish, guess the portion and fill the weekly plate
+- Recaps also show your plate for the week as a pie (grains, dal and vegetables, fish and meat, other)
+- Reminders: a daily "Did you eat?" that skips days you already shared and stops after a week of silence
+- Widgets: "Did you eat?" on the iPhone home screen and lock screen and the Android home screen, with one-tap logging
+- Me: family code and invite, change the goal food, reminders, photo reading on or off, delete my data
 
 ## Run it on your phone (no Mac needed)
 
@@ -25,6 +29,8 @@ Each person shares one photo of a meal a day, taps how much of one goal food (ri
    npm install
    npm start
    ```
+
+   (`npm start` opens in Expo Go. `npm run dev-client` is for the installed development build.)
 
 4. Scan the QR code. iPhone: use the Camera app. Android: use the scanner inside Expo Go. Phone and computer must be on the same wifi. If it will not connect, run `npx expo start --tunnel` instead.
 
@@ -43,6 +49,41 @@ Without this step the app keeps everything on one phone.
 Now set the table on one phone, and enter the family code on another.
 
 How privacy works: nobody makes an account. Each phone signs in anonymously and the database only shows a phone the families it has joined. The family code is the only way in. The rules are in `supabase/schema.sql` and were tested on a local Postgres. Known limits for now: meal photos sit at long random web addresses that are not listed anywhere but are not password protected, and a person who deletes the app or clears their browser loses their seat and has to rejoin as a new member.
+
+## Turn on food recognition (about 5 minutes, after Supabase is set up)
+
+The photo is read by Claude on the server, so the API key never ships inside the app. It names the dish, estimates the share of grains, vegetables and protein, and guesses the portion of the goal food. It never mentions calories, carbs or health. People can turn it off under Me.
+
+1. Get an API key at https://console.anthropic.com.
+2. Install the Supabase CLI, then in this folder:
+
+   ```bash
+   npx supabase login
+   npx supabase link --project-ref YOUR_PROJECT_REF
+   npx supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+   npx supabase functions deploy recognize-meal
+   ```
+
+3. Run `supabase/schema.sql` again if you set up the database before this was added (it adds two columns and is safe to re-run).
+
+Cost: each photo is one request. The function uses Claude Opus 5.5 for the best read of mixed plates, roughly a cent or less per photo. To make it far cheaper, change `MODEL` at the top of `supabase/functions/recognize-meal/index.ts` to `claude-haiku-5-5` and compare the guesses on your own photos.
+
+Without this step the app works the same, just without the guess. The sample family shows a labelled sample guess so the flow can be demoed.
+
+## Reminders and widgets
+
+Reminders are in Me. They work in the installed app. Expo Go on Android has limited notification support, and browsers have none.
+
+Widgets cannot run inside Expo Go, because they are native code. They need a real build of the app:
+
+```bash
+npx eas-cli@latest build --profile development --platform android   # needs no paid account
+npx eas-cli@latest build --profile development --platform ios       # needs the Apple Developer account
+```
+
+After installing that build, long-press the home screen and add "Did you eat?". On iPhone it is also offered for the lock screen (circle, rectangle and inline). Android has no lock screen widgets for apps on most phones. Tapping a widget opens the camera; on the wider widget the numbers log a meal in one tap.
+
+Status: the widget code typechecks, bundles, and the native widget targets generate for both platforms, but it has not been run on a real phone yet. Expect a round of fixes the first time it is installed.
 
 ## Give parents a link instead of an app install
 
@@ -65,8 +106,7 @@ npx eas-cli@latest submit
 
 ## Not built yet
 
-- Push notifications ("Did you eat?" reminders, a heart arrived)
+- Push notifications from the server ("Ammi shared dinner", "a heart arrived"). Today's reminders are set by the phone itself
 - Taking a break from sharing, and keeping one meal private
-- The plate-as-pie recap of food groups (needs food recognition)
-- Paid plans
+- Paid plans (plan: RevenueCat over Apple and Google in-app purchase, one subscription covers the family)
 - Before a public launch: private photo storage, a privacy policy, and a DMCA agent for photo uploads

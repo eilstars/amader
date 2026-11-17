@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import * as Linking from 'expo-linking';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { StoreProvider, useStore } from './src/store';
+import { PendingAction, StoreProvider, useStore } from './src/store';
 import { C, fontFiles, images } from './src/theme';
 import { Btn, T } from './src/ui';
 import { cleanCode } from './src/words';
@@ -18,6 +18,14 @@ function codeFromUrl(url: string | null): string | null {
   return match ? cleanCode(match[1]) : null;
 }
 
+function actionFromUrl(url: string | null): PendingAction | null {
+  if (!url) return null;
+  const quick = /quick\?h=(\d)/.exec(url);
+  if (quick) return { kind: 'quick', handfuls: Math.min(4, Math.max(0, Number(quick[1]))) };
+  if (/:\/\/add\b/.test(url)) return { kind: 'add' };
+  return null;
+}
+
 function Root() {
   const store = useStore();
   const [step, setStep] = useState<'welcome' | 'setup' | 'join'>('welcome');
@@ -25,14 +33,15 @@ function Root() {
 
   // An invite link (…?join=CODE) drops the person straight on the join screen.
   useEffect(() => {
-    Linking.getInitialURL().then((url) => {
+    // Widgets and reminders open the app with amader://add or amader://quick?h=2.
+    const open = (url: string | null) => {
       const code = codeFromUrl(url);
       if (code) store.setPendingCode(code);
-    });
-    const sub = Linking.addEventListener('url', ({ url }) => {
-      const code = codeFromUrl(url);
-      if (code) store.setPendingCode(code);
-    });
+      const action = actionFromUrl(url);
+      if (action) store.setPendingAction(action);
+    };
+    Linking.getInitialURL().then(open);
+    const sub = Linking.addEventListener('url', ({ url }) => open(url));
     return () => sub.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

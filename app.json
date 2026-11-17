@@ -44,6 +44,49 @@
           "cameraPermission": "Amader uses the camera so you can share a photo of your meal with your family.",
           "photosPermission": "Amader lets you pick a photo of your meal to share with your family."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#1F7A5A"
+        }
+      ],
+      [
+        "expo-widgets",
+        {
+          "widgets": [
+            {
+              "name": "DidYouEat",
+              "displayName": "Did you eat?",
+              "description": "See who has eaten today and show your plate in one tap.",
+              "supportedFamilies": [
+                "systemSmall",
+                "systemMedium",
+                "accessoryCircular",
+                "accessoryRectangular",
+                "accessoryInline"
+              ]
+            }
+          ]
+        }
+      ],
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "DidYouEat",
+              "label": "Did you eat?",
+              "description": "See who has eaten today and show your plate in one tap.",
+              "minWidth": "250dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            }
+          ]
+        }
       ]
     ]
   }
