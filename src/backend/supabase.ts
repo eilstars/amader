@@ -68,6 +68,18 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
     });
   }
 
+  // Each family's photos sit in a folder with a random name, separate from the family code.
+  const folders = new Map<string, string>();
+  async function folderOf(code: string): Promise<string> {
+    const known = folders.get(code);
+    if (known) return known;
+    const { data, error } = await db.from('families').select('folder').eq('code', code).maybeSingle();
+    fail(error);
+    if (!data?.folder) throw new Error('We could not find your family table.');
+    folders.set(code, data.folder as string);
+    return data.folder as string;
+  }
+
   return {
     mode: 'cloud',
 
@@ -101,9 +113,10 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
 
     async load(code) {
       await signedIn();
-      const fam = await db.from('families').select('code, goal_food, goal_handfuls').eq('code', code).maybeSingle();
+      const fam = await db.from('families').select('code, goal_food, goal_handfuls, folder').eq('code', code).maybeSingle();
       fail(fam.error);
       if (!fam.data) return null;
+      folders.set(code, fam.data.folder as string);
       const mem = await db.from('members').select('id, name, role, tint, joined, created_at').eq('family_code', code).order('created_at');
       fail(mem.error);
       const since = new Date(Date.now() - 120 * 86_400_000).toISOString();
@@ -136,7 +149,7 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
       await signedIn();
       let photoPath: string | null = null;
       if (photo) {
-        const path = `${code}/${meal.id}.jpg`;
+        const path = `${await folderOf(code)}/${meal.id}.jpg`;
         const body = photo.base64 ? base64ToBytes(photo.base64) : await (await fetch(photo.uri)).arrayBuffer();
         const up = await db.storage.from(BUCKET).upload(path, body, { contentType: 'image/jpeg', upsert: false });
         fail(up.error);
@@ -191,7 +204,7 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
       const { error } = await db.from('examples').insert({
         meal_id: example.mealId,
         member_id: example.memberId,
-        photo_path: `${example.code}/${example.mealId}.jpg`,
+        photo_path: `${await folderOf(example.code)}/${example.mealId}.jpg`,
         goal_food: example.goalFood,
         guess: example.guess,
         handfuls: example.handfuls,
@@ -209,17 +222,17 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
     async deleteMeal(code, mealId) {
       await signedIn();
       // The photo goes first. If that fails the meal stays, so nothing is left behind without its owner.
-      const gone = await db.storage.from(BUCKET).remove([`${code}/${mealId}.jpg`]);
+      const gone = await db.storage.from(BUCKET).remove([`${await folderOf(code)}/${mealId}.jpg`]);
       fail(gone.error);
       const { error } = await db.from('meals').delete().eq('id', mealId);
       fail(error);
     },
 
-    async deleteMe(code, meId) {
+    async deleteMe(_code, meId) {
       await signedIn();
       const mine = await db.from('meals').select('id, photo_url').eq('member_id', meId);
       fail(mine.error);
-      const paths = (mine.data ?? []).filter((m) => m.photo_url).map((m) => `${code}/${m.id}.jpg`);
+      const paths = (mine.data ?? []).filter((m) => m.photo_url).map((m) => pathOf(m.photo_url as string));
       // Photos go first, 100 at a time. If any batch fails, stop: the person is told and can try again,
       // instead of being told everything is gone while photos remain.
       for (let i = 0; i < paths.length; i += 100) {

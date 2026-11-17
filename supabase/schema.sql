@@ -15,6 +15,11 @@ create table if not exists public.families (
   created_at timestamptz not null default now()
 );
 
+-- Photos live in a folder named by this random id, not by the family code. A photo link that
+-- gets copied somewhere therefore never gives away the code that lets people join.
+alter table public.families add column if not exists folder uuid not null default gen_random_uuid();
+create unique index if not exists families_folder on public.families (folder);
+
 create table if not exists public.members (
   id uuid primary key default gen_random_uuid(),
   family_code text not null references public.families (code) on delete cascade,
@@ -102,6 +107,12 @@ language sql stable security definer set search_path = public as $$
   select family_code from public.members where user_id = auth.uid()
 $$;
 
+create or replace function public.my_family_folders() returns setof text
+language sql stable security definer set search_path = public as $$
+  select f.folder::text from public.families f
+  where f.code in (select family_code from public.members where user_id = auth.uid())
+$$;
+
 create or replace function public.my_member_ids() returns setof uuid
 language sql stable security definer set search_path = public as $$
   select id from public.members where user_id = auth.uid()
@@ -125,7 +136,7 @@ create policy "examples: add my own" on public.examples
     member_id in (select public.my_member_ids())
     and meal_id in (select m.id from public.meals m where m.member_id = examples.member_id)
     -- The row may only point at that meal's own photo.
-    and photo_path = (select m.family_code || '/' || m.id || '.jpg' from public.meals m where m.id = examples.meal_id)
+    and photo_path = (select m.photo_url from public.meals m where m.id = examples.meal_id)
   );
 
 drop policy if exists "examples: take back my own" on public.examples;
@@ -158,7 +169,7 @@ create policy "meals: add my own" on public.meals
     and family_code in (select m.family_code from public.members m where m.id = member_id)
     and eaten_at between now() - interval '2 days' and now() + interval '1 day'
     -- A photo may only point into this family's own folder.
-    and (photo_url is null or photo_url = family_code || '/' || id || '.jpg')
+    and (photo_url is null or photo_url = (select f.folder::text from public.families f where f.code = family_code) || '/' || id || '.jpg')
   );
 
 drop policy if exists "meals: delete my own" on public.meals;
@@ -306,10 +317,11 @@ grant execute on function public.join_family(text, text, text) to authenticated;
 grant execute on function public.delete_me(uuid) to authenticated;
 revoke execute on function public.check_code_tries() from public, anon, authenticated;
 grant execute on function public.my_family_codes() to authenticated;
+grant execute on function public.my_family_folders() to authenticated;
 grant execute on function public.my_member_ids() to authenticated;
 
 -- Meal photos. The bucket is private: a photo only opens for a signed-in phone that belongs to
--- the family, through a link that stops working after an hour. The file path starts with the family code.
+-- the family, through a link that stops working after an hour. The file path starts with the family's random folder id.
 -- Only JPEG photos up to 3 MB are accepted, so the bucket cannot be used to host other files.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
   values ('meal-photos', 'meal-photos', false, 3145728, array['image/jpeg'])
@@ -318,7 +330,7 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 drop policy if exists "photos: family can add" on storage.objects;
 create policy "photos: family can add" on storage.objects
   for insert to authenticated
-  with check (bucket_id = 'meal-photos' and (storage.foldername(name))[1] in (select public.my_family_codes()));
+  with check (bucket_id = 'meal-photos' and (storage.foldername(name))[1] in (select public.my_family_folders()));
 
 -- Nobody can swap a photo for another one after it is shared.
 drop policy if exists "photos: family can replace" on storage.objects;
@@ -326,7 +338,7 @@ drop policy if exists "photos: family can replace" on storage.objects;
 drop policy if exists "photos: family can read" on storage.objects;
 create policy "photos: family can read" on storage.objects
   for select to authenticated
-  using (bucket_id = 'meal-photos' and (storage.foldername(name))[1] in (select public.my_family_codes()));
+  using (bucket_id = 'meal-photos' and (storage.foldername(name))[1] in (select public.my_family_folders()));
 
 -- Only the person who added a photo can remove it.
 drop policy if exists "photos: family can remove" on storage.objects;
@@ -334,3 +346,16 @@ drop policy if exists "photos: remove my own" on storage.objects;
 create policy "photos: remove my own" on storage.objects
   for delete to authenticated
   using (bucket_id = 'meal-photos' and owner_id = (select auth.uid())::text);
+
+-- What a phone may touch at all, on top of the row rules above. Anything not listed here is refused,
+-- so a rule left out by mistake later cannot open a table.
+revoke all on all tables in schema public from anon, authenticated;
+grant select on public.families to authenticated;
+grant update (goal_food, goal_handfuls) on public.families to authenticated;
+-- Not user_id: family members never need each other's sign-in ids.
+grant select (id, family_code, name, role, tint, joined, created_at) on public.members to authenticated;
+grant select, insert, delete on public.meals to authenticated;
+grant select, insert, delete on public.hearts to authenticated;
+grant select, insert, delete on public.examples to authenticated;
+-- A phone that is not signed in can run nothing.
+revoke execute on all functions in schema public from anon, public;

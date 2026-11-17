@@ -13,14 +13,14 @@ const CHECKUP = 'amader.checkup';
 const PREFS = 'amader.prefs';
 
 interface Prefs {
-  /** Let food recognition look at my photos. */
-  guessOn: boolean;
+  /** Let food recognition look at my photos. Null until the person has been asked. */
+  guessOn: boolean | null;
   reminderOn: boolean;
   reminderHour: number;
   /** Let Amader keep my photos and answers to improve recognition. Off unless the person turns it on. */
   improveOn: boolean;
 }
-const DEFAULT_PREFS: Prefs = { guessOn: true, reminderOn: false, reminderHour: 19, improveOn: false };
+const DEFAULT_PREFS: Prefs = { guessOn: null, reminderOn: false, reminderHour: 19, improveOn: false };
 
 interface Store {
   ready: boolean;
@@ -49,7 +49,7 @@ interface Store {
   loadDemo(): Promise<void>;
   addMeal(photo: Photo | null, handfuls: number | null, guess?: Guess | null, chosenBy?: ChosenBy): Promise<Meal>;
   /** Asks food recognition what is in the photo. Null when it is off or cannot tell. */
-  recognize(photo: Photo): Promise<Guess | null>;
+  recognize(photo: Photo, justAgreed?: boolean): Promise<Guess | null>;
   prefs: Prefs;
   setGuessOn(on: boolean): void;
   /** Turning this off also takes back what was already shared. Resolves false if that failed. */
@@ -186,7 +186,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const nextMilestone = MILESTONES.find((n) => n > myMealCount) ?? (Math.floor(myMealCount / 100) + 1) * 100;
     const member = (id: string) => family?.members.find((m) => m.id === id);
     const parent = family?.members.find((m) => m.role === 'parent' && m.id !== me?.id);
-    const link = webUrl && family ? `\n${webUrl}/?join=${family.code}` : '';
+    const link = webUrl && family ? `\n${webUrl}/#join=${family.code}` : '';
     const inviteMessage = family
       ? `${parent?.name ?? 'Hi'}, did you eat? I set up Amader for us. ${webUrl ? 'Tap the link' : 'Open the app'} and enter our family code ${family.code}, then send me a photo of your plate. I'll send mine too.${link}`
       : '';
@@ -260,8 +260,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       },
       pendingAction,
       setPendingAction,
-      async recognize(photo) {
-        if (!session || !prefs.guessOn) return null;
+      async recognize(photo, justAgreed) {
+        // A photo only goes to the AI service after the person has said yes. The sample family uses a canned guess.
+        if (!session || !(session.demo || prefs.guessOn === true || justAgreed)) return null;
         // On this phone only there is no real recognition. Only the sample family shows a sample guess.
         if (backendFor(session).mode === 'local' && !session.demo) return null;
         return backendFor(session).recognize(photo, goalFood).catch(() => null);

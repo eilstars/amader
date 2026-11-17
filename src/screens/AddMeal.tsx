@@ -48,13 +48,13 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
   }
 
   // Ask what is on the plate while the person looks at the portion screen. Never blocks saving.
-  function look(at: Photo) {
+  function look(at: Photo, justAgreed = false) {
     setGuess(null);
     touched.current = false;
-    if (!store.prefs.guessOn) return;
+    if (!justAgreed && !store.session?.demo && store.prefs.guessOn !== true) return;
     setGuessing(true);
     store
-      .recognize(at)
+      .recognize(at, justAgreed)
       .then((found) => {
         setGuess(found);
         if (found && found.amount !== null && found.amount >= 1 && !touched.current) setHandfuls(found.amount);
@@ -89,7 +89,10 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
         look(taken);
         findRuler(taken);
       } catch {
-        setPhoto({ uri: asset.uri, base64: asset.base64 ?? null });
+        // The original file can carry where it was taken (GPS) inside it. Shrinking strips that out,
+        // so if shrinking fails the original is never used.
+        setNote("We couldn't prepare that photo. Try another one, or share without a photo.");
+        return;
       }
       setStep('portion');
     } catch {
@@ -267,6 +270,33 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
               {looking ? 'Looking for your hand in the photo...' : 'Tip: put your hand flat next to the plate in the photo and Amader can measure for you.'}
             </T>
           )
+        ) : null}
+
+        {photo && store.cloud && !store.session?.demo && store.prefs.guessOn === null ? (
+          <View style={{ backgroundColor: C.mint, borderRadius: 16, padding: 14, gap: 10 }}>
+            <T w="semibold" size={15} color={C.deep}>
+              Want Puti to guess what's on your plate?
+            </T>
+            <T size={13} color={C.muted}>
+              To do that, your meal photos are sent to an AI service (Claude, made by Anthropic) that reads them. Your family sees your photos either way. You can change this any time in settings.
+            </T>
+            <Row gap={10}>
+              <Btn
+                kind="ghost"
+                label="No thanks"
+                onPress={() => store.setGuessOn(false)}
+                style={{ flex: 1, alignSelf: 'auto', backgroundColor: C.white, minHeight: 46 }}
+              />
+              <Btn
+                label="Yes, guess"
+                onPress={() => {
+                  store.setGuessOn(true);
+                  look(photo, true);
+                }}
+                style={{ flex: 1, alignSelf: 'auto', minHeight: 46 }}
+              />
+            </Row>
+          </View>
         ) : null}
 
         {photo && (guessing || guess) ? (

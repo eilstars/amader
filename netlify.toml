@@ -1,0 +1,13 @@
+# Builds the web version of the app. Set EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY
+# and EXPO_PUBLIC_WEB_URL in Netlify (Site configuration, Environment variables), never in this file.
+[build]
+  command = "npx expo export --platform web"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

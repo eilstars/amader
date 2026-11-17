@@ -20,6 +20,9 @@ import { zodOutputFormat } from "npm:@anthropic-ai/sdk/helpers/zod";
 const MODEL = "claude-opus-5-5";
 
 const DAILY_LIMIT = 30;
+// A hard ceiling on photos read per day across everyone, so the bill has a known maximum
+// even if someone makes many fake families. Raise it with: supabase secrets set RECOGNIZE_DAILY_TOTAL=5000
+const DAILY_TOTAL = Number(Deno.env.get("RECOGNIZE_DAILY_TOTAL") ?? "1000");
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -64,6 +67,9 @@ Deno.serve(async (req) => {
     const used = await admin.from("recognitions").select("user_id", { count: "exact", head: true }).eq("user_id", user.id).gte("at", since);
     if (used.error) return json({ error: "Something went wrong." }, 500);
     if ((used.count ?? 0) >= DAILY_LIMIT) return json({ guess: null, limit: true });
+    const all = await admin.from("recognitions").select("user_id", { count: "exact", head: true }).gte("at", since);
+    if (all.error) return json({ error: "Something went wrong." }, 500);
+    if ((all.count ?? 0) >= DAILY_TOTAL) return json({ guess: null, limit: true });
     const noted = await admin.from("recognitions").insert({ user_id: user.id });
     if (noted.error) return json({ error: "Something went wrong." }, 500);
 

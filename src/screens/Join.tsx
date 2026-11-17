@@ -115,7 +115,7 @@ export default function Join({ onBack, onJoined }: { onBack: () => void; onJoine
 
         <Soft>
           <T size={14} color={C.muted}>
-            Only your family sees your plates. An AI model reads each photo to guess the dish, and you can turn that off in settings. You can delete everything any time.
+            Only your family sees your plates. Amader asks you before any photo is read by an AI. You can delete everything any time.
           </T>
         </Soft>
 

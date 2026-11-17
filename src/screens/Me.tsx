@@ -148,10 +148,10 @@ export default function Me({ onClose, onCheckup, onTeach }: { onClose: () => voi
           <View style={{ flex: 1 }}>
             <T w="semibold">Guess what's on my plate</T>
             <T size={13} color={C.muted}>
-              An AI model looks at your meal photo to name the dish and guess the portion. No person at Amader looks at it.
+              Your meal photo is sent to an AI service (Claude, made by Anthropic) that names the dish and guesses the portion. No person at Amader looks at it. Off means photos only go to your family.
             </T>
           </View>
-          <Switch value={store.prefs.guessOn} trackColor={{ true: C.leaf, false: C.line }} onValueChange={(on) => store.setGuessOn(on)} />
+          <Switch value={store.prefs.guessOn === true} trackColor={{ true: C.leaf, false: C.line }} onValueChange={(on) => store.setGuessOn(on)} />
         </Row>
         <View style={{ height: 1, backgroundColor: '#EDF0EA', marginVertical: 4 }} />
         <Row style={{ justifyContent: 'space-between' }}>

@@ -15,7 +15,7 @@ import Join from './src/screens/Join';
 import Main from './src/screens/Main';
 
 function codeFromUrl(url: string | null): string | null {
-  const match = url ? /[?&]join=([A-Za-z0-9]+)/.exec(url) : null;
+  const match = url ? /[?&#]join=([A-Za-z0-9]+)/.exec(url) : null;
   return match ? cleanCode(match[1]) : null;
 }
 
@@ -33,7 +33,8 @@ function Root() {
   const [step, setStep] = useState<'welcome' | 'setup' | 'join' | 'teach'>('welcome');
   const [justJoined, setJustJoined] = useState(false);
 
-  // An invite link (…?join=CODE) drops the person straight on the join screen.
+  // The link uses # so the code never reaches the web host's logs or link previews.
+  // An invite link (…#join=CODE) drops the person straight on the join screen.
   useEffect(() => {
     // Widgets and reminders open the app with amader://add or amader://quick?h=2.
     const open = (url: string | null) => {

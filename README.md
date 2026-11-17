@@ -93,7 +93,7 @@ The web version runs in any phone browser, so a parent can join from a WhatsApp 
 npx expo export --platform web
 ```
 
-Upload the `dist` folder to Netlify (drag and drop works), then set `EXPO_PUBLIC_WEB_URL` in `.env` to that address and export again. Invites then include a link like `https://your-site/?join=ABC123`.
+Upload the `dist` folder to Netlify (drag and drop works), then set `EXPO_PUBLIC_WEB_URL` in `.env` to that address and export again. Invites then include a link like `https://your-site/#join=ABC123`.
 
 ## Put it in the App Store and Play Store later
 
@@ -127,3 +127,28 @@ npx eas-cli@latest submit
 - Deleting: if the server cannot be reached, the app says so and deletes nothing, instead of pretending.
 - Worth adding before a public launch: a CAPTCHA on anonymous sign-ins (Supabase supports Turnstile), a way to remove a family member, and a way to change the family code if it leaks.
 - Known limit: there are no accounts, so a person who clears their browser data or reinstalls the app comes back as a new member.
+
+## Where data goes (second review, 2026-11-16)
+
+| What | Where it goes | When |
+| --- | --- | --- |
+| Names, meals, portions, hearts | Your Supabase project | Always, once Supabase is connected |
+| Meal photos | Your Supabase project, private bucket | When a photo is shared |
+| Meal photos | Anthropic (Claude), through your Supabase function | Only after the person taps "Yes, guess". Asked once, off until then |
+| Hand position in a photo | Nowhere. Worked out on the phone and thrown away | Never leaves the device |
+| Location | Nowhere. Photos are re-saved before upload, which strips GPS. If that step fails the photo is not used | Never |
+| Family code | Supabase only. Invite links carry it after a `#`, which browsers do not send to the web host or to link previews | |
+
+## Keys: which are secret
+
+- `ANTHROPIC_API_KEY`: secret. It goes in exactly one place, `npx supabase secrets set`. Never in `.env`, never in Netlify, never in a file in this repo.
+- Supabase `service_role` key: secret. The app never needs it. Do not paste it anywhere outside the Supabase dashboard.
+- Supabase URL and anon key: public by design. They are inside every copy of the app. The database rules are what protect the data, not this key.
+- Anything named `EXPO_PUBLIC_...` is shipped inside the app for anyone to read. Never put a secret in a variable with that prefix.
+
+## Also changed in the second review
+
+- Photos are stored in a folder with a random name, not the family code, so a copied photo link cannot be used to join the family.
+- Table permissions are listed one by one at the end of `schema.sql`. Phones cannot read other members' sign-in ids or change a family's code, and a phone that is not signed in can do nothing.
+- The recognition function has a hard daily ceiling across everyone (`RECOGNIZE_DAILY_TOTAL`, default 1000 photos), so the AI bill has a known maximum.
+- `public/_headers` sets a content security policy and related headers for the Netlify site.
