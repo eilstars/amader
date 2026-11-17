@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "Amader",
+    "slug": "amader",
+    "scheme": "amader",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#FBFAF6",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#E4F1E9"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.amader.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Amader uses the camera so you can share a photo of your meal with your family.",
+        "NSPhotoLibraryUsageDescription": "Amader lets you pick a photo of your meal to share with your family."
+      }
+    },
+    "android": {
+      "package": "app.amader.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#E4F1E9",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Amader uses the camera so you can share a photo of your meal with your family.",
+          "photosPermission": "Amader lets you pick a photo of your meal to share with your family."
+        }
+      ]
+    ]
+  }
+}
