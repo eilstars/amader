@@ -54,6 +54,56 @@ create table if not exists public.hearts (
   primary key (meal_id, member_id)
 );
 
+-- Round two (2026-11-17): the whole plate, snacks, fasting, notes, voice and who you ate with.
+alter table public.meals drop constraint if exists meals_slot_check;
+alter table public.meals add constraint meals_slot_check
+  check (slot in ('breakfast', 'lunch', 'dinner', 'snack', 'suhoor', 'iftar', 'fasting'));
+alter table public.meals add column if not exists protein int check (protein between 0 and 4);
+alter table public.meals add column if not exists veg int check (veg between 0 and 4);
+alter table public.meals add column if not exists note text check (note is null or char_length(note) <= 280);
+alter table public.meals add column if not exists voice_url text check (voice_url is null or char_length(voice_url) <= 200);
+alter table public.meals add column if not exists with_ids uuid[] not null default '{}' check (cardinality(with_ids) <= 8);
+alter table public.meals add column if not exists with_others text check (with_others is null or char_length(with_others) <= 80);
+alter table public.meals add column if not exists party boolean not null default false;
+-- Which grain was on the plate this time, and "I ate this too" for a meal shared by someone at the same table.
+alter table public.meals add column if not exists grain text check (grain is null or char_length(grain) <= 24);
+alter table public.meals add column if not exists same_as uuid references public.meals (id) on delete set null;
+-- The other food groups: pieces of fruit and cups of milk, yoghurt or lassi.
+alter table public.meals add column if not exists fruit int check (fruit between 0 and 4);
+alter table public.meals add column if not exists dairy int check (dairy between 0 and 4);
+-- When the meal was shared (eaten_at can be earlier). Used to send "Mom shared lunch" only once, right away.
+alter table public.meals add column if not exists created_at timestamptz not null default now();
+-- Where to send "Mom shared lunch". Only the server reads it: no one in the family can select it.
+alter table public.members add column if not exists push_token text check (push_token is null or char_length(push_token) <= 200);
+
+-- Notes between family members: "You're doing great, Ammi!"
+create table if not exists public.cheers (
+  id uuid primary key default gen_random_uuid(),
+  family_code text not null references public.families (code) on delete cascade,
+  from_id uuid not null references public.members (id) on delete cascade,
+  to_id uuid not null references public.members (id) on delete cascade,
+  meal_id uuid references public.meals (id) on delete cascade,
+  text text not null check (char_length(text) between 1 and 200),
+  created_at timestamptz not null default now()
+);
+create index if not exists cheers_family_time on public.cheers (family_code, created_at desc);
+
+-- The family recipe book.
+create table if not exists public.recipes (
+  id uuid primary key default gen_random_uuid(),
+  family_code text not null references public.families (code) on delete cascade,
+  added_by uuid not null references public.members (id) on delete cascade,
+  title text not null check (char_length(title) between 1 and 80),
+  from_whom text not null default '' check (char_length(from_whom) <= 40),
+  ingredients text not null default '' check (char_length(ingredients) <= 3000),
+  steps text not null default '' check (char_length(steps) <= 6000),
+  story text check (story is null or char_length(story) <= 1000),
+  photo_url text check (photo_url is null or char_length(photo_url) <= 200),
+  voice_url text check (voice_url is null or char_length(voice_url) <= 200),
+  created_at timestamptz not null default now()
+);
+create index if not exists recipes_family on public.recipes (family_code, created_at desc);
+
 -- Keep what a phone can write small and sane, so one bad actor in a family cannot fill the database.
 alter table public.families drop constraint if exists families_goal_food_len;
 alter table public.families add constraint families_goal_food_len check (char_length(goal_food) between 1 and 30);
@@ -113,6 +163,12 @@ language sql stable security definer set search_path = public as $$
   where f.code in (select family_code from public.members where user_id = auth.uid())
 $$;
 
+-- The family a meal belongs to, for "I ate this too" links. Only answers for the caller's own families.
+create or replace function public.meal_family(m uuid) returns text
+language sql stable security definer set search_path = public as $$
+  select family_code from public.meals where id = m and family_code in (select family_code from public.members where user_id = auth.uid())
+$$;
+
 create or replace function public.my_member_ids() returns setof uuid
 language sql stable security definer set search_path = public as $$
   select id from public.members where user_id = auth.uid()
@@ -143,6 +199,45 @@ drop policy if exists "examples: take back my own" on public.examples;
 create policy "examples: take back my own" on public.examples
   for delete to authenticated using (member_id in (select public.my_member_ids()));
 
+alter table public.cheers enable row level security;
+alter table public.recipes enable row level security;
+
+drop policy if exists "cheers: family can read" on public.cheers;
+create policy "cheers: family can read" on public.cheers
+  for select to authenticated using (family_code in (select public.my_family_codes()));
+
+drop policy if exists "cheers: send my own" on public.cheers;
+create policy "cheers: send my own" on public.cheers
+  for insert to authenticated
+  with check (
+    from_id in (select public.my_member_ids())
+    and family_code in (select m.family_code from public.members m where m.id = from_id)
+    and to_id in (select m.id from public.members m where m.family_code = cheers.family_code)
+    and (meal_id is null or meal_id in (select x.id from public.meals x where x.family_code = cheers.family_code))
+  );
+
+drop policy if exists "cheers: take back my own" on public.cheers;
+create policy "cheers: take back my own" on public.cheers
+  for delete to authenticated using (from_id in (select public.my_member_ids()));
+
+drop policy if exists "recipes: family can read" on public.recipes;
+create policy "recipes: family can read" on public.recipes
+  for select to authenticated using (family_code in (select public.my_family_codes()));
+
+drop policy if exists "recipes: add my own" on public.recipes;
+create policy "recipes: add my own" on public.recipes
+  for insert to authenticated
+  with check (
+    added_by in (select public.my_member_ids())
+    and family_code in (select m.family_code from public.members m where m.id = added_by)
+    and (photo_url is null or photo_url = (select f.folder::text from public.families f where f.code = family_code) || '/recipes/' || id || '.jpg')
+    and (voice_url is null or voice_url = (select f.folder::text from public.families f where f.code = family_code) || '/recipes/' || id || '.m4a')
+  );
+
+drop policy if exists "recipes: remove my own" on public.recipes;
+create policy "recipes: remove my own" on public.recipes
+  for delete to authenticated using (added_by in (select public.my_member_ids()));
+
 drop policy if exists "family: members can read" on public.families;
 create policy "family: members can read" on public.families
   for select to authenticated using (code in (select public.my_family_codes()));
@@ -170,6 +265,11 @@ create policy "meals: add my own" on public.meals
     and eaten_at between now() - interval '2 days' and now() + interval '1 day'
     -- A photo may only point into this family's own folder.
     and (photo_url is null or photo_url = (select f.folder::text from public.families f where f.code = family_code) || '/' || id || '.jpg')
+    and (voice_url is null or voice_url = (select f.folder::text from public.families f where f.code = family_code) || '/' || id || '.m4a')
+    -- Only people from this family can be tagged.
+    and with_ids <@ array(select m.id from public.members m where m.family_code = meals.family_code)
+    -- "I ate this too" can only point at a meal in the same family.
+    and (same_as is null or public.meal_family(same_as) = family_code)
   );
 
 drop policy if exists "meals: delete my own" on public.meals;
@@ -246,7 +346,8 @@ begin
   end if;
   return json_build_object(
     'parent_name', (select name from public.members where family_code = v_code and role = 'parent' and not joined order by created_at limit 1),
-    'from_name', (select name from public.members where family_code = v_code and joined order by created_at limit 1)
+    'from_name', (select name from public.members where family_code = v_code and joined order by created_at limit 1),
+    'waiting', (select coalesce(json_agg(name order by created_at), '[]'::json) from public.members where family_code = v_code and role = 'parent' and not joined)
   );
 end;
 $$;
@@ -269,9 +370,10 @@ begin
     return json_build_object('code', v_code, 'me_id', v_me);
   end if;
   if p_role = 'parent' then
+    -- Several people can be looked after. Take the seat saved under their name, else the first free one.
     select id into v_me from public.members
       where family_code = v_code and role = 'parent' and not joined
-      order by created_at limit 1 for update;
+      order by (lower(name) = lower(trim(coalesce(p_name, '')))) desc, created_at limit 1 for update;
     if v_me is not null then
       update public.members
         set user_id = auth.uid(), joined = true, name = coalesce(nullif(trim(p_name), ''), name)
@@ -290,6 +392,33 @@ begin
     values (v_code, auth.uid(), trim(p_name), case when p_role = 'parent' then 'parent' else 'child' end, v_count % 3, true)
     returning id into v_me;
   return json_build_object('code', v_code, 'me_id', v_me);
+end;
+$$;
+
+-- Look after someone else too: a new empty seat they take when they join with the family code.
+create or replace function public.add_person(p_code text, p_name text)
+returns json language plpgsql security definer set search_path = public as $$
+declare
+  v_row public.members;
+begin
+  if not exists (select 1 from public.members where family_code = p_code and user_id = auth.uid() and joined) then
+    raise exception 'Not in this family';
+  end if;
+  if (select count(*) from public.members where family_code = p_code) >= 8 then
+    raise exception 'This family table is full';
+  end if;
+  insert into public.members (family_code, user_id, name, role, tint, joined)
+    values (p_code, null, trim(p_name), 'parent', (select count(*) from public.members where family_code = p_code)::int % 4, false)
+    returning * into v_row;
+  return json_build_object('id', v_row.id, 'name', v_row.name, 'role', v_row.role, 'tint', v_row.tint, 'joined', v_row.joined);
+end;
+$$;
+
+-- Saves where this phone gets notifications. Only for the caller's own seat.
+create or replace function public.save_push_token(p_member uuid, p_token text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  update public.members set push_token = nullif(trim(p_token), '') where id = p_member and user_id = auth.uid();
 end;
 $$;
 
@@ -315,8 +444,13 @@ grant execute on function public.create_family(text, text, text, int) to authent
 grant execute on function public.invite_info(text) to authenticated;
 grant execute on function public.join_family(text, text, text) to authenticated;
 grant execute on function public.delete_me(uuid) to authenticated;
+revoke execute on function public.add_person(text, text) from public, anon;
+revoke execute on function public.save_push_token(uuid, text) from public, anon;
+grant execute on function public.add_person(text, text) to authenticated;
+grant execute on function public.save_push_token(uuid, text) to authenticated;
 revoke execute on function public.check_code_tries() from public, anon, authenticated;
 grant execute on function public.my_family_codes() to authenticated;
+grant execute on function public.meal_family(uuid) to authenticated;
 grant execute on function public.my_family_folders() to authenticated;
 grant execute on function public.my_member_ids() to authenticated;
 
@@ -327,10 +461,15 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
   values ('meal-photos', 'meal-photos', false, 3145728, array['image/jpeg'])
   on conflict (id) do update set public = false, file_size_limit = 3145728, allowed_mime_types = array['image/jpeg'];
 
+-- Voice notes on meals and recipes. Same rules as photos: private, family only, short files.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+  values ('meal-voice', 'meal-voice', false, 3145728, array['audio/mp4', 'audio/m4a', 'audio/x-m4a', 'audio/aac', 'audio/webm'])
+  on conflict (id) do update set public = false, file_size_limit = 3145728, allowed_mime_types = array['audio/mp4', 'audio/m4a', 'audio/x-m4a', 'audio/aac', 'audio/webm'];
+
 drop policy if exists "photos: family can add" on storage.objects;
 create policy "photos: family can add" on storage.objects
   for insert to authenticated
-  with check (bucket_id = 'meal-photos' and (storage.foldername(name))[1] in (select public.my_family_folders()));
+  with check (bucket_id in ('meal-photos', 'meal-voice') and (storage.foldername(name))[1] in (select public.my_family_folders()));
 
 -- Nobody can swap a photo for another one after it is shared.
 drop policy if exists "photos: family can replace" on storage.objects;
@@ -338,14 +477,14 @@ drop policy if exists "photos: family can replace" on storage.objects;
 drop policy if exists "photos: family can read" on storage.objects;
 create policy "photos: family can read" on storage.objects
   for select to authenticated
-  using (bucket_id = 'meal-photos' and (storage.foldername(name))[1] in (select public.my_family_folders()));
+  using (bucket_id in ('meal-photos', 'meal-voice') and (storage.foldername(name))[1] in (select public.my_family_folders()));
 
 -- Only the person who added a photo can remove it.
 drop policy if exists "photos: family can remove" on storage.objects;
 drop policy if exists "photos: remove my own" on storage.objects;
 create policy "photos: remove my own" on storage.objects
   for delete to authenticated
-  using (bucket_id = 'meal-photos' and owner_id = (select auth.uid())::text);
+  using (bucket_id in ('meal-photos', 'meal-voice') and owner_id = (select auth.uid())::text);
 
 -- What a phone may touch at all, on top of the row rules above. Anything not listed here is refused,
 -- so a rule left out by mistake later cannot open a table.
@@ -357,5 +496,7 @@ grant select (id, family_code, name, role, tint, joined, created_at) on public.m
 grant select, insert, delete on public.meals to authenticated;
 grant select, insert, delete on public.hearts to authenticated;
 grant select, insert, delete on public.examples to authenticated;
+grant select, insert, delete on public.cheers to authenticated;
+grant select, insert, delete on public.recipes to authenticated;
 -- A phone that is not signed in can run nothing.
 revoke execute on all functions in schema public from anon, public;

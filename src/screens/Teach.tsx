@@ -66,11 +66,11 @@ export default function Teach({ onClose }: { onClose: () => void }) {
   const line = !moved
     ? 'This is a usual dinner plate. Most of it is rice.'
     : rice > START
-      ? 'More rice, and the dal and sabzi get squeezed out.'
+      ? 'More rice, and the protein and vegetables get squeezed out.'
       : rice === START
         ? 'Back where we started.'
         : done
-          ? `Same plate, same food, still full. ${count(START - rice)} of rice became dal and sabzi.`
+          ? `Same plate, same food, still full. ${count(START - rice)} of rice became protein and vegetables.`
           : 'Keep going. Watch what the rice turns into.';
 
   return (
@@ -108,8 +108,8 @@ export default function Teach({ onClose }: { onClose: () => void }) {
       <View style={{ gap: 8 }}>
         {[
           { name: 'Rice', color: RICE, amount: rice, was: START },
-          { name: 'Dal', color: DAL, amount: rest / 2, was: (PLATE - START) / 2 },
-          { name: 'Sabzi', color: SABZI, amount: rest / 2, was: (PLATE - START) / 2 },
+          { name: 'Protein', color: DAL, amount: rest / 2, was: (PLATE - START) / 2 },
+          { name: 'Vegetables', color: SABZI, amount: rest / 2, was: (PLATE - START) / 2 },
         ].map((row) => (
           <Row key={row.name} gap={10}>
             <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: row.color, borderWidth: 1, borderColor: C.line }} />
@@ -135,7 +135,7 @@ export default function Teach({ onClose }: { onClose: () => void }) {
 
       {done ? (
         <T color={C.muted} size={14}>
-          That is all Amader asks. Same food, right amount, with family. One tap after each meal keeps track of the rice, and the family cheers the rest.
+          Same food, right amount, with family.
         </T>
       ) : null}
 

@@ -1,134 +1,151 @@
 import React, { useState } from 'react';
 import { Image, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PlateCard } from '../food';
 import { useStore } from '../store';
 import { C } from '../theme';
-import { shareText } from '../share';
-import { Btn, Card, Eyebrow, RoundButton, Row, T } from '../ui';
-import { amountText, dateText, daysBetween, portionLine, timeText } from '../words';
-import { Chip } from './SetupFamily';
+import { sharePdf } from '../pdf';
+import { summaryHtml } from '../summary';
+import { plateAverage } from '../game';
+import { Btn, Chip, PageHead, Row, T } from '../ui';
+import { dateText, daysBetween, handsText, slotName } from '../words';
 
 /**
- * A plain log of what this person shared, to bring to a checkup.
+ * A plain log of what this person shared, as a PDF to bring to a checkup.
  * It belongs to them: only their own meals, and only they can send it.
  * No health numbers, no readings, no advice.
  */
 export default function Checkup({ onClose }: { onClose: () => void }) {
   const store = useStore();
   const insets = useSafeAreaInsets();
-  const [sent, setSent] = useState<string | null>(null);
+  const [range, setRange] = useState(30);
+  const [status, setStatus] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const me = store.me;
   if (!me) return null;
 
   const now = new Date();
-  const since = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 90);
+  const since = new Date(now.getFullYear(), now.getMonth(), now.getDate() - range);
   const mine = store.meals.filter((m) => m.memberId === me.id && new Date(m.date) >= since);
-  const food = store.goalFood;
-  const answered = mine.filter((m) => m.handfuls !== null).map((m) => m.handfuls as number);
-  const counts = new Map<number, number>();
-  answered.forEach((h) => counts.set(h, (counts.get(h) ?? 0) + 1));
-  const usual = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  const real = mine.filter((m) => m.slot !== 'fasting');
+  const avg = plateAverage(real);
   const daysLogged = new Set(mine.map((m) => new Date(m.date).toDateString())).size;
-  const slots = ['breakfast', 'lunch', 'dinner'].map((s) => ({ s, n: mine.filter((m) => m.slot === s).length })).sort((a, b) => b.n - a.n);
-
-  const plates = mine.filter((m) => m.photo).slice(0, 12);
+  const plates = real.filter((m) => m.photo).slice(0, 6);
 
   const checkup = store.checkupDate ? new Date(store.checkupDate) : null;
   const daysToGo = checkup ? daysBetween(now, checkup) : null;
   const setIn = (days: number) => store.setCheckupDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() + days).toISOString());
 
-  const rows: [string, string][] = [
-    ['Meals shared', String(mine.length)],
-    ['Days with a meal logged', `${daysLogged} of 90`],
-    ['Most often shared', mine.length ? slots[0].s : 'Nothing yet'],
-    [`${food}, usually`, usual === undefined ? 'Nothing yet' : usual === 0 ? 'None' : `${amountText(usual, food)} a meal`],
-  ];
-
-  const summary = [
-    `Meal summary for ${me.name}`,
-    `${dateText(since)} to ${dateText(now)} (last 90 days)`,
-    '',
-    ...rows.map(([k, v]) => `${k}: ${v}`),
-    '',
-    'Recent meals',
-    ...mine.slice(0, 40).map((m) => `${dateText(new Date(m.date))}, ${timeText(m.date)}: ${m.slot}${portionLine(m.handfuls, food) ? `, ${portionLine(m.handfuls, food)}` : ''}`),
-    '',
-    'This is a simple log of meals shared in the Amader app. Portions are rough hand measures, not weighed amounts. It is not a medical record.',
-  ].join('\n');
+  async function makePdf() {
+    setBusy(true);
+    setStatus(null);
+    try {
+      const html = summaryHtml({ me: me!, meals: mine, since, now, grain: store.goalFood, checkup });
+      const how = await sharePdf(html, `Meal summary for ${me!.name}`);
+      setStatus(how === 'printed' ? 'Choose "Save as PDF" in the print window to keep a copy.' : null);
+    } catch {
+      setStatus("We couldn't make the PDF. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: C.rice }} contentContainerStyle={{ padding: 24, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24, gap: 16 }}>
-      <RoundButton icon="chevron-back" label="Back" onPress={onClose} />
-      <View style={{ gap: 4 }}>
-        <T w="bold" size={28}>
-          Getting ready for the doctor
+    <View style={{ flex: 1, backgroundColor: C.rice }}>
+      <PageHead title="For the doctor" onBack={onClose} />
+      <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: insets.bottom + 24, gap: 14 }}>
+        <T size={16} color={C.muted}>
+          {daysToGo === null
+            ? 'A one page PDF of what you ate, to show at a checkup. When is yours?'
+            : daysToGo > 0
+              ? `Your checkup is in ${daysToGo} ${daysToGo === 1 ? 'day' : 'days'}. Bring this PDF along.`
+              : daysToGo === 0
+                ? 'Your checkup is today. Show the PDF on your phone, or print it.'
+                : 'Your checkup date has passed. Set the next one?'}
         </T>
-        <T color={C.muted} size={14}>
-          {daysToGo === null ? 'When is your next checkup?' : daysToGo > 0 ? `Your checkup is in ${daysToGo} ${daysToGo === 1 ? 'day' : 'days'}.` : daysToGo === 0 ? 'Your checkup is today.' : 'Your checkup date has passed. Set the next one?'}
-        </T>
-      </View>
+        <Row gap={8} style={{ flexWrap: 'wrap' }}>
+          <Chip label="In 1 week" on={daysToGo === 7} onPress={() => setIn(7)} />
+          <Chip label="In 1 month" on={daysToGo === 30} onPress={() => setIn(30)} />
+          <Chip label="In 3 months" on={daysToGo === 90} onPress={() => setIn(90)} />
+          {checkup ? <Chip label="Clear" on={false} onPress={() => store.setCheckupDate(null)} /> : null}
+        </Row>
 
-      <Row gap={8} style={{ flexWrap: 'wrap' }}>
-        <Chip label="In 1 week" on={daysToGo === 7} onPress={() => setIn(7)} />
-        <Chip label="In 1 month" on={daysToGo === 30} onPress={() => setIn(30)} />
-        <Chip label="In 3 months" on={daysToGo === 90} onPress={() => setIn(90)} />
-        {checkup ? <Chip label="Clear" on={false} onPress={() => store.setCheckupDate(null)} /> : null}
-      </Row>
-
-      <Card style={{ gap: 0 }}>
-        <Eyebrow>What you shared, last 90 days</Eyebrow>
-        {rows.map(([k, v], i) => (
-          <Row key={k} style={{ justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: i === rows.length - 1 ? 0 : 1, borderBottomColor: '#EDF0EA' }}>
-            <T style={{ flex: 1 }}>{k}</T>
-            <T w="semibold">{v}</T>
+        {/* A preview of the page, so people know what they are sending. */}
+        <View style={{ backgroundColor: C.white, borderRadius: 8, padding: 18, gap: 12, borderWidth: 1, borderColor: '#DDE3DF', shadowColor: C.ink, shadowOpacity: 0.1, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 3 }}>
+          <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end' }}>
+            <View style={{ flex: 1 }}>
+              <T w="bold" size={19} color={C.deep}>
+                Meal summary for {me.name}
+              </T>
+              <T size={13} color={C.muted}>
+                {dateText(since)} to {dateText(now)}
+              </T>
+            </View>
+            <T w="bold" color={C.leaf}>
+              Amader
+            </T>
           </Row>
-        ))}
-      </Card>
-
-      {plates.length ? (
-        <Card style={{ gap: 12 }}>
-          <Eyebrow>Your recent plates</Eyebrow>
-          <T size={13} color={C.muted}>
-            Hold up your phone and show these at the checkup. A photo says more than a list.
+          <Row gap={8}>
+            <Chip label="Last 2 weeks" on={range === 14} onPress={() => setRange(14)} />
+            <Chip label="Month" on={range === 30} onPress={() => setRange(30)} />
+            <Chip label="3 months" on={range === 90} onPress={() => setRange(90)} />
+          </Row>
+          <Row gap={14}>
+            <PlateCard size={92} grains={avg.counted ? avg.grains : 0} protein={avg.protein} veg={avg.veg} grain={store.goalFood} />
+            <View style={{ flex: 1, gap: 2 }}>
+              <T w="semibold">A usual plate</T>
+              <T size={14} color={C.muted}>
+                {avg.counted ? `${handsText(avg.grains, 'fist', 'fists')} ${store.goalFood.toLowerCase()} · ${handsText(avg.protein, 'palm', 'palms')} protein · ${handsText(avg.veg, 'handful', 'handfuls')} veg` : 'Not enough plates yet'}
+              </T>
+            </View>
+          </Row>
+          {[
+            ['Meals shared', String(real.length)],
+            ['Days with something logged', `${daysLogged} of ${range}`],
+            ['Snacks', String(real.filter((m) => m.slot === 'snack').length)],
+            ['Fasting days', String(mine.filter((m) => m.slot === 'fasting').length)],
+            ['Eaten with others', String(real.filter((m) => (m.withIds?.length ?? 0) > 0 || m.withOthers).length)],
+          ].map(([k, v]) => (
+            <Row key={k} style={{ justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#EDF0EA', paddingTop: 8 }}>
+              <T size={15}>{k}</T>
+              <T w="semibold" size={15}>
+                {v}
+              </T>
+            </Row>
+          ))}
+          {plates.length ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -3 }}>
+              {plates.map((m) => (
+                <View key={m.id} style={{ width: '33.33%', padding: 3 }}>
+                  <Image source={{ uri: m.photo as string }} accessibilityLabel={`${m.dish || slotName(m.slot)}, ${dateText(new Date(m.date))}`} style={{ width: '100%', aspectRatio: 1, borderRadius: 8, backgroundColor: C.soft }} />
+                </View>
+              ))}
+            </View>
+          ) : null}
+          <T size={12} color={C.muted}>
+            Plus a full meal log. Hand measures, not weighed amounts. Not a medical record.
           </T>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 }}>
-            {plates.map((m) => (
-              <View key={m.id} style={{ width: '33.33%', padding: 4 }}>
-                <Image source={{ uri: m.photo as string }} accessibilityLabel={`${m.dish || m.slot}, ${dateText(new Date(m.date))}`} style={{ width: '100%', aspectRatio: 1, borderRadius: 12, backgroundColor: C.soft }} />
-                <T size={12} w="semibold" style={{ marginTop: 4 }}>
-                  {dateText(new Date(m.date))}, {m.slot}
-                </T>
-                <T size={11} color={C.muted}>
-                  {portionLine(m.handfuls, food) ?? ''}
-                </T>
-              </View>
-            ))}
-          </View>
-        </Card>
-      ) : null}
+        </View>
 
-      <View style={{ gap: 8 }}>
-        <T w="semibold" size={14}>
-          Questions you might ask
+        <Btn label={busy ? 'Making the PDF...' : 'Make the PDF'} icon="document-text" disabled={busy || mine.length === 0} onPress={makePdf} />
+        {status ? (
+          <T size={14} color={C.deep} center>
+            {status}
+          </T>
+        ) : null}
+
+        <View style={{ gap: 8 }}>
+          <T w="semibold">Questions you might ask</T>
+          {[`Is ${handsText(avg.grains || store.goalHandfuls, 'fist', 'fists')} of ${store.goalFood.toLowerCase()} a meal right for me?`, 'Is there anything I should change about when I eat?', "Anything to change when I'm fasting?"].map((q) => (
+            <View key={q} style={{ backgroundColor: C.soft, borderRadius: 14, padding: 12 }}>
+              <T size={15}>{q}</T>
+            </View>
+          ))}
+        </View>
+        <T center color={C.muted} size={13}>
+          Only your own meals. Only you can send it. No readings or medical advice.
         </T>
-        {[`Is ${amountText(store.goalHandfuls, food)} of ${food.toLowerCase()} a meal right for me?`, 'Is there anything I should change about when I eat?', "Anything to change when I'm fasting?"].map((q) => (
-          <View key={q} style={{ backgroundColor: C.soft, borderRadius: 14, padding: 14 }}>
-            <T size={14}>{q}</T>
-          </View>
-        ))}
-      </View>
-
-      <Btn
-        label={sent ?? 'Share the meal summary'}
-        icon="share-outline"
-        onPress={async () => {
-          const how = await shareText(summary).catch(() => null);
-          if (how === 'copied') setSent('Copied. Paste it anywhere');
-        }}
-      />
-      <T center color={C.muted} size={12}>
-        A simple log of what you shared. No readings or medical advice. Only you can send it. The photos stay on your phone screen and are not part of the shared text.
-      </T>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }

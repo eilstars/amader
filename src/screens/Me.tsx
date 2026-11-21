@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
-import { Platform, ScrollView, Switch, View } from 'react-native';
+import { Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
-import { C } from '../theme';
-import { REMINDER_TIMES } from '../reminders';
+import { C, F } from '../theme';
+import { sendOnWhatsApp } from '../nudge';
 import { shareText } from '../share';
-import { Avatar, Btn, Card, Eyebrow, RoundButton, Row, T, Tag } from '../ui';
-import { MILESTONES, spacedCode } from '../words';
-import { Chip, GOAL_FOODS, Stepper } from './SetupFamily';
+import { Avatar, Btn, Chip, Eyebrow, GOAL_FOODS, PageHead, Row, T, TimeRow, Toggle } from '../ui';
+import { roleName, spacedCode } from '../words';
 
-export default function Me({ onClose, onCheckup, onTeach }: { onClose: () => void; onCheckup: () => void; onTeach: () => void }) {
+export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: { onClose: () => void; onCheckup: () => void; onTeach: () => void; onPerson: (id: string) => void; onWidget: () => void }) {
   const store = useStore();
   const insets = useSafeAreaInsets();
   const [confirming, setConfirming] = useState(false);
@@ -17,197 +17,234 @@ export default function Me({ onClose, onCheckup, onTeach }: { onClose: () => voi
   const [improveNote, setImproveNote] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [refused, setRefused] = useState(false);
-  const { family, me } = store;
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [addBusy, setAddBusy] = useState(false);
+  const [addFailed, setAddFailed] = useState<string | null>(null);
+  const [alertsRefused, setAlertsRefused] = useState(false);
+  const { family, me, prefs } = store;
   if (!family || !me) return null;
 
+  const remind = async (change: Parameters<typeof store.setReminders>[0]) => {
+    const asked = change.reminderOn || change.nudgesOn;
+    const ok = await store.setReminders(change);
+    setRefused(!!asked && !ok);
+  };
+
+  const section = { backgroundColor: C.white, borderRadius: 20, padding: 14, gap: 6, borderWidth: 1, borderColor: '#E6EBE6' } as const;
+
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: C.rice }} contentContainerStyle={{ padding: 24, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24, gap: 16 }}>
-      <Row style={{ justifyContent: 'space-between' }}>
-        <RoundButton icon="chevron-back" label="Back" onPress={onClose} />
-        <Tag text={me.role === 'parent' ? 'Parent' : 'Family'} />
-      </Row>
-      <Row gap={14}>
-        <Avatar member={me} size={56} />
-        <View>
-          <T w="bold" size={26}>
-            {me.name}
-          </T>
-          <T color={C.muted} size={14}>
-            {store.myMealCount} {store.myMealCount === 1 ? 'meal' : 'meals'} shared
-          </T>
-        </View>
-      </Row>
-
-      <Row gap={10}>
-        {MILESTONES.map((n) => {
-          const earned = store.myMealCount >= n;
-          return (
-            <View key={n} style={{ width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: earned ? C.leaf : C.white, borderWidth: 2, borderColor: earned ? C.leaf : C.line }}>
-              <T w="semibold" color={earned ? C.white : C.muted}>
-                {n}
-              </T>
-            </View>
-          );
-        })}
-      </Row>
-
-      <Eyebrow>Our family</Eyebrow>
-      <Card style={{ gap: 12 }}>
-        {family.members.map((m) => (
-          <Row key={m.id}>
-            <Avatar member={m} size={36} />
+    <View style={{ flex: 1, backgroundColor: C.rice }}>
+      <PageHead title="Settings" onBack={onClose} />
+      <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: insets.bottom + 24, gap: 12 }}>
+        <Pressable onPress={() => onPerson(me.id)} accessibilityRole="button" accessibilityLabel="See my progress">
+          <View style={[section, { flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
+            <Avatar member={me} size={56} />
             <View style={{ flex: 1 }}>
-              <T w="semibold">{m.id === me.id ? `${m.name} (you)` : m.name}</T>
-              <T size={13} color={C.muted}>
-                {m.role === 'parent' ? 'Parent' : 'Son or daughter'}
-                {m.joined ? '' : ' · invited, not joined yet'}
+              <T w="bold" size={22}>
+                {me.name}
+              </T>
+              <T size={15} color={C.muted}>
+                {roleName(me.role)} · {store.myMealCount} {store.myMealCount === 1 ? 'meal' : 'meals'} shared
               </T>
             </View>
-            {store.session?.demo && m.id !== me.id ? <Chip label="View as" on={false} onPress={() => store.viewAs(m.id)} /> : null}
-          </Row>
-        ))}
-        {!store.session?.demo ? (
-          <>
-            <Row style={{ justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#EDF0EA', paddingTop: 12 }}>
-              <T color={C.muted} size={14}>
-                Family code
-              </T>
-              <T w="bold" size={18} style={{ letterSpacing: 3 }}>
-                {spacedCode(family.code)}
-              </T>
-            </Row>
-            <Btn
-              kind="ghost"
-              icon="paper-plane-outline"
-              label={copied ? 'Copied. Paste it in WhatsApp' : 'Invite someone'}
-              onPress={async () => {
-                const how = await shareText(store.inviteMessage).catch(() => null);
-                if (how === 'copied') setCopied(true);
-              }}
-            />
-          </>
-        ) : null}
-      </Card>
-
-      <Eyebrow>The one food we keep an eye on</Eyebrow>
-      <Card style={{ gap: 12 }}>
-        <Row gap={8} style={{ flexWrap: 'wrap' }}>
-          {GOAL_FOODS.map((f) => (
-            <Chip key={f} label={f} on={store.goalFood === f} onPress={() => store.setGoal(f, store.goalHandfuls)} />
-          ))}
-        </Row>
-        <Row style={{ justifyContent: 'space-between' }}>
-          <T color={C.muted} size={14}>
-            A usual plate
-          </T>
-          <Stepper value={store.goalHandfuls} food={store.goalFood} onChange={(n) => store.setGoal(store.goalFood, n)} />
-        </Row>
-        <T size={12} color={C.muted}>
-          This is the same for the whole family, and anyone in the family can change it.
-        </T>
-      </Card>
-
-      <Eyebrow>Reminders</Eyebrow>
-      <Card style={{ gap: 12 }}>
-        <Row style={{ justifyContent: 'space-between' }}>
-          <View style={{ flex: 1 }}>
-            <T w="semibold">Ask me "Did you eat?"</T>
-            <T size={13} color={C.muted}>
-              Once a day, and not on days you already shared.
+            <T w="semibold" size={14} color={C.leaf}>
+              My progress
             </T>
+            <Ionicons name="chevron-forward" size={20} color={C.leaf} />
           </View>
-          <Switch
-            value={store.prefs.reminderOn}
-            trackColor={{ true: C.leaf, false: C.line }}
-            onValueChange={async (on) => {
-              const ok = await store.setReminder(on);
-              setRefused(on && !ok);
-            }}
+        </Pressable>
+
+        <Eyebrow>Our family</Eyebrow>
+        <View style={section}>
+          {family.members.map((m) => (
+            <Row key={m.id} style={{ paddingVertical: 4 }}>
+              <Pressable onPress={() => onPerson(m.id)} accessibilityRole="button" style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <Avatar member={m} size={40} />
+                <View style={{ flex: 1 }}>
+                  <T w="semibold">{m.id === me.id ? `${m.name} (you)` : m.name}</T>
+                  <T size={14} color={C.muted}>
+                    {roleName(m.role)}
+                    {m.joined ? '' : ' · invited, not joined yet'}
+                  </T>
+                </View>
+              </Pressable>
+              {store.session?.demo && m.id !== me.id ? <Chip label="Be them" on={false} onPress={() => store.viewAs(m.id)} /> : null}
+            </Row>
+          ))}
+          {adding ? (
+            <View style={{ gap: 8, borderTopWidth: 1, borderTopColor: '#EDF0EA', paddingTop: 10 }}>
+              <T w="semibold">Who else do you look after?</T>
+              <TextInput
+                value={newName}
+                onChangeText={setNewName}
+                placeholder="Dad, Grandma, Nani..."
+                placeholderTextColor="#9AA79F"
+                autoFocus
+                maxLength={24}
+                autoCapitalize="words"
+                style={{ minHeight: 52, borderRadius: 14, borderWidth: 1.5, borderColor: '#D8E2DB', backgroundColor: C.white, paddingHorizontal: 14, fontFamily: F.regular, fontSize: 17, color: C.ink }}
+              />
+              {addFailed ? (
+                <T size={14} color="#8A2942">
+                  {addFailed}
+                </T>
+              ) : null}
+              <Row gap={8}>
+                <Btn kind="ghost" label="Cancel" onPress={() => (setAdding(false), setNewName(''))} style={{ flex: 1, alignSelf: 'auto' }} />
+                <Btn
+                  label={addBusy ? 'Adding...' : 'Add a seat'}
+                  disabled={addBusy || !newName.trim()}
+                  onPress={async () => {
+                    setAddBusy(true);
+                    setAddFailed(null);
+                    try {
+                      await store.addPerson(newName);
+                      setNewName('');
+                      setAdding(false);
+                    } catch (e) {
+                      setAddFailed(e instanceof Error && /full/.test(e.message) ? 'The table is full (8 people).' : "That didn't save. Please try again.");
+                    } finally {
+                      setAddBusy(false);
+                    }
+                  }}
+                  style={{ flex: 1, alignSelf: 'auto' }}
+                />
+              </Row>
+            </View>
+          ) : (
+            <Btn kind="ghost" icon="person-add-outline" label="I look after someone else too" onPress={() => setAdding(true)} style={{ marginTop: 4 }} />
+          )}
+          {!store.session?.demo ? (
+            <>
+              <Row style={{ justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#EDF0EA', paddingTop: 10, marginTop: 4 }}>
+                <T color={C.muted}>Family code</T>
+                <T w="bold" size={20} style={{ letterSpacing: 3 }}>
+                  {spacedCode(family.code)}
+                </T>
+              </Row>
+              <Row gap={8}>
+                <Btn icon="logo-whatsapp" label="Invite" onPress={() => sendOnWhatsApp(store.inviteMessage)} style={{ flex: 1, alignSelf: 'auto' }} />
+                <Btn
+                  kind="ghost"
+                  icon="share-outline"
+                  label={copied ? 'Copied' : 'Other'}
+                  onPress={async () => {
+                    const how = await shareText(store.inviteMessage).catch(() => null);
+                    if (how === 'copied') setCopied(true);
+                  }}
+                  style={{ flex: 1, alignSelf: 'auto' }}
+                />
+              </Row>
+            </>
+          ) : null}
+        </View>
+
+        <Eyebrow>When you usually eat</Eyebrow>
+        <View style={section}>
+          <T size={14} color={C.muted}>
+            For reminders.
+          </T>
+          <TimeRow icon="sunny-outline" label="Breakfast" hour={prefs.times.breakfast} min={4} max={11} onChange={(h) => remind({ times: { ...prefs.times, breakfast: h } })} />
+          <TimeRow icon="partly-sunny-outline" label="Lunch" hour={prefs.times.lunch} min={11} max={16} onChange={(h) => remind({ times: { ...prefs.times, lunch: h } })} />
+          <TimeRow icon="moon-outline" label="Dinner" hour={prefs.times.dinner} min={17} max={23} onChange={(h) => remind({ times: { ...prefs.times, dinner: h } })} />
+          <View style={{ height: 1, backgroundColor: '#EDF0EA', marginVertical: 4 }} />
+          <Toggle title="We live together" help="One photo can cover a meal you eat together." on={prefs.sameHome} onChange={(on) => store.setPrefs({ sameHome: on })} />
+          <Toggle title="Ramadan mode" help="Suhoor and iftar. Fasting days keep your streak." on={prefs.ramadan} onChange={(on) => remind({ ramadan: on })} />
+          {prefs.ramadan ? (
+            <>
+              <TimeRow icon="cloudy-night-outline" label="Suhoor" hour={prefs.suhoorHour} min={2} max={6} onChange={(h) => remind({ suhoorHour: h })} />
+              <TimeRow icon="moon" label="Iftar" hour={prefs.iftarHour} min={16} max={21} onChange={(h) => remind({ iftarHour: h })} />
+            </>
+          ) : null}
+        </View>
+
+        <Eyebrow>Reminders</Eyebrow>
+        <View style={section}>
+          <Toggle
+            title="When family shares a meal"
+            help="A notification when someone shares a plate or comments on yours."
+            on={prefs.familyAlerts}
+            onChange={async (on) => setAlertsRefused(!(await store.setFamilyAlerts(on)) && on)}
           />
-        </Row>
-        {store.prefs.reminderOn ? (
-          <Row gap={8} style={{ flexWrap: 'wrap' }}>
-            {REMINDER_TIMES.map((t) => (
-              <Chip key={t.hour} label={t.label} on={store.prefs.reminderHour === t.hour} onPress={() => store.setReminder(true, t.hour)} />
+          {alertsRefused ? (
+            <T size={14} color="#8A2942">
+              {Platform.OS === 'web' ? 'In the browser you see it when the app is open. Phone notifications need the app.' : 'Notifications are off for Amader. Turn them on in your phone settings.'}
+            </T>
+          ) : null}
+          <Toggle title='"Did you eat?" after meals' help="45 minutes after each meal, if you haven't shared it." on={prefs.reminderOn} onChange={(on) => remind({ reminderOn: on })} />
+          <Toggle title="A surprise snack check" help='Once an afternoon: "Having a snack?"' on={prefs.nudgesOn} onChange={(on) => remind({ nudgesOn: on })} />
+          {refused ? (
+            <T size={14} color="#8A2942">
+              {Platform.OS === 'web' ? 'Reminders need the phone app. They are not available in the browser.' : 'Notifications are turned off for Amader. Turn them on in your phone settings, then try again.'}
+            </T>
+          ) : null}
+          <Btn kind="ghost" icon="apps-outline" label="Add the home screen widget" onPress={onWidget} style={{ marginTop: 6 }} />
+        </View>
+
+        <Eyebrow>Your main grain</Eyebrow>
+        <View style={section}>
+          <T size={14} color={C.muted}>
+            Counted in fists. You can change it on any meal.
+          </T>
+          <Row gap={8} style={{ flexWrap: 'wrap', marginTop: 4 }}>
+            {GOAL_FOODS.map((f) => (
+              <Chip key={f} label={f} on={store.goalFood === f} onPress={() => store.setGoal(f, store.goalHandfuls)} />
             ))}
           </Row>
-        ) : null}
-        {refused ? (
-          <T size={13} color="#8A2942">
-            {Platform.OS === 'web' ? 'Reminders need the phone app. They are not available in the browser.' : 'Notifications are turned off for Amader. Turn them on in your phone settings, then try again.'}
-          </T>
-        ) : null}
-        <T size={12} color={C.muted}>
-          On the phone app you can also add the "Did you eat?" widget to your home screen or lock screen.
-        </T>
-      </Card>
+        </View>
 
-      <Eyebrow>Photos</Eyebrow>
-      <Card style={{ gap: 8 }}>
-        <Row style={{ justifyContent: 'space-between' }}>
-          <View style={{ flex: 1 }}>
-            <T w="semibold">Guess what's on my plate</T>
-            <T size={13} color={C.muted}>
-              Your meal photo is sent to an AI service (Claude, made by Anthropic) that names the dish and guesses the portion. No person at Amader looks at it. Off means photos only go to your family.
-            </T>
-          </View>
-          <Switch value={store.prefs.guessOn === true} trackColor={{ true: C.leaf, false: C.line }} onValueChange={(on) => store.setGuessOn(on)} />
-        </Row>
-        <View style={{ height: 1, backgroundColor: '#EDF0EA', marginVertical: 4 }} />
-        <Row style={{ justifyContent: 'space-between' }}>
-          <View style={{ flex: 1 }}>
-            <T w="semibold">Help Amader learn our food</T>
-            <T size={13} color={C.muted}>
-              Off unless you turn it on. If on, Amader keeps your own plate photos and the portion you chose, to teach it to recognise home cooking better. Your family's photos are not included. Turn it off any time and what you shared is removed.
-            </T>
-            {improveNote ? (
-              <T size={13} color={C.deep} w="semibold">
-                {improveNote}
-              </T>
-            ) : null}
-          </View>
-          <Switch
-            value={store.prefs.improveOn}
-            trackColor={{ true: C.leaf, false: C.line }}
-            accessibilityLabel="Help Amader learn our food"
-            onValueChange={async (on) => {
+        <Eyebrow>Photos</Eyebrow>
+        <View style={section}>
+          <Toggle
+            title="Puti guesses what's on my plate"
+            help="Your meal photo is sent to an AI service (Claude, made by Anthropic) that names the dish and guesses the portions. No person at Amader looks at it. Off means photos only go to your family."
+            on={prefs.guessOn === true}
+            onChange={(on) => store.setGuessOn(on)}
+          />
+          <View style={{ height: 1, backgroundColor: '#EDF0EA', marginVertical: 4 }} />
+          <Toggle
+            title="Help Amader learn our food"
+            help="Off unless you turn it on. If on, Amader keeps your own plate photos and the portions you chose, to recognise home cooking better. Your family's photos are not included. Turning it off removes what you shared."
+            on={prefs.improveOn === true}
+            onChange={async (on) => {
               const ok = await store.setImproveOn(on);
               setImproveNote(!ok ? "We couldn't reach the server to remove what you shared. It is still on. Please try again." : on ? (store.cloud && !store.session?.demo ? 'Thank you. From now on, your new plate photos help.' : 'On. This is a sample on this phone only, so nothing is kept.') : 'Turned off. What you shared has been removed.');
             }}
           />
-        </Row>
-        <T size={12} color={C.muted}>
-          Photos are private to your family. Nobody outside it can open them.
-        </T>
-      </Card>
-
-      <Eyebrow>My data</Eyebrow>
-      <Card style={{ gap: 12 }}>
-        <Btn kind="ghost" icon="document-text-outline" label="My meal summary for a checkup" onPress={onCheckup} />
-        <Btn kind="ghost" icon="hand-left-outline" label="Drag the rice: the idea in ten seconds" onPress={onTeach} />
-        {confirming ? (
-          <View style={{ gap: 8 }}>
-            <T size={14}>
-              {store.session?.demo ? 'Leave the sample family?' : 'This removes your meals and photos for good. Your family will no longer see them.'}
+          {improveNote ? (
+            <T size={14} color={C.deep} w="semibold">
+              {improveNote}
             </T>
-            {deleteFailed ? (
-              <T size={14} color="#8A2942">
-                We couldn't reach the server, so nothing was deleted. Check your connection and try again.
-              </T>
-            ) : null}
-            <Row>
-              <Btn kind="ghost" label="Keep" onPress={() => setConfirming(false)} style={{ flex: 1, alignSelf: 'auto' }} />
-              <Btn label={store.session?.demo ? 'Leave' : 'Delete'} onPress={() => store.deleteEverything().catch(() => setDeleteFailed(true))} style={{ flex: 1, alignSelf: 'auto', backgroundColor: C.deep }} />
-            </Row>
-          </View>
-        ) : (
-          <Btn kind="line" label={store.session?.demo ? 'Leave the sample family' : 'Delete my meals and leave'} onPress={() => setConfirming(true)} />
-        )}
-      </Card>
+          ) : null}
+        </View>
 
-      <T center color={C.muted} size={12}>
-        Amader helps with everyday eating. It isn't a medical device and doesn't give medical advice. We never sell your data or use it for ads.
-      </T>
-    </ScrollView>
+        <Eyebrow>More</Eyebrow>
+        <View style={[section, { gap: 10 }]}>
+          <Btn kind="ghost" icon="document-text-outline" label="Meal summary PDF for the doctor" onPress={onCheckup} />
+          <Btn kind="ghost" icon="hand-left-outline" label="Drag the rice: the idea in ten seconds" onPress={onTeach} />
+          {confirming ? (
+            <View style={{ gap: 8 }}>
+              <T>{store.session?.demo ? 'Leave the sample family?' : 'This removes your meals, notes, recipes and photos for good. Your family will no longer see them.'}</T>
+              {deleteFailed ? (
+                <T size={14} color="#8A2942">
+                  We couldn't reach the server, so nothing was deleted. Check your connection and try again.
+                </T>
+              ) : null}
+              <Row>
+                <Btn kind="ghost" label="Keep" onPress={() => setConfirming(false)} style={{ flex: 1, alignSelf: 'auto' }} />
+                <Btn label={store.session?.demo ? 'Leave' : 'Delete'} onPress={() => store.deleteEverything().catch(() => setDeleteFailed(true))} style={{ flex: 1, alignSelf: 'auto', backgroundColor: C.deep }} />
+              </Row>
+            </View>
+          ) : (
+            <Btn kind="line" label={store.session?.demo ? 'Leave the sample family' : 'Delete my meals and leave'} onPress={() => setConfirming(true)} />
+          )}
+        </View>
+
+        <T center color={C.muted} size={13}>
+          Amader helps with everyday eating. It isn't a medical device and doesn't give medical advice. We never sell your data or use it for ads.
+        </T>
+      </ScrollView>
+    </View>
   );
 }
