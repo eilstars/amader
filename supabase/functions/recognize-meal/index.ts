@@ -39,13 +39,15 @@ const Guess = z.object({
   goal_food_amount: z.number().describe("Rough amount of rice, roti or other grains on the plate in closed fists (one fist is about half a cup), whole number 0 to 4."),
   protein_palms: z.number().describe("Rough amount of fish, meat, eggs, dal, paneer or tofu in palms (palm sized portions), whole number 0 to 4."),
   veg_handfuls: z.number().describe("Rough amount of vegetables, sabzi or salad in open handfuls, whole number 0 to 4."),
+  fruit_pieces: z.number().describe("Whole fruits or fist-sized portions of cut fruit visible, whole number 0 to 4. Juice does not count."),
+  dairy_cups: z.number().describe("Cups of milk, yoghurt, raita or lassi visible, whole number 0 to 4."),
   items: z.array(z.string()).describe("For a buffet or party plate, a short name for each separate food on it, at most 10. Empty for an ordinary plate."),
   confident: z.boolean().describe("False if the photo is too dark, blurry or far away to judge."),
 });
 
 const SYSTEM = `You look at a photo of a home meal and describe what is on the plate for a family meal-sharing app.
 Many of the families are South Asian, so expect dishes like biryani, khichdi, dal, sabzi, roti, paratha, curry, raita and mithai, and name them the way a family would.
-Estimate portions with hands: grains in closed fists (about half a cup each), protein in palms, vegetables in open handfuls.
+Estimate portions by food group: grains in closed fists (about half a cup each), protein in palms, vegetables in open handfuls, fruit in pieces, dairy in cups.
 If the user says it is a party or buffet plate, list each separate food in items.
 The four percentages describe the food you can see and should add up to about 100.
 Be honest about uncertainty: if you cannot tell, set confident to false rather than guessing.
@@ -124,6 +126,8 @@ Deno.serve(async (req) => {
         amount: guess.confident ? Math.max(0, Math.min(4, Math.round(guess.goal_food_amount))) : null,
         protein: guess.confident ? Math.max(0, Math.min(4, Math.round(guess.protein_palms))) : null,
         veg: guess.confident ? Math.max(0, Math.min(4, Math.round(guess.veg_handfuls))) : null,
+        fruit: guess.confident ? Math.max(0, Math.min(4, Math.round(guess.fruit_pieces))) : null,
+        dairy: guess.confident ? Math.max(0, Math.min(4, Math.round(guess.dairy_cups))) : null,
         items: guess.items.map((x) => x.trim().slice(0, 40)).filter(Boolean).slice(0, 10),
         confident: guess.confident,
       },

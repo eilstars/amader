@@ -5,7 +5,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Hand, findHand } from '../hand';
-import { GrainArt, PlateCard, ProteinArt, VegArt } from '../food';
+import { DairyArt, FruitArt, GrainArt, PlateCard, ProteinArt, VegArt } from '../food';
 import { WidgetCard } from './Widget';
 import { useStore } from '../store';
 import { C, F } from '../theme';
@@ -29,6 +29,8 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
   const [grains, setGrains] = useState(store.goalHandfuls);
   const [protein, setProtein] = useState(1);
   const [veg, setVeg] = useState(1);
+  const [fruit, setFruit] = useState(0);
+  const [dairy, setDairy] = useState(0);
   const [party, setParty] = useState(false);
   const food = store.goalFood;
   const me = store.me;
@@ -86,6 +88,8 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
           if (found.amount !== null && found.amount !== undefined) setGrains(found.amount);
           if (found.protein !== null && found.protein !== undefined) setProtein(found.protein);
           if (found.veg !== null && found.veg !== undefined) setVeg(found.veg);
+          if (found.fruit !== null && found.fruit !== undefined) setFruit(found.fruit);
+          if (found.dairy !== null && found.dairy !== undefined) setDairy(found.dairy);
         }
       })
       .finally(() => setGuessing(false));
@@ -142,7 +146,7 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
       const meal = await store.addMeal({
         slot: fastingDay ? 'fasting' : slot,
         photo: fastingDay ? null : photo,
-        portions: fastingDay ? null : { grains, protein, veg },
+        portions: fastingDay ? null : { grains, protein, veg, fruit, dairy },
         guess: photo ? guess : null,
         chosenBy,
         note: text,
@@ -280,7 +284,7 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
           {photo ? (
             <Image source={{ uri: photo.uri }} style={{ width: 132, height: 132, borderRadius: 66, borderWidth: 7, borderColor: C.steel, backgroundColor: C.soft }} />
           ) : (
-            <PlateCard size={132} grains={grains} protein={protein} veg={veg} party={party} />
+            <PlateCard size={132} grains={grains} protein={protein} veg={veg} fruit={fruit} dairy={dairy} grain={grainName} party={party} />
           )}
           <View style={{ flex: 1, gap: 6 }}>
             {photo && (guessing || guess) ? (
@@ -348,7 +352,7 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
         </View>
 
         <View style={{ gap: 8 }}>
-          <Eyebrow>{snack ? 'How much? (optional for snacks)' : 'How much? Count with your hands'}</Eyebrow>
+          <Eyebrow>{snack ? 'Food groups (optional for snacks)' : 'Food groups, counted with your hands'}</Eyebrow>
           <HandCount
             label={grainName}
             unit={['fist', 'fists']}
@@ -374,6 +378,8 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
           ) : null}
           <HandCount label="Protein" unit={['palm', 'palms']} art={<ProteinArt size={40} />} value={protein} onChange={(n) => { touched.current = true; setProtein(n); }} />
           <HandCount label="Vegetables" unit={['handful', 'handfuls']} art={<VegArt size={40} />} value={veg} onChange={(n) => { touched.current = true; setVeg(n); }} />
+          <HandCount label="Fruit" unit={['piece', 'pieces']} art={<FruitArt size={40} />} value={fruit} onChange={(n) => { touched.current = true; setFruit(n); }} />
+          <HandCount label="Dairy" unit={['cup', 'cups']} art={<DairyArt size={40} />} value={dairy} onChange={(n) => { touched.current = true; setDairy(n); }} />
           {!snack ? (
             <Row gap={8} style={{ paddingHorizontal: 4 }}>
               <Ionicons name={balanced ? 'checkmark-circle' : 'bulb-outline'} size={20} color={C.leaf} />
@@ -400,35 +406,38 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
           </View>
         ) : null}
 
-        {more ? (
-          <View style={{ gap: 8 }}>
-            <TextInput
-              value={text}
-              onChangeText={setText}
-              placeholder={photo ? 'A few words (optional)' : 'What did you eat?'}
-              placeholderTextColor="#8A988F"
-              maxLength={280}
-              multiline
-              style={{ minHeight: 56, borderRadius: 14, borderWidth: 1.5, borderColor: C.line, backgroundColor: C.white, paddingHorizontal: 14, paddingVertical: 12, fontFamily: F.regular, fontSize: 17, color: C.ink, textAlignVertical: 'top' }}
-            />
-            <VoiceRecorder value={voice} onChange={setVoice} />
-            <TextInput
-              value={withOthers}
-              onChangeText={setWithOthers}
-              placeholder="Anyone else at the table? (friends, Auntie)"
-              placeholderTextColor="#8A988F"
-              maxLength={80}
-              style={{ minHeight: 52, borderRadius: 14, borderWidth: 1.5, borderColor: C.line, backgroundColor: C.white, paddingHorizontal: 14, fontFamily: F.regular, fontSize: 17, color: C.ink }}
-            />
-          </View>
-        ) : (
-          <Pressable onPress={() => setMore(true)} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 }}>
-            <Ionicons name="add-circle-outline" size={24} color={C.leaf} />
-            <T w="semibold" color={C.deep}>
-              Add a note or a voice message
-            </T>
-          </Pressable>
-        )}
+        <View style={{ gap: 8 }}>
+          <Eyebrow>Note for the family</Eyebrow>
+          <TextInput
+            value={text}
+            onChangeText={setText}
+            placeholder={photo ? 'Who cooked it? How was it?' : 'What did you eat?'}
+            placeholderTextColor="#8A988F"
+            maxLength={280}
+            multiline
+            style={{ minHeight: 56, borderRadius: 14, borderWidth: 1.5, borderColor: C.line, backgroundColor: C.white, paddingHorizontal: 14, paddingVertical: 12, fontFamily: F.regular, fontSize: 17, color: C.ink, textAlignVertical: 'top' }}
+          />
+          {more ? (
+            <>
+              <VoiceRecorder value={voice} onChange={setVoice} />
+              <TextInput
+                value={withOthers}
+                onChangeText={setWithOthers}
+                placeholder="Anyone else at the table? (friends, Auntie)"
+                placeholderTextColor="#8A988F"
+                maxLength={80}
+                style={{ minHeight: 52, borderRadius: 14, borderWidth: 1.5, borderColor: C.line, backgroundColor: C.white, paddingHorizontal: 14, fontFamily: F.regular, fontSize: 17, color: C.ink }}
+              />
+            </>
+          ) : (
+            <Pressable onPress={() => setMore(true)} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 }}>
+              <Ionicons name="mic-outline" size={22} color={C.leaf} />
+              <T w="semibold" color={C.deep}>
+                Add a voice message
+              </T>
+            </Pressable>
+          )}
+        </View>
 
         {note ? (
           <T center color="#8A2942" size={15}>

@@ -97,3 +97,28 @@ export async function syncReminders(plan: ReminderPlan): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * This phone's address for "Mom shared lunch" notifications, or null when it can't have one
+ * (web, notifications refused, or no Expo project id yet). Asks for permission when `ask` is true.
+ */
+export async function pushAddress(ask: boolean): Promise<string | null> {
+  if (Platform.OS === 'web') return null;
+  try {
+    const N = await import('expo-notifications');
+    const current = await N.getPermissionsAsync();
+    const granted = current.granted || (ask && (await N.requestPermissionsAsync()).granted);
+    if (!granted) return null;
+    N.setNotificationHandler({
+      handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }),
+    });
+    if (Platform.OS === 'android') {
+      await N.setNotificationChannelAsync('family', { name: 'When family eats', importance: N.AndroidImportance.HIGH });
+    }
+    // Needs the EAS project id (app.json extra.eas.projectId), set once the app is built with EAS.
+    const token = await N.getExpoPushTokenAsync();
+    return token.data ?? null;
+  } catch {
+    return null;
+  }
+}

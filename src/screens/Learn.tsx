@@ -4,8 +4,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { C } from '../theme';
-import { LEARN_NOTE, LESSONS, LEVELS, Lesson, MY_REASONS, THEIR_REASONS } from '../learn';
-import { Avatar, Btn, Chip, Puti, Row, T } from '../ui';
+import { LEARN_NOTE, LESSONS, LEVELS, Lesson } from '../learn';
+import { Btn, Puti, Row, T } from '../ui';
 
 const RIGHT = 10;
 const TRIED = 4;
@@ -32,7 +32,6 @@ export default function Learn({ onTeach }: { onTeach: () => void }) {
   const [combo, setCombo] = useState(0);
   const lesson = lessons[index % lessons.length];
   const seen = lessons.filter((l) => prefs.learned.includes(l.id)).length;
-  const caregiver = store.me?.role === 'child' && store.family?.members.some((m) => m.role === 'parent' && m.id !== store.me?.id);
 
   const earn = (p: number, extra: Partial<typeof prefs> = {}) => store.setPrefs({ learnLog: [...store.prefs.learnLog, { d: new Date().toISOString(), p }].slice(-400), ...extra });
 
@@ -60,9 +59,6 @@ export default function Learn({ onTeach }: { onTeach: () => void }) {
       </View>
 
       <View style={{ padding: 16, gap: 14 }}>
-        {/* The person being looked after sees their reason first. A caregiver plays first, then sends a reason. */}
-        {caregiver ? null : <Reason />}
-
         <Card
           key={`${lesson.id}-${index}`}
           lesson={lesson}
@@ -88,7 +84,6 @@ export default function Learn({ onTeach }: { onTeach: () => void }) {
           {seen} of {lessons.length} cards seen
         </T>
 
-        {caregiver ? <Reason /> : null}
 
         <Pressable onPress={onTeach} accessibilityRole="button">
           <View style={{ backgroundColor: C.white, borderRadius: 18, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: '#E6EBE6' }}>
@@ -107,110 +102,6 @@ export default function Learn({ onTeach }: { onTeach: () => void }) {
         </T>
       </View>
     </ScrollView>
-  );
-}
-
-/**
- * The reason. For the person being looked after: what they want to stay healthy for, and the notes
- * their family sent. For a caregiver: a way to tell them why they matter.
- */
-function Reason() {
-  const store = useStore();
-  const { me, family, prefs, cheers } = store;
-  const [sent, setSent] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
-  if (!me || !family) return null;
-  const cared = family.members.find((m) => m.role === 'parent' && m.id !== me.id);
-
-  if (me.role === 'child' && cared) {
-    // Once a reason has gone, it folds to one line so it doesn't crowd the cards.
-    const before = cheers.find((c) => c.fromId === me.id && c.toId === cared.id && THEIR_REASONS.includes(c.text));
-    if (before && !open && !sent) {
-      return (
-        <Pressable onPress={() => setOpen(true)} accessibilityRole="button" style={{ backgroundColor: C.pinkSoft, borderRadius: 18, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <Ionicons name="heart" size={20} color={C.heart} />
-          <T size={15} style={{ flex: 1 }} numberOfLines={2}>
-            You told {cared.name}: "{before.text}"
-          </T>
-          <T w="semibold" size={14} color="#8A2942">
-            Send another
-          </T>
-        </Pressable>
-      );
-    }
-    return (
-      <View style={{ backgroundColor: C.pinkSoft, borderRadius: 22, padding: 14, gap: 10 }}>
-        <Row gap={10}>
-          <Avatar member={cared} size={40} />
-          <T w="bold" size={19} style={{ flex: 1 }}>
-            Tell {cared.name} why you need them healthy
-          </T>
-        </Row>
-        <Row gap={8} style={{ flexWrap: 'wrap' }}>
-          {THEIR_REASONS.map((r) => (
-            <Chip
-              key={r}
-              label={r}
-              on={sent === r}
-              onPress={() =>
-                store
-                  .sendCheer(cared.id, r)
-                  .then(() => setSent(r))
-                  .catch(() => undefined)
-              }
-            />
-          ))}
-        </Row>
-        {sent ? (
-          <T w="semibold" size={14} color="#8A2942">
-            Sent. It will show on {cared.name}'s Learn page.
-          </T>
-        ) : null}
-      </View>
-    );
-  }
-
-  // Notes from family that say why. The newest three.
-  const fromFamily = cheers.filter((c) => c.toId === me.id).slice(0, 3);
-  return (
-    <View style={{ backgroundColor: C.deep, borderRadius: 22, padding: 16, gap: 12 }}>
-      {prefs.why ? (
-        <Pressable onPress={() => store.setPrefs({ why: null })} accessibilityRole="button" accessibilityLabel="Change my reason">
-          <T size={14} color="#CFE6D9">
-            I'm doing this to
-          </T>
-          <T w="bold" size={24} color={C.white} style={{ lineHeight: 30 }}>
-            {prefs.why.charAt(0).toLowerCase() + prefs.why.slice(1)}
-          </T>
-        </Pressable>
-      ) : (
-        <>
-          <T w="bold" size={20} color={C.white}>
-            What do you want to stay healthy for?
-          </T>
-          <Row gap={8} style={{ flexWrap: 'wrap' }}>
-            {MY_REASONS.map((r) => (
-              <Pressable key={r} onPress={() => store.setPrefs({ why: r })} accessibilityRole="button" style={{ backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 999, paddingHorizontal: 14, minHeight: 44, justifyContent: 'center' }}>
-                <T w="medium" color={C.white}>
-                  {r}
-                </T>
-              </Pressable>
-            ))}
-          </Row>
-        </>
-      )}
-      {fromFamily.map((c) => {
-        const from = store.member(c.fromId);
-        return (
-          <Row key={c.id} gap={10}>
-            {from ? <Avatar member={from} size={30} /> : null}
-            <T size={16} color={C.white} style={{ flex: 1 }}>
-              "{c.text}"
-            </T>
-          </Row>
-        );
-      })}
-    </View>
   );
 }
 

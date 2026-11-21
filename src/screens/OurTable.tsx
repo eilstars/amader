@@ -7,7 +7,7 @@ import { C } from '../theme';
 import { Meal, Member } from '../types';
 import { webUrl } from '../backend';
 import { nudgeText, sendOnWhatsApp } from '../nudge';
-import { POINTS, learnPointsSince, pointsFor, streakOf } from '../game';
+import { POINTS, familyStreak, learnPointsSince, pointsFor, streakOf } from '../game';
 import { Avatar, Btn, Chip, Puti, PutiSays, Row, T, WeekStrip } from '../ui';
 import { dayCounts, dayHeading, greeting, inWeek, sameDay, spacedCode, startOfDay, weekDays, weekLabel } from '../words';
 import MealCard from './MealCard';
@@ -35,11 +35,13 @@ export default function OurTable({ onAdd, onMe, onPerson }: { onAdd: () => void;
   const iShared = todaysOf(me.id).length > 0;
   const waiting = family.members.filter((m) => !m.joined);
   const myStreak = streakOf(meals, me.id);
+  const joined = family.members.filter((m) => m.joined);
+  const familyDays = familyStreak(meals, joined.map((m) => m.id));
   const weekStart = weekDays(0)[0];
   const myPoints = meals.filter((m) => m.memberId === me.id && new Date(m.date) >= weekStart).reduce((sum, m) => sum + pointsFor(m), 0) + learnPointsSince(prefs.learnLog, weekStart);
 
   // The newest note to me from the last few days, if any.
-  const note = cheers.find((c) => c.toId === me.id && today.getTime() - new Date(c.date).getTime() < 4 * 86_400_000);
+  const note = cheers.find((c) => c.toId === me.id && !c.mealId && today.getTime() - new Date(c.date).getTime() < 4 * 86_400_000);
   const from = note ? store.member(note.fromId) : undefined;
 
   // Someone far away who has not shared today. Not shown to people who live together: they can just ask.
@@ -104,9 +106,19 @@ export default function OurTable({ onAdd, onMe, onPerson }: { onAdd: () => void;
             <Seat key={m.id} member={m} you={m.id === me.id} count={todaysOf(m.id).length} streak={streakOf(meals, m.id)} onPress={() => onPerson(m.id)} />
           ))}
         </ScrollView>
+        {joined.length > 1 ? (
+          <Row gap={8}>
+            <Ionicons name="people" size={18} color={C.deep} />
+            <T w="semibold" size={15} color={C.deep} style={{ flex: 1 }}>
+              {familyDays > 0 ? `Family streak: ${familyDays} day${familyDays === 1 ? '' : 's'} everyone shared` : 'Family streak starts when everyone shares today'}
+            </T>
+          </Row>
+        ) : null}
       </View>
 
       <View style={{ padding: 16, gap: 12 }}>
+        {store.news ? <NewsCard /> : null}
+
         {!iShared ? (
           <View style={{ backgroundColor: C.white, borderRadius: 22, padding: 14, gap: 10, borderWidth: 2, borderColor: C.leaf }}>
             <Row gap={10}>
@@ -161,10 +173,10 @@ export default function OurTable({ onAdd, onMe, onPerson }: { onAdd: () => void;
 
         {waiting.length > 0 && !store.session?.demo ? (
           <View style={{ backgroundColor: C.white, borderRadius: 18, padding: 14, gap: 8, borderWidth: 1, borderColor: '#E6EBE6' }}>
-            <T w="semibold">
-              Invite {waiting[0].name}: code {spacedCode(family.code)}
-            </T>
-            <Btn icon="logo-whatsapp" label={`Send ${waiting[0].name} the invite`} onPress={() => sendOnWhatsApp(store.inviteMessage)} />
+            <T w="semibold">Family code {spacedCode(family.code)}</T>
+            {waiting.map((w) => (
+              <Btn key={w.id} icon="logo-whatsapp" label={`Send ${w.name} the invite`} onPress={() => sendOnWhatsApp(store.inviteFor(w.name))} />
+            ))}
           </View>
         ) : null}
 
@@ -236,5 +248,37 @@ function Seat({ member, you, count, streak, onPress }: { member: Member; you: bo
         {!member.joined ? 'Invited' : streak > 0 ? `${streak} day${streak === 1 ? '' : 's'}` : done ? 'Shared' : 'Not yet'}
       </T>
     </Pressable>
+  );
+}
+
+/** "Ammi just shared a snack": a heart is one tap away. Shown while the app is open. */
+function NewsCard() {
+  const store = useStore();
+  const news = store.news;
+  if (!news) return null;
+  const who = store.member(news.memberId);
+  const meal = store.meals.find((m) => m.id === news.mealId);
+  const hearted = !!meal && !!store.session && meal.hearts.includes(store.session.meId);
+  return (
+    <View style={{ backgroundColor: C.pinkSoft, borderRadius: 20, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      {who ? <Avatar member={who} size={40} /> : null}
+      <T w="semibold" size={17} style={{ flex: 1 }}>
+        {news.text}
+      </T>
+      <Pressable
+        onPress={() => {
+          if (meal && !hearted) store.toggleHeart(meal.id);
+          setTimeout(() => store.clearNews(), 900);
+        }}
+        accessibilityRole="button"
+        accessibilityLabel="Send a heart"
+        style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: C.white, alignItems: 'center', justifyContent: 'center' }}
+      >
+        <Ionicons name={hearted ? 'heart' : 'heart-outline'} size={24} color={C.heart} />
+      </Pressable>
+      <Pressable onPress={() => store.clearNews()} accessibilityRole="button" accessibilityLabel="Close" hitSlop={8}>
+        <Ionicons name="close" size={22} color={C.muted} />
+      </Pressable>
+    </View>
   );
 }

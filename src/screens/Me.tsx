@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Platform, Pressable, ScrollView, View } from 'react-native';
+import { Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
-import { C } from '../theme';
+import { C, F } from '../theme';
 import { sendOnWhatsApp } from '../nudge';
 import { shareText } from '../share';
 import { Avatar, Btn, Chip, Eyebrow, GOAL_FOODS, PageHead, Row, T, TimeRow, Toggle } from '../ui';
@@ -17,6 +17,11 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
   const [improveNote, setImproveNote] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [refused, setRefused] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [addBusy, setAddBusy] = useState(false);
+  const [addFailed, setAddFailed] = useState<string | null>(null);
+  const [alertsRefused, setAlertsRefused] = useState(false);
   const { family, me, prefs } = store;
   if (!family || !me) return null;
 
@@ -67,6 +72,49 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
               {store.session?.demo && m.id !== me.id ? <Chip label="Be them" on={false} onPress={() => store.viewAs(m.id)} /> : null}
             </Row>
           ))}
+          {adding ? (
+            <View style={{ gap: 8, borderTopWidth: 1, borderTopColor: '#EDF0EA', paddingTop: 10 }}>
+              <T w="semibold">Who else do you look after?</T>
+              <TextInput
+                value={newName}
+                onChangeText={setNewName}
+                placeholder="Dad, Grandma, Nani..."
+                placeholderTextColor="#9AA79F"
+                autoFocus
+                maxLength={24}
+                autoCapitalize="words"
+                style={{ minHeight: 52, borderRadius: 14, borderWidth: 1.5, borderColor: '#D8E2DB', backgroundColor: C.white, paddingHorizontal: 14, fontFamily: F.regular, fontSize: 17, color: C.ink }}
+              />
+              {addFailed ? (
+                <T size={14} color="#8A2942">
+                  {addFailed}
+                </T>
+              ) : null}
+              <Row gap={8}>
+                <Btn kind="ghost" label="Cancel" onPress={() => (setAdding(false), setNewName(''))} style={{ flex: 1, alignSelf: 'auto' }} />
+                <Btn
+                  label={addBusy ? 'Adding...' : 'Add a seat'}
+                  disabled={addBusy || !newName.trim()}
+                  onPress={async () => {
+                    setAddBusy(true);
+                    setAddFailed(null);
+                    try {
+                      await store.addPerson(newName);
+                      setNewName('');
+                      setAdding(false);
+                    } catch (e) {
+                      setAddFailed(e instanceof Error && /full/.test(e.message) ? 'The table is full (8 people).' : "That didn't save. Please try again.");
+                    } finally {
+                      setAddBusy(false);
+                    }
+                  }}
+                  style={{ flex: 1, alignSelf: 'auto' }}
+                />
+              </Row>
+            </View>
+          ) : (
+            <Btn kind="ghost" icon="person-add-outline" label="I look after someone else too" onPress={() => setAdding(true)} style={{ marginTop: 4 }} />
+          )}
           {!store.session?.demo ? (
             <>
               <Row style={{ justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#EDF0EA', paddingTop: 10, marginTop: 4 }}>
@@ -113,6 +161,17 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
 
         <Eyebrow>Reminders</Eyebrow>
         <View style={section}>
+          <Toggle
+            title="When family shares a meal"
+            help="A notification when someone shares a plate or comments on yours."
+            on={prefs.familyAlerts}
+            onChange={async (on) => setAlertsRefused(!(await store.setFamilyAlerts(on)) && on)}
+          />
+          {alertsRefused ? (
+            <T size={14} color="#8A2942">
+              {Platform.OS === 'web' ? 'In the browser you see it when the app is open. Phone notifications need the app.' : 'Notifications are off for Amader. Turn them on in your phone settings.'}
+            </T>
+          ) : null}
           <Toggle title='"Did you eat?" after meals' help="45 minutes after each meal, if you haven't shared it." on={prefs.reminderOn} onChange={(on) => remind({ reminderOn: on })} />
           <Toggle title="A surprise snack check" help='Once an afternoon: "Having a snack?"' on={prefs.nudgesOn} onChange={(on) => remind({ nudgesOn: on })} />
           {refused ? (

@@ -17,19 +17,22 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState(0);
   const [parentName, setParentName] = useState('');
+  // More than one person: both parents, or a parent and an in-law. The first gets the seat made with the family.
+  const [also, setAlso] = useState<string[]>([]);
   const [myName, setMyName] = useState('');
   const [food, setFood] = useState('Rice');
   const [adult, setAdult] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const them = parentName.trim() || 'them';
+  const them = also.length ? [parentName.trim(), ...also].join(' and ') : parentName.trim() || 'them';
 
   async function go() {
     setBusy(true);
     setError(null);
     try {
       await store.createFamily({ myName: myName.trim(), parentName: parentName.trim(), goalFood: food, goalHandfuls: 2 });
+      for (const name of also.filter((n) => n !== parentName.trim())) await store.addPerson(name).catch(() => undefined);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
       setBusy(false);
@@ -39,21 +42,37 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
   const screens = [
     {
       title: 'Who are you looking after?',
-      lead: 'What do you call them at home?',
+      lead: 'What do you call them at home? Pick more than one if you look after both.',
       body: (
         <>
           <TextInput value={parentName} onChangeText={setParentName} placeholder="Mom" placeholderTextColor="#9AA79F" style={field} autoCapitalize="words" maxLength={24} autoFocus />
           <Row gap={8} style={{ flexWrap: 'wrap' }}>
-            {CALLED.map((n) => (
-              <Chip key={n} label={n} on={parentName === n} onPress={() => setParentName(n)} />
-            ))}
+            {CALLED.map((n) => {
+              const on = parentName === n || also.includes(n);
+              return (
+                <Chip
+                  key={n}
+                  label={n}
+                  on={on}
+                  onPress={() => {
+                    if (parentName === n) {
+                      // Unpick the first: the next one picked moves up.
+                      setParentName(also[0] ?? '');
+                      setAlso(also.slice(1));
+                    } else if (also.includes(n)) setAlso(also.filter((x) => x !== n));
+                    else if (!parentName.trim()) setParentName(n);
+                    else if (also.length < 3) setAlso([...also, n]);
+                  }}
+                />
+              );
+            })}
           </Row>
         </>
       ),
       ok: parentName.trim().length > 0,
     },
     {
-      title: `And what does ${them} call you?`,
+      title: `And what ${also.length ? "do" : "does"} ${them} call you?`,
       lead: 'Others who help can join later.',
       body: (
         <>

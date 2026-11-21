@@ -18,11 +18,16 @@ export interface Member {
   joined: boolean;
 }
 
-/** The plate in hand measures: grains in fists, protein in palms, vegetables in handfuls. */
+/**
+ * The plate by food group, in hand measures: grains in fists, protein in palms, vegetables in handfuls,
+ * fruit in pieces (about a fist), dairy in cups. Fruit and dairy are optional, so older meals still work.
+ */
 export interface Portions {
   grains: number;
   protein: number;
   veg: number;
+  fruit?: number;
+  dairy?: number;
 }
 
 export interface Meal {
@@ -39,6 +44,10 @@ export interface Meal {
   protein?: number | null;
   /** Handfuls of vegetables or salad. */
   veg?: number | null;
+  /** Pieces of fruit (one piece is about a fist). */
+  fruit?: number | null;
+  /** Cups of milk, yoghurt or lassi. */
+  dairy?: number | null;
   /** Ids of the family members who sent a heart. */
   hearts: string[];
   /** What the photo looks like, from food recognition. */
@@ -77,6 +86,8 @@ export interface Guess {
   /** Rough palms of protein and handfuls of vegetables, when the model could tell. */
   protein?: number | null;
   veg?: number | null;
+  fruit?: number | null;
+  dairy?: number | null;
   /** For a party plate: each thing on it. */
   items?: string[];
   /** True when this is canned sample data, not a real reading of the photo. */
@@ -90,7 +101,7 @@ export interface Cheer {
   toId: string;
   text: string;
   date: string;
-  /** The meal it was sent on, if any. */
+  /** The meal it was sent on, if any. A note on a meal shows under it as a comment. */
   mealId?: string | null;
 }
 
@@ -171,8 +182,14 @@ export interface Backend {
   mode: 'local' | 'cloud';
   createFamily(input: { myName: string; parentName: string; goalFood: string; goalHandfuls: number; myRole?: Role }): Promise<Session>;
   /** Looks up an invite code before joining. Null if the code is unknown. */
-  inviteInfo(code: string): Promise<{ parentName: string | null; fromName: string | null } | null>;
+  inviteInfo(code: string): Promise<{ parentName: string | null; fromName: string | null; waiting: string[] } | null>;
   joinFamily(input: { code: string; name: string; role: Role }): Promise<Session>;
+  /** Adds another person the family looks after. They get their own seat and join with the same code. */
+  addPerson(code: string, name: string): Promise<Member>;
+  /** Saves this phone's push address so the family can tell it when someone eats or comments. */
+  savePushToken(code: string, meId: string, token: string | null): Promise<void>;
+  /** Asks the server to tell the rest of the family about a meal or a comment. Never throws. */
+  notifyFamily(code: string, event: { kind: 'meal'; mealId: string } | { kind: 'comment'; cheerId: string }): Promise<void>;
   load(code: string): Promise<{ family: Family; meals: Meal[]; cheers: Cheer[]; recipes: Recipe[] } | null>;
   addMeal(code: string, meal: Meal, photo: Photo | null, voice: Voice | null): Promise<Meal>;
   /** Looks at a photo and guesses what is on the plate. Null when it cannot tell or is not available. */

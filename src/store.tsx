@@ -3,7 +3,7 @@ import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { cloudBackend, localBackend, webUrl } from './backend';
 import { Backend, Cheer, Family, Guess, Meal, Member, NewMeal, NewRecipe, Photo, Recipe, Role, Session } from './types';
-import { syncReminders } from './reminders';
+import { pushAddress, syncReminders } from './reminders';
 import { refreshWidgets } from './widgets';
 import { widgetData } from './widget-data';
 import { DEFAULT_TIMES, MILESTONES, MealTimes, newId, newestFirst, sameDay, slotAt } from './words';
@@ -39,6 +39,8 @@ export interface Prefs {
   why: string | null;
   /** Small things the person said they would try, from Learn. */
   pledges: string[];
+  /** Tell me when someone in the family shares a meal or comments on mine. */
+  familyAlerts: boolean;
 }
 const DEFAULT_PREFS: Prefs = {
   guessOn: null,
@@ -56,7 +58,15 @@ const DEFAULT_PREFS: Prefs = {
   sameHome: false,
   why: null,
   pledges: [],
+  familyAlerts: true,
 };
+
+/** Shown at the top of the table when someone in the family just shared, while the app is open. */
+export interface News {
+  text: string;
+  mealId: string;
+  memberId: string;
+}
 
 interface Store {
   ready: boolean;
@@ -81,8 +91,18 @@ interface Store {
   member(id: string): Member | undefined;
   mealTitle(meal: Meal): string;
   inviteMessage: string;
+  /** The invite text addressed to one person. */
+  inviteFor(name: string | undefined): string;
   createFamily(input: { myName: string; parentName: string; goalFood: string; goalHandfuls: number }): Promise<void>;
-  inviteInfo(code: string): Promise<{ parentName: string | null; fromName: string | null } | null>;
+  inviteInfo(code: string): Promise<{ parentName: string | null; fromName: string | null; waiting: string[] } | null>;
+  /** Look after someone else too. They join with the same family code. */
+  addPerson(name: string): Promise<Member>;
+  /** Comments on a meal. Goes to whoever shared it, or back to the last person who commented when it's my own meal. */
+  comment(mealId: string, text: string): Promise<void>;
+  /** The latest "Mom shared lunch", while the app is open. */
+  news: News | null;
+  clearNews(): void;
+  setFamilyAlerts(on: boolean): Promise<boolean>;
   joinFamily(input: { code: string; name: string; role: Role }): Promise<void>;
   loadDemo(): Promise<void>;
   addMeal(input: NewMeal): Promise<Meal>;
@@ -142,6 +162,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [prefs, setPrefsState] = useState<Prefs>(DEFAULT_PREFS);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const lastSync = useRef({ remind: '', widget: '' });
+  const [news, setNews] = useState<News | null>(null);
+  /** Meals already seen on this phone, so only new ones from others become news. Null until the first load. */
+  const seen = useRef<Set<string> | null>(null);
   const sessionRef = useRef<Session | null>(null);
   sessionRef.current = session;
   const prefsRef = useRef(prefs);
@@ -151,6 +174,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!s) return;
     const data = await backendFor(s).load(s.code);
     if (!data || sessionRef.current?.code !== s.code) return;
+    if (seen.current) {
+      const fresh = data.meals.find((m) => !seen.current?.has(m.id) && m.memberId !== s.meId && Date.now() - new Date(m.date).getTime() < 6 * 3600_000);
+      const who = fresh && data.family.members.find((x) => x.id === fresh.memberId);
+      if (fresh && who && prefsRef.current.familyAlerts) setNews({ text: `${who.name} just shared ${fresh.slot === 'snack' ? 'a snack' : fresh.slot === 'fasting' ? "that they're fasting" : fresh.slot}`, mealId: fresh.id, memberId: who.id });
+    }
+    seen.current = new Set(data.meals.map((m) => m.id));
     setFamily(data.family);
     setMeals(newestFirst(data.meals));
     setCheers([...data.cheers].sort((a, b) => (a.date < b.date ? 1 : -1)));
@@ -159,6 +188,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const start = useCallback(
     async (s: Session) => {
+      seen.current = null;
       await AsyncStorage.setItem(SESSION, JSON.stringify(s));
       sessionRef.current = s;
       setSession(s);
@@ -203,6 +233,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       sub.remove();
     };
   }, [session, pull]);
+
+  // Save this phone's push address so the family can say "Mom shared lunch". Only asks once notifications are allowed.
+  useEffect(() => {
+    if (!ready || !session || session.demo || backendFor(session).mode !== 'cloud' || !prefs.familyAlerts) return;
+    pushAddress(false)
+      .then((token) => (token ? backendFor(session).savePushToken(session.code, session.meId, token) : undefined))
+      .catch(() => undefined);
+  }, [ready, session, prefs.familyAlerts, prefs.reminderOn]);
 
   // Keep reminders and widgets in step with what the family has shared.
   useEffect(() => {
@@ -250,9 +288,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const parent = family?.members.find((m) => m.role === 'parent' && m.id !== me?.id);
     // The code sits after # so it never reaches the web host's logs or a link preview.
     const link = webUrl && family ? `\n${webUrl}/#join=${family.code}` : '';
-    const inviteMessage = family
-      ? `${parent?.name ?? 'Hi'}, did you eat? I set up Amader for us. ${webUrl ? 'Tap the link' : 'Open the app'} and enter our family code ${family.code}, then send me a photo of your plate. I'll send mine too.${link}`
-      : '';
+    const inviteFor = (name: string | undefined) =>
+      family ? `${name ?? 'Hi'}, did you eat? I set up Amader for us. ${webUrl ? 'Tap the link' : 'Open the app'} and enter our family code ${family.code}, then send me a photo of your plate. I'll send mine too.${link}` : '';
+    const inviteMessage = inviteFor(parent?.name);
 
     return {
       ready,
@@ -282,6 +320,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return `${member(meal.memberId)?.name ?? 'Someone'}'s ${what}`;
       },
       inviteMessage,
+      inviteFor,
 
       async createFamily(input) {
         await start(await (cloudBackend ?? localBackend).createFamily(input));
@@ -295,7 +334,64 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       },
       async loadDemo() {
         savePrefs({ onboarded: true, guessOn: true, improveOn: false });
-        await start(await localBackend.seedDemo());
+        const s = await localBackend.seedDemo();
+        await start(s);
+        // The sample family shows what it's like when someone shares: Ammi has a snack a few seconds in.
+        setTimeout(async () => {
+          if (sessionRef.current?.code !== s.code) return;
+          const data = await localBackend.load(s.code);
+          const ammi = data?.family.members.find((m) => m.name === 'Ammi');
+          if (!ammi) return;
+          const snack: Meal = { id: newId(), memberId: ammi.id, date: new Date().toISOString(), slot: 'snack', photo: null, handfuls: 0, protein: 0, veg: 0, fruit: 1, dairy: 1, hearts: [], dish: 'Apple and a cup of yoghurt', grain: null };
+          await localBackend.addMeal(s.code, snack, null, null);
+          await pull(s);
+        }, 7000);
+      },
+
+      async addPerson(name) {
+        // Read the session from the ref: setup calls this right after making the family, before a re-render.
+        const s = sessionRef.current;
+        if (!s) throw new Error('No family yet.');
+        const person = await backendFor(s).addPerson(s.code, name.trim().slice(0, 24));
+        setFamily((f) => (f ? { ...f, members: [...f.members, person] } : f));
+        return person;
+      },
+
+      async comment(mealId, text) {
+        if (!session) return;
+        const meal = meals.find((m) => m.id === mealId);
+        if (!meal) return;
+        let to = meal.memberId;
+        if (to === session.meId) {
+          // Replying on my own meal: it goes back to whoever commented last.
+          to = cheers.find((c) => c.mealId === mealId && c.fromId !== session.meId)?.fromId ?? session.meId;
+        }
+        const cheer: Cheer = { id: newId(), fromId: session.meId, toId: to, text: text.trim().slice(0, 200), date: new Date().toISOString(), mealId };
+        if (!cheer.text) return;
+        await backendFor(session).sendCheer(session.code, cheer);
+        setCheers((list) => [cheer, ...list]);
+        if (!session.demo) backendFor(session).notifyFamily(session.code, { kind: 'comment', cheerId: cheer.id });
+      },
+
+      news,
+      clearNews() {
+        setNews(null);
+      },
+
+      async setFamilyAlerts(on) {
+        savePrefs({ familyAlerts: on });
+        if (!session || session.demo) return true;
+        try {
+          if (!on) {
+            await backendFor(session).savePushToken(session.code, session.meId, null);
+            return true;
+          }
+          const token = await pushAddress(true);
+          if (token) await backendFor(session).savePushToken(session.code, session.meId, token);
+          return !!token || backendFor(session).mode !== 'cloud';
+        } catch {
+          return false;
+        }
       },
 
       prefs,
@@ -357,6 +453,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           handfuls: p ? p.grains : null,
           protein: p ? p.protein : null,
           veg: p ? p.veg : null,
+          fruit: p ? (p.fruit ?? 0) : null,
+          dairy: p ? (p.dairy ?? 0) : null,
           hearts: [],
           dish: input.guess?.dish || original?.dish || null,
           parts: input.guess?.parts ?? null,
@@ -384,6 +482,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             })
             .catch(() => undefined);
         }
+        if (!session.demo) backendFor(session).notifyFamily(session.code, { kind: 'meal', mealId: saved.id });
         if (session.demo) {
           // The sample family answers, so the heart can be seen arriving.
           const other = family?.members.find((m) => m.id !== session.meId);
@@ -414,6 +513,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (!cheer.text) return;
         await backendFor(session).sendCheer(session.code, cheer);
         setCheers((list) => [cheer, ...list]);
+        if (!session.demo) backendFor(session).notifyFamily(session.code, { kind: 'comment', cheerId: cheer.id });
       },
 
       async addRecipe(input) {
@@ -485,7 +585,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         await pull(session);
       },
     };
-  }, [ready, session, family, meals, cheers, recipes, pendingCode, checkupDate, prefs, pendingAction, pull, start]);
+  }, [ready, session, family, meals, cheers, recipes, pendingCode, checkupDate, prefs, pendingAction, news, pull, start]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

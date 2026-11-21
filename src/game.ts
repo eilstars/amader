@@ -61,6 +61,29 @@ export function streakOf(meals: Meal[], memberId: string, now = new Date()): num
   return count;
 }
 
+/**
+ * Days in a row when everyone who has joined shared something. Counted together, so the streak
+ * never rests on one person, and a quiet day is a reason to check in rather than a personal loss.
+ */
+export function familyStreak(meals: Meal[], memberIds: string[], now = new Date()): number {
+  if (memberIds.length < 2) return 0;
+  const byDay = new Map<number, Set<string>>();
+  for (const m of meals) {
+    const key = startOfDay(new Date(m.date)).getTime();
+    if (!byDay.has(key)) byDay.set(key, new Set());
+    byDay.get(key)?.add(m.memberId);
+  }
+  const full = (d: Date) => memberIds.every((id) => byDay.get(d.getTime())?.has(id));
+  let day = startOfDay(now);
+  if (!full(day)) day = new Date(day.getFullYear(), day.getMonth(), day.getDate() - 1);
+  let count = 0;
+  while (full(day)) {
+    count += 1;
+    day = new Date(day.getFullYear(), day.getMonth(), day.getDate() - 1);
+  }
+  return count;
+}
+
 /** The next streak to aim for. Small at first, so the first win comes in days, not weeks. */
 export function streakGoal(streak: number): number {
   return STREAK_STEPS.find((n) => n > streak) ?? Math.ceil((streak + 1) / 100) * 100;

@@ -15,6 +15,8 @@ export default function Join({ onBack, onJoined }: { onBack: () => void; onJoine
   const [name, setName] = useState('');
   const [role, setRole] = useState<Role>('parent');
   const [from, setFrom] = useState<string | null>(null);
+  // Seats saved for people the family looks after. With more than one, they tap their own name.
+  const [waiting, setWaiting] = useState<string[]>([]);
   const [unknown, setUnknown] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +36,7 @@ export default function Join({ onBack, onJoined }: { onBack: () => void; onJoine
           return;
         }
         setFrom(info.fromName);
+        setWaiting(info.waiting);
         if (info.parentName) {
           setName((current) => current || info.parentName || '');
         } else {
@@ -104,6 +107,13 @@ export default function Join({ onBack, onJoined }: { onBack: () => void; onJoine
           <T w="semibold" size={15} color="#3B4B42">
             What your family calls you
           </T>
+          {waiting.length > 1 ? (
+            <Row gap={8} style={{ flexWrap: 'wrap' }}>
+              {waiting.map((w) => (
+                <Chip key={w} label={`I'm ${w}`} on={name === w && role === 'parent'} onPress={() => (setName(w), setRole('parent'))} />
+              ))}
+            </Row>
+          ) : null}
           <TextInput value={name} onChangeText={setName} placeholder="Ammi" placeholderTextColor="#9AA79F" style={field} autoCapitalize="words" maxLength={24} />
         </View>
 

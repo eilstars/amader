@@ -68,6 +68,13 @@ alter table public.meals add column if not exists party boolean not null default
 -- Which grain was on the plate this time, and "I ate this too" for a meal shared by someone at the same table.
 alter table public.meals add column if not exists grain text check (grain is null or char_length(grain) <= 24);
 alter table public.meals add column if not exists same_as uuid references public.meals (id) on delete set null;
+-- The other food groups: pieces of fruit and cups of milk, yoghurt or lassi.
+alter table public.meals add column if not exists fruit int check (fruit between 0 and 4);
+alter table public.meals add column if not exists dairy int check (dairy between 0 and 4);
+-- When the meal was shared (eaten_at can be earlier). Used to send "Mom shared lunch" only once, right away.
+alter table public.meals add column if not exists created_at timestamptz not null default now();
+-- Where to send "Mom shared lunch". Only the server reads it: no one in the family can select it.
+alter table public.members add column if not exists push_token text check (push_token is null or char_length(push_token) <= 200);
 
 -- Notes between family members: "You're doing great, Ammi!"
 create table if not exists public.cheers (
@@ -339,7 +346,8 @@ begin
   end if;
   return json_build_object(
     'parent_name', (select name from public.members where family_code = v_code and role = 'parent' and not joined order by created_at limit 1),
-    'from_name', (select name from public.members where family_code = v_code and joined order by created_at limit 1)
+    'from_name', (select name from public.members where family_code = v_code and joined order by created_at limit 1),
+    'waiting', (select coalesce(json_agg(name order by created_at), '[]'::json) from public.members where family_code = v_code and role = 'parent' and not joined)
   );
 end;
 $$;
@@ -362,9 +370,10 @@ begin
     return json_build_object('code', v_code, 'me_id', v_me);
   end if;
   if p_role = 'parent' then
+    -- Several people can be looked after. Take the seat saved under their name, else the first free one.
     select id into v_me from public.members
       where family_code = v_code and role = 'parent' and not joined
-      order by created_at limit 1 for update;
+      order by (lower(name) = lower(trim(coalesce(p_name, '')))) desc, created_at limit 1 for update;
     if v_me is not null then
       update public.members
         set user_id = auth.uid(), joined = true, name = coalesce(nullif(trim(p_name), ''), name)
@@ -383,6 +392,33 @@ begin
     values (v_code, auth.uid(), trim(p_name), case when p_role = 'parent' then 'parent' else 'child' end, v_count % 3, true)
     returning id into v_me;
   return json_build_object('code', v_code, 'me_id', v_me);
+end;
+$$;
+
+-- Look after someone else too: a new empty seat they take when they join with the family code.
+create or replace function public.add_person(p_code text, p_name text)
+returns json language plpgsql security definer set search_path = public as $$
+declare
+  v_row public.members;
+begin
+  if not exists (select 1 from public.members where family_code = p_code and user_id = auth.uid() and joined) then
+    raise exception 'Not in this family';
+  end if;
+  if (select count(*) from public.members where family_code = p_code) >= 8 then
+    raise exception 'This family table is full';
+  end if;
+  insert into public.members (family_code, user_id, name, role, tint, joined)
+    values (p_code, null, trim(p_name), 'parent', (select count(*) from public.members where family_code = p_code)::int % 4, false)
+    returning * into v_row;
+  return json_build_object('id', v_row.id, 'name', v_row.name, 'role', v_row.role, 'tint', v_row.tint, 'joined', v_row.joined);
+end;
+$$;
+
+-- Saves where this phone gets notifications. Only for the caller's own seat.
+create or replace function public.save_push_token(p_member uuid, p_token text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  update public.members set push_token = nullif(trim(p_token), '') where id = p_member and user_id = auth.uid();
 end;
 $$;
 
@@ -408,6 +444,10 @@ grant execute on function public.create_family(text, text, text, int) to authent
 grant execute on function public.invite_info(text) to authenticated;
 grant execute on function public.join_family(text, text, text) to authenticated;
 grant execute on function public.delete_me(uuid) to authenticated;
+revoke execute on function public.add_person(text, text) from public, anon;
+revoke execute on function public.save_push_token(uuid, text) from public, anon;
+grant execute on function public.add_person(text, text) to authenticated;
+grant execute on function public.save_push_token(uuid, text) to authenticated;
 revoke execute on function public.check_code_tries() from public, anon, authenticated;
 grant execute on function public.my_family_codes() to authenticated;
 grant execute on function public.meal_family(uuid) to authenticated;

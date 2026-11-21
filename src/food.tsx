@@ -180,12 +180,62 @@ export function VegArt({ size = 44 }: { size?: number }) {
   );
 }
 
+/** Fruit: an apple and a banana. */
+export function FruitArt({ size = 44 }: { size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 64 64">
+      <Path d="M30 50 C40 52 54 44 58 26 C59 22 55 21 54 25 C50 38 40 44 30 44 C26 44 26 50 30 50 Z" fill="#F2C94C" />
+      <Path d="M56 24 L59 19" stroke="#8A6A2A" strokeWidth={3} strokeLinecap="round" />
+      <Path d="M22 22 C12 16 4 24 6 36 C8 48 16 56 22 54 C24 53 26 53 28 54 C34 56 40 46 40 36 C40 24 32 16 22 22 Z" fill="#D9534F" />
+      <Path d="M12 30 C12 26 15 23 18 23" stroke="#F4A7A3" strokeWidth={3} strokeLinecap="round" fill="none" />
+      <Path d="M22 22 C22 16 24 12 27 10" stroke="#7A4A22" strokeWidth={3} strokeLinecap="round" fill="none" />
+      <Path d="M24 14 C28 8 36 9 36 12 C32 16 27 16 24 14 Z" fill={GREEN_LIGHT} />
+    </Svg>
+  );
+}
+
+/** Dairy: a glass of milk and a bowl of yoghurt. */
+export function DairyArt({ size = 44 }: { size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 64 64">
+      <Path d="M10 10 H32 L29 56 C29 58 13 58 13 56 Z" fill="#DCE6EF" />
+      <Path d="M11.5 22 H30.5 L29 56 C29 58 13 58 13 56 Z" fill="#FFFFFF" />
+      <Rect x={10} y={8} width={22} height={4} rx={2} fill="#C4D2DE" />
+      <Path d="M32 40 H60 C60 50 54 58 46 58 C38 58 32 50 32 40 Z" fill={BOWL} />
+      <Ellipse cx={46} cy={40} rx={14} ry={4} fill="#FFFFFF" />
+      <Path d="M44 39 C46 36 50 37 50 39" stroke="#EDE6D3" strokeWidth={2} strokeLinecap="round" fill="none" />
+    </Svg>
+  );
+}
+
 /**
  * A meal at a glance: each part of the plate as a clear picture with how many fists, palms or handfuls.
  * Used wherever a meal has no photo, and to compare a usual plate with a balanced one.
  */
-export function PlateCard({ grains, protein, veg, grain, size = 76, fasting, party }: { grains?: number | null; protein?: number | null; veg?: number | null; grain?: string | null; size?: number; fasting?: boolean; party?: boolean }) {
-  const icon = size * 0.36;
+export function PlateCard({
+  grains,
+  protein,
+  veg,
+  fruit,
+  dairy,
+  grain,
+  size = 76,
+  fasting,
+  party,
+}: {
+  grains?: number | null;
+  protein?: number | null;
+  veg?: number | null;
+  fruit?: number | null;
+  dairy?: number | null;
+  grain?: string | null;
+  size?: number;
+  fasting?: boolean;
+  party?: boolean;
+}) {
+  // Fruit and dairy only take a seat on the plate when they were there, so most plates stay three big pictures.
+  const extra = [fruit ? 'f' : null, dairy ? 'd' : null].filter(Boolean) as string[];
+  const icon = size * (extra.length ? 0.3 : 0.36);
   const part = (art: React.ReactNode, n: number | null | undefined, key: string) => (
     <View key={key} style={{ alignItems: 'center', opacity: n ? 1 : 0.28 }}>
       {art}
@@ -209,7 +259,11 @@ export function PlateCard({ grains, protein, veg, grain, size = 76, fasting, par
               {part(<GrainArt kind={grain} size={icon} />, grains, 'g')}
               {part(<ProteinArt size={icon} />, protein, 'p')}
             </View>
-            <View style={{ marginTop: -size * 0.02 }}>{part(<VegArt size={icon} />, veg, 'v')}</View>
+            <View style={{ flexDirection: 'row', gap: size * 0.02, marginTop: -size * 0.02 }}>
+              {part(<VegArt size={icon} />, veg, 'v')}
+              {fruit ? part(<FruitArt size={icon} />, fruit, 'f') : null}
+              {dairy ? part(<DairyArt size={icon} />, dairy, 'd') : null}
+            </View>
             {party ? (
               <View style={{ position: 'absolute', top: 0, right: 0 }}>
                 <Ionicons name="sparkles" size={size * 0.16} color={C.leaf} />

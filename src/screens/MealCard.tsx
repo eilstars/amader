@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Image, Pressable, View } from 'react-native';
+import { Image, Pressable, TextInput, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { GrainArt, PlateCard, ProteinArt, VegArt } from '../food';
+import { DairyArt, FruitArt, GrainArt, PlateCard, ProteinArt, VegArt } from '../food';
 import { useStore } from '../store';
-import { C } from '../theme';
+import { C, F } from '../theme';
 import { Meal } from '../types';
 import { Avatar, Btn, HandCount, Row, T } from '../ui';
 import { VoicePlayer } from '../voice';
@@ -35,7 +35,13 @@ export default function MealCard({ meal, onPerson }: { meal: Meal; onPerson?: (i
   const canJoin =
     !!meId && !own && !fasting && !meal.sameAs && (meal.withIds ?? []).includes(meId) && daysBetween(new Date(meal.date), new Date()) <= 1 && !store.meals.some((m) => m.memberId === meId && m.sameAs === meal.id);
   const [joining, setJoining] = useState(false);
-  const [mine3, setMine3] = useState({ grains: meal.handfuls ?? 1, protein: meal.protein ?? 1, veg: meal.veg ?? 1 });
+  const [mine3, setMine3] = useState({ grains: meal.handfuls ?? 1, protein: meal.protein ?? 1, veg: meal.veg ?? 1, fruit: meal.fruit ?? 0, dairy: meal.dairy ?? 0 });
+  // Comments: notes sent on this meal, oldest first, like a chat under the plate.
+  const comments = store.cheers.filter((c) => c.mealId === meal.id).sort((a, b) => (a.date < b.date ? -1 : 1));
+  const [writing, setWriting] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sendFailed, setSendFailed] = useState(false);
   const [joinBusy, setJoinBusy] = useState(false);
   const [joinFailed, setJoinFailed] = useState(false);
 
@@ -64,7 +70,7 @@ export default function MealCard({ meal, onPerson }: { meal: Meal; onPerson?: (i
     <Image source={{ uri: photo }} accessibilityLabel={meal.dish || 'Meal photo'} style={big ? { width: '100%', aspectRatio: 4 / 3, borderRadius: 14, backgroundColor: C.soft } : { width: 76, height: 76, borderRadius: 14, backgroundColor: C.soft }} />
   ) : (
     <View style={{ width: 76, height: 76, alignItems: 'center', justifyContent: 'center' }}>
-      <PlateCard size={76} grains={meal.handfuls} protein={meal.protein} veg={meal.veg} grain={meal.grain ?? store.goalFood} party={meal.party} fasting={fasting} />
+      <PlateCard size={76} grains={meal.handfuls} protein={meal.protein} veg={meal.veg} fruit={meal.fruit} dairy={meal.dairy} grain={meal.grain ?? store.goalFood} party={meal.party} fasting={fasting} />
     </View>
   );
 
@@ -133,6 +139,63 @@ export default function MealCard({ meal, onPerson }: { meal: Meal; onPerson?: (i
           <T size={15}>"{meal.note}"</T>
         </View>
       ) : null}
+      {comments.length ? (
+        <View style={{ gap: 6, paddingLeft: 4 }}>
+          {comments.map((c) => {
+            const from = store.member(c.fromId);
+            return (
+              <Row key={c.id} gap={8} style={{ alignItems: 'flex-start' }}>
+                {from ? <Avatar member={from} size={24} /> : null}
+                <T size={15} style={{ flex: 1 }}>
+                  <T w="semibold" size={15}>
+                    {c.fromId === meId ? 'You' : from?.name ?? 'Someone'}
+                  </T>{' '}
+                  {c.text}
+                </T>
+              </Row>
+            );
+          })}
+        </View>
+      ) : null}
+      {writing ? (
+        <Row gap={8}>
+          <TextInput
+            value={draft}
+            onChangeText={setDraft}
+            placeholder={own ? 'Reply' : `Say something to ${who?.name ?? 'them'}`}
+            placeholderTextColor="#8A988F"
+            maxLength={200}
+            autoFocus
+            style={{ flex: 1, minHeight: 46, borderRadius: 14, borderWidth: 1.5, borderColor: C.line, backgroundColor: C.white, paddingHorizontal: 12, fontFamily: F.regular, fontSize: 16, color: C.ink }}
+          />
+          <Pressable
+            disabled={sending || !draft.trim()}
+            accessibilityRole="button"
+            accessibilityLabel="Send comment"
+            onPress={async () => {
+              setSending(true);
+              setSendFailed(false);
+              try {
+                await store.comment(meal.id, draft);
+                setDraft('');
+                setWriting(false);
+              } catch {
+                setSendFailed(true);
+              } finally {
+                setSending(false);
+              }
+            }}
+            style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: draft.trim() ? C.leaf : C.soft, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Ionicons name="send" size={20} color={draft.trim() ? C.white : C.muted} />
+          </Pressable>
+        </Row>
+      ) : null}
+      {sendFailed ? (
+        <T size={14} color="#8A2942">
+          That didn't send. Please try again.
+        </T>
+      ) : null}
       {meal.voice ? <VoicePlayer uri={meal.voice} label={`${who?.name ?? 'their'} voice note`} /> : null}
       {canJoin && !joining ? <Btn kind="ghost" icon="restaurant" label="I ate this too" onPress={() => setJoining(true)} style={{ minHeight: 48 }} /> : null}
       {joining ? (
@@ -141,6 +204,8 @@ export default function MealCard({ meal, onPerson }: { meal: Meal; onPerson?: (i
           <HandCount label={meal.grain ?? store.goalFood} unit={['fist', 'fists']} art={<GrainArt kind={meal.grain ?? store.goalFood} size={36} />} value={mine3.grains} onChange={(n) => setMine3({ ...mine3, grains: n })} />
           <HandCount label="Protein" unit={['palm', 'palms']} art={<ProteinArt size={36} />} value={mine3.protein} onChange={(n) => setMine3({ ...mine3, protein: n })} />
           <HandCount label="Vegetables" unit={['handful', 'handfuls']} art={<VegArt size={36} />} value={mine3.veg} onChange={(n) => setMine3({ ...mine3, veg: n })} />
+          <HandCount label="Fruit" unit={['piece', 'pieces']} art={<FruitArt size={36} />} value={mine3.fruit} onChange={(n) => setMine3({ ...mine3, fruit: n })} />
+          <HandCount label="Dairy" unit={['cup', 'cups']} art={<DairyArt size={36} />} value={mine3.dairy} onChange={(n) => setMine3({ ...mine3, dairy: n })} />
           {joinFailed ? (
             <T size={14} color="#8A2942">
               That didn't save. Please try again.
@@ -149,9 +214,19 @@ export default function MealCard({ meal, onPerson }: { meal: Meal; onPerson?: (i
           <Btn label={joinBusy ? 'Saving...' : 'Share my plate'} disabled={joinBusy} onPress={join} />
         </View>
       ) : null}
-      {own ? (
-        <Row style={{ justifyContent: 'flex-end' }}>
-          {asking ? (
+      <Row style={{ justifyContent: 'space-between' }}>
+        {!writing ? (
+          <Pressable onPress={() => setWriting(true)} accessibilityRole="button" hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 2 }}>
+            <Ionicons name="chatbubble-outline" size={18} color={C.leaf} />
+            <T w="semibold" size={14} color={C.deep}>
+              {comments.length ? 'Reply' : 'Comment'}
+            </T>
+          </Pressable>
+        ) : (
+          <View />
+        )}
+        {own ? (
+          asking ? (
             <Row gap={16}>
               <T size={13} color={failed ? '#8A2942' : C.muted}>
                 {failed ? "Couldn't remove it." : 'Remove for everyone?'}
@@ -173,9 +248,9 @@ export default function MealCard({ meal, onPerson }: { meal: Meal; onPerson?: (i
                 Remove
               </T>
             </Pressable>
-          )}
-        </Row>
-      ) : null}
+          )
+        ) : null}
+      </Row>
     </View>
   );
 }

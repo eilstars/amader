@@ -40,6 +40,8 @@ export function summaryHtml({ me, meals, since, now, grain, checkup }: SummaryIn
     [`Usual ${grain.toLowerCase()} or grains`, avg.counted ? `${handsText(avg.grains, 'fist', 'fists')} a meal` : 'Not recorded'],
     ['Usual protein', avg.counted ? `${handsText(avg.protein, 'palm', 'palms')} a meal` : 'Not recorded'],
     ['Usual vegetables', avg.counted ? `${handsText(avg.veg, 'handful', 'handfuls')} a meal` : 'Not recorded'],
+    ['Meals with fruit', String(real.filter((m) => (m.fruit ?? 0) > 0).length)],
+    ['Meals with milk or yoghurt', String(real.filter((m) => (m.dairy ?? 0) > 0).length)],
     ['Plates with half vegetables and some protein', avg.counted ? `${real.filter(isBalanced).length} of ${avg.counted}` : 'Not recorded'],
   ];
 

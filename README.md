@@ -64,11 +64,21 @@ The photo is read by Claude on the server, so the API key never ships inside the
    npx supabase functions deploy recognize-meal
    ```
 
-3. Run `supabase/schema.sql` again if you set up the database before this was added. It is safe to re-run, and it adds the newer pieces: protein and vegetable portions, notes, voice notes (`meal-voice` bucket), who you ate with, notes between family members, and the recipe book.
+3. Run `supabase/schema.sql` again if you set up the database before this was added. It is safe to re-run, and it adds the newer pieces: protein and vegetable portions, notes, voice notes (`meal-voice` bucket), who you ate with, notes between family members, the recipe book, fruit and dairy, "I ate this too", and push addresses for family notifications.
 
 Cost: each photo is one request. The function uses Claude Opus 5.5 for the best read of mixed plates, roughly a cent or less per photo. To make it far cheaper, change `MODEL` at the top of `supabase/functions/recognize-meal/index.ts` to `claude-haiku-5-5` and compare the guesses on your own photos.
 
 Without this step the app works the same, just without the guess. The sample family shows a labelled sample guess so the flow can be demoed.
+
+## "Mom shared lunch" notifications
+
+When someone shares a meal, everyone else in the family gets a notification, and when someone comments on a meal, the person who shared it does. This runs in a second Edge Function that reads push addresses with the service key, so no phone can see another phone's address.
+
+1. Deploy it: `npx supabase functions deploy notify-family`
+2. Build the app with EAS once (`npx eas init` adds `extra.eas.projectId` to `app.json`). Expo needs that id to hand out push addresses.
+3. Test on two real phones. Push does not work in a simulator or in the browser. In the browser the table shows "Ammi just shared a snack" while it is open.
+
+Each phone can turn this off in Settings under Reminders.
 
 ## Reminders and widgets
 

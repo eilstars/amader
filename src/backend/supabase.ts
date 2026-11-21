@@ -16,6 +16,8 @@ type MealRow = {
   handfuls: number | null;
   protein: number | null;
   veg: number | null;
+  fruit: number | null;
+  dairy: number | null;
   dish: string | null;
   parts: Parts | null;
   note: string | null;
@@ -140,7 +142,31 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
       const { data, error } = await db.rpc('invite_info', { p_code: code });
       fail(error);
       if (!data) return null;
-      return { parentName: (data.parent_name as string) ?? null, fromName: (data.from_name as string) ?? null };
+      return { parentName: (data.parent_name as string) ?? null, fromName: (data.from_name as string) ?? null, waiting: ((data.waiting as string[] | null) ?? []).filter(Boolean) };
+    },
+
+    async addPerson(code, name) {
+      await signedIn();
+      const { data, error } = await db.rpc('add_person', { p_code: code, p_name: name });
+      fail(error);
+      const row = data as MemberRow;
+      return { id: row.id, name: row.name, role: row.role, tint: row.tint, joined: row.joined };
+    },
+
+    async savePushToken(_code, meId, token) {
+      await signedIn();
+      const { error } = await db.rpc('save_push_token', { p_member: meId, p_token: token });
+      fail(error);
+    },
+
+    async notifyFamily(_code, event) {
+      // Best effort: a meal is saved whether or not the family hears about it right away.
+      try {
+        await signedIn();
+        await db.functions.invoke('notify-family', { body: event.kind === 'meal' ? { meal_id: event.mealId } : { cheer_id: event.cheerId } });
+      } catch {
+        // ignore
+      }
     },
 
     async joinFamily({ code, name, role }) {
@@ -163,7 +189,7 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
       const [mealRows, cheerRows, recipeRows] = await Promise.all([
         db
           .from('meals')
-          .select('id, member_id, eaten_at, slot, photo_url, handfuls, protein, veg, dish, parts, note, voice_url, with_ids, with_others, party, grain, same_as, hearts(member_id)')
+          .select('id, member_id, eaten_at, slot, photo_url, handfuls, protein, veg, fruit, dairy, dish, parts, note, voice_url, with_ids, with_others, party, grain, same_as, hearts(member_id)')
           .eq('family_code', code)
           .gte('eaten_at', since)
           .order('eaten_at', { ascending: false }),
@@ -190,6 +216,8 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
         handfuls: m.handfuls,
         protein: m.protein,
         veg: m.veg,
+        fruit: m.fruit,
+        dairy: m.dairy,
         dish: m.dish,
         parts: m.parts,
         note: m.note,
@@ -242,6 +270,8 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
         handfuls: meal.handfuls,
         protein: meal.protein ?? null,
         veg: meal.veg ?? null,
+        fruit: meal.fruit ?? null,
+        dairy: meal.dairy ?? null,
         dish: meal.dish ?? null,
         parts: meal.parts ?? null,
         note: meal.note ?? null,

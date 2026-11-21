@@ -41,8 +41,21 @@ export const localBackend: Backend & { seedDemo(): Promise<Session>; clear(): Pr
 
   async inviteInfo() {
     // Without a server there is nothing to look up. The person types their own name.
-    return { parentName: null, fromName: null };
+    return { parentName: null, fromName: null, waiting: [] };
   },
+
+  async addPerson(_code, name) {
+    const family = await read<Family>(FAMILY);
+    if (!family) throw new Error('No family yet.');
+    const person: Member = { id: newId(), name, role: 'parent', tint: family.members.length % 4, joined: false };
+    family.members.push(person);
+    await write(FAMILY, family);
+    return person;
+  },
+
+  // On this phone only there is no one else to tell.
+  async savePushToken() {},
+  async notifyFamily() {},
 
   async joinFamily({ code, name, role }) {
     const me: Member = { id: newId(), name, role, tint: role === 'parent' ? 0 : 1, joined: true };
@@ -186,21 +199,21 @@ export const localBackend: Backend & { seedDemo(): Promise<Session>; clear(): Pr
     const now = new Date();
     const at = (back: number, hour: number, minute: number) =>
       new Date(now.getFullYear(), now.getMonth(), now.getDate() - back, hour, minute).toISOString();
-    type Dish = [string, number, number, number, Meal['parts']];
+    type Dish = [string, number, number, number, Meal['parts'], number?, number?];
     const dishes: Dish[] = [
-      ['Dal, rice and sabzi', 2, 1, 2, { grain: 40, veg: 40, protein: 10, other: 10 }],
+      ['Dal, rice and sabzi', 2, 1, 2, { grain: 40, veg: 40, protein: 10, other: 10 }, 0, 1],
       ['Chicken biryani', 3, 1, 0, { grain: 60, veg: 5, protein: 30, other: 5 }],
       ['Fish curry and rice', 2, 1, 1, { grain: 45, veg: 15, protein: 35, other: 5 }],
       ['Khichdi with salad', 2, 1, 2, { grain: 50, veg: 35, protein: 10, other: 5 }],
-      ['Roti, sabzi and dal', 1, 1, 2, { grain: 30, veg: 50, protein: 15, other: 5 }],
+      ['Roti, sabzi and dal', 1, 1, 2, { grain: 30, veg: 50, protein: 15, other: 5 }, 1, 1],
       ['Bhuna khichuri and egg', 3, 1, 1, { grain: 55, veg: 15, protein: 25, other: 5 }],
       ['Pasta with chicken and salad', 2, 1, 2, { grain: 40, veg: 35, protein: 20, other: 5 }],
-      ['Eggs on toast', 1, 1, 0, { grain: 45, veg: 0, protein: 45, other: 10 }],
+      ['Eggs on toast', 1, 1, 0, { grain: 45, veg: 0, protein: 45, other: 10 }, 1, 1],
     ];
     const meal = (who: Member, back: number, hour: number, slot: Meal['slot'], i: number, extra: Partial<Meal> = {}): Meal => {
-      const [dish, g, p, v, parts] = dishes[i % dishes.length];
+      const [dish, g, p, v, parts, fruit = 0, dairy = 0] = dishes[i % dishes.length];
       const grain = /Roti/.test(dish) ? 'Roti' : /Pasta/.test(dish) ? 'Pasta' : /toast/.test(dish) ? 'Bread' : 'Rice';
-      return { id: newId(), memberId: who.id, date: at(back, hour, (i * 7) % 60), slot, photo: null, handfuls: g, protein: p, veg: v, hearts: [], dish, parts, grain, ...extra };
+      return { id: newId(), memberId: who.id, date: at(back, hour, (i * 7) % 60), slot, photo: null, handfuls: g, protein: p, veg: v, fruit, dairy, hearts: [], dish, parts, grain, ...extra };
     };
     for (let back = 0; back <= 20; back++) {
       // Ammi: dinner almost every day, the streak runs back 12 days.
@@ -221,7 +234,16 @@ export const localBackend: Backend & { seedDemo(): Promise<Session>; clear(): Pr
       if (back === 4) meals.push(meal(ammi, back, 16, 'snack', 0, { dish: 'Chai and two biscuits', handfuls: 0, protein: 0, veg: 0, parts: null, note: 'With Shila Auntie', withOthers: 'Shila Auntie' }));
       if (back === 6) meals.push(meal(tanvir, back, 21, 'dinner', 1, { dish: 'Wedding dawat', party: true, handfuls: 3, protein: 2, veg: 0, note: "Rafi bhai's walima" }));
     }
+    // Comments on meals: a note sent on a meal shows under it.
+    const lastDinner = meals.find((m) => m.memberId === ammi.id && m.slot === 'dinner');
+    const comments: Cheer[] = lastDinner
+      ? [
+          { id: newId(), fromId: tanvir.id, toId: ammi.id, text: 'So much sabzi! Proud of you', date: new Date(new Date(lastDinner.date).getTime() + 20 * 60000).toISOString(), mealId: lastDinner.id },
+          { id: newId(), fromId: ammi.id, toId: tanvir.id, text: 'Your Abbu cooked it', date: new Date(new Date(lastDinner.date).getTime() + 35 * 60000).toISOString(), mealId: lastDinner.id },
+        ]
+      : [];
     const cheers: Cheer[] = [
+      ...comments,
       { id: newId(), fromId: nadia.id, toId: ammi.id, text: "You're doing great, Ammi! 12 days in a row.", date: at(0, 9, 5) },
       { id: newId(), fromId: tanvir.id, toId: ammi.id, text: 'That fish curry looked so good. Save me some?', date: at(1, 21, 0) },
       { id: newId(), fromId: ammi.id, toId: nadia.id, text: 'Eat properly, not just coffee!', date: at(2, 8, 30) },

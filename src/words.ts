@@ -58,7 +58,7 @@ export function roleName(role: Role): string {
 }
 
 /** "1 fist rice · 1 palm protein · 2 handfuls veg" */
-export function plateLine(meal: Pick<Meal, 'handfuls' | 'protein' | 'veg' | 'slot'> & { grain?: string | null }, fallback = 'rice'): string | null {
+export function plateLine(meal: Pick<Meal, 'handfuls' | 'protein' | 'veg' | 'slot'> & { grain?: string | null; fruit?: number | null; dairy?: number | null }, fallback = 'rice'): string | null {
   if (meal.slot === 'fasting') return null;
   const grain = meal.grain || fallback;
   const bits: string[] = [];
@@ -68,6 +68,10 @@ export function plateLine(meal: Pick<Meal, 'handfuls' | 'protein' | 'veg' | 'slo
   if (p !== null && p !== undefined && p > 0) bits.push(`${p >= 4 ? '4+' : p} ${p === 1 ? 'palm' : 'palms'} protein`);
   const v = meal.veg;
   if (v !== null && v !== undefined && v > 0) bits.push(`${v >= 4 ? '4+' : v} ${v === 1 ? 'handful' : 'handfuls'} veg`);
+  const f = meal.fruit;
+  if (f && f > 0) bits.push(`${f >= 4 ? '4+' : f} fruit`);
+  const d = meal.dairy;
+  if (d && d > 0) bits.push(`${d >= 4 ? '4+' : d} ${d === 1 ? 'cup' : 'cups'} dairy`);
   return bits.length ? bits.join(' · ') : null;
 }
 

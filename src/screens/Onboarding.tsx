@@ -5,11 +5,10 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { PlateCard } from '../food';
 import { useStore } from '../store';
 import { C } from '../theme';
-import { MY_REASONS, THEIR_REASONS } from '../learn';
-import { Btn, Chip, Puti, Row, T, TimeRow, Toggle } from '../ui';
+import { Btn, Puti, Row, T, TimeRow, Toggle } from '../ui';
 
-// Kept short on purpose. The widget tip comes later, after a meal or two; sharing photos to improve Amader lives in Settings.
-const STEPS = ['times', 'guess', 'remind', 'learn'] as const;
+// Kept short on purpose, and it ends by sharing the first plate. The widget tip comes later, after a meal or two.
+const STEPS = ['times', 'guess', 'remind'] as const;
 type Step = (typeof STEPS)[number];
 
 /**
@@ -23,12 +22,17 @@ export default function Onboarding() {
   const [refused, setRefused] = useState(false);
   const { prefs } = store;
   const step: Step = STEPS[i];
-  const next = () => (i < STEPS.length - 1 ? setI(i + 1) : store.setPrefs({ onboarded: true }));
+  const next = () => {
+    if (i < STEPS.length - 1) return setI(i + 1);
+    store.setPrefs({ onboarded: true });
+    // Straight to the first plate: the first share is what starts the family's loop.
+    store.setPendingAction({ kind: 'add' });
+  };
   // Reminders start on. The person sees both switches and can turn either off before going on.
   const [remindOn, setRemindOn] = useState(true);
   const [nudgeOn, setNudgeOn] = useState(true);
+  const [familyOn, setFamilyOn] = useState(true);
   const name = store.me?.name ?? '';
-  const [sent, setSent] = useState<string | null>(null);
 
   const remind = async (change: Parameters<typeof store.setReminders>[0]) => {
     const ok = await store.setReminders(change);
@@ -82,8 +86,8 @@ export default function Onboarding() {
   }
 
   if (step === 'remind') {
-    title = 'Want a little nudge?';
-    lead = 'A friendly "Did you eat?" after meals. Never more than four a day.';
+    title = 'Hear from the family?';
+    lead = 'Know when someone eats, and get a friendly "Did you eat?" after meals.';
     mood = 'happy';
     body = (
       <View style={{ backgroundColor: C.white, borderRadius: 20, padding: 14, gap: 4 }}>
@@ -100,6 +104,7 @@ export default function Onboarding() {
             </T>
           </View>
         </View>
+        <Toggle title="When family shares a meal" on={familyOn} onChange={setFamilyOn} />
         <Toggle title='"Did you eat?" after meals' on={remindOn} onChange={setRemindOn} />
         <Toggle title="Surprise snack checks" on={nudgeOn} onChange={setNudgeOn} />
         {refused ? (
@@ -111,9 +116,10 @@ export default function Onboarding() {
     );
     actions = (
       <Btn
-        label={remindOn || nudgeOn ? 'Turn on reminders' : 'Next'}
-        icon={remindOn || nudgeOn ? 'notifications' : undefined}
+        label={remindOn || nudgeOn || familyOn ? 'Turn on and share my first plate' : 'Share my first plate'}
+        icon="restaurant"
         onPress={async () => {
+          await store.setFamilyAlerts(familyOn);
           if (remindOn || nudgeOn) {
             const ok = await store.setReminders({ reminderOn: remindOn, nudgesOn: nudgeOn });
             if (!ok && Platform.OS !== 'web') {
@@ -126,43 +132,6 @@ export default function Onboarding() {
         }}
       />
     );
-  }
-
-  if (step === 'learn') {
-    // The reason is the motivation. Learn keeps it in front of them.
-    const cared = store.family?.members.find((m) => m.role === 'parent' && m.id !== store.me?.id);
-    if (store.me?.role === 'child' && cared) {
-      title = `Why do you need ${cared.name} healthy?`;
-      lead = `Pick one. ${cared.name} sees it on their Learn page.`;
-      mood = 'happy';
-      body = (
-        <Row gap={8} style={{ flexWrap: 'wrap' }}>
-          {THEIR_REASONS.map((r) => (
-            <Chip
-              key={r}
-              label={r}
-              on={sent === r}
-              onPress={() => {
-                setSent(r);
-                store.sendCheer(cared.id, r).catch(() => setSent(null));
-              }}
-            />
-          ))}
-        </Row>
-      );
-    } else {
-      title = 'What do you want to stay healthy for?';
-      lead = 'Pick one. It stays on your Learn page.';
-      mood = 'happy';
-      body = (
-        <Row gap={8} style={{ flexWrap: 'wrap' }}>
-          {MY_REASONS.map((r) => (
-            <Chip key={r} label={r} on={prefs.why === r} onPress={() => store.setPrefs({ why: r })} />
-          ))}
-        </Row>
-      );
-    }
-    actions = <Btn label="Let's eat" icon="restaurant" onPress={next} />;
   }
 
   return (
