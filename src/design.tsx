@@ -267,7 +267,7 @@ export function RoundTable({ seats, size, center }: { seats: Seat[]; size: numbe
   const ring = r - plate / 2 - 16;
   return (
     <View style={{ width: size, height: size, alignSelf: 'center' }}>
-      <View style={{ position: 'absolute', left: 0, top: 0, width: size, height: size, borderRadius: r, backgroundColor: K.table, borderWidth: 9, borderColor: K.tableRim, ...card, padding: 0 }} />
+      <View style={{ position: 'absolute', left: 0, top: 0, width: size, height: size, ...card, padding: 0, borderRadius: r, backgroundColor: K.table, borderWidth: 9, borderColor: K.tableRim }} />
       {center ? (
         <PopIn delay={80} style={{ position: 'absolute', left: r - 60, top: r - 26, width: 120, alignItems: 'center' }}>
           {center}
