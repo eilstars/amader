@@ -1,3 +1,4 @@
+import type { PlateItem } from './dishes';
 /**
  * 'parent' is the person the family looks after (shown as "cared for").
  * 'child' is anyone looking after them (shown as "caregiver"). The stored words stay
@@ -67,6 +68,8 @@ export interface Meal {
   grain?: string | null;
   /** Set when this person ate a meal someone else shared ("I ate this too"). Its photo is shown. */
   sameAs?: string | null;
+  /** The dishes on the plate, each in its own measure ("Rice, 2 fists"). The food group counts above come from these. */
+  items?: PlateItem[] | null;
 }
 
 /** Rough share of the plate, in percent. */
@@ -90,6 +93,8 @@ export interface Guess {
   dairy?: number | null;
   /** For a party plate: each thing on it. */
   items?: string[];
+  /** Each dish Mado sees, with its kind and amount in that kind's measure. */
+  dishes?: PlateItem[];
   /** True when this is canned sample data, not a real reading of the photo. */
   sample?: boolean;
 }
@@ -185,6 +190,8 @@ export type NewMeal = {
   party?: boolean;
   grain?: string;
   sameAs?: string | null;
+  /** The dishes, when the person logged them as dishes. */
+  items?: PlateItem[] | null;
 };
 
 export type NewRecipe = Omit<Recipe, 'id' | 'addedBy' | 'date' | 'photo' | 'voice'> & { photo: Photo | null; voice: Voice | null };

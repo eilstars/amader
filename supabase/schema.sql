@@ -67,6 +67,8 @@ alter table public.meals add column if not exists with_others text check (with_o
 alter table public.meals add column if not exists party boolean not null default false;
 -- Which grain was on the plate this time, and "I ate this too" for a meal shared by someone at the same table.
 alter table public.meals add column if not exists grain text check (grain is null or char_length(grain) <= 24);
+-- The dishes on the plate, each with its kind and amount: [{"name":"Dal","kind":"main","amount":1}]. At most 12, kept small.
+alter table public.meals add column if not exists items jsonb check (items is null or (jsonb_typeof(items) = 'array' and jsonb_array_length(items) <= 12 and pg_column_size(items) <= 4000));
 alter table public.meals add column if not exists same_as uuid references public.meals (id) on delete set null;
 -- The other food groups: pieces of fruit and cups of milk, yoghurt or lassi.
 alter table public.meals add column if not exists fruit int check (fruit between 0 and 4);

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { FadeUp } from '../motion';
 import { Modal, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../store';
@@ -77,15 +78,15 @@ export default function Main({ openCamera }: { openCamera: boolean }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.rice }}>
-      <View style={{ flex: 1 }}>
+      <FadeUp k={simple ? 'simple' : tab} style={{ flex: 1 }} distance={8}>
         {simple ? (
           <ParentHome onAdd={() => setOver('add')} onMe={() => setOver('me')} onMeal={setMealId} onPerson={person} onQuest={() => setOver('quest')} onMeds={() => setOver('meds')} />
         ) : tab === 'table' ? (
           <Home onAdd={() => setOver('add')} onMeal={setMealId} onPerson={person} onQuest={() => setOver('quest')} onRecap={() => setOver({ week: new Date().getDay() === 1 ? 1 : 0 })} />
         ) : (
-          <Us onMe={() => setOver('me')} onPerson={person} onPast={() => setOver('past')} onRecap={() => setOver({ week: 0 })} onRecipes={() => setOver('recipes')} />
+          <Us onMe={() => setOver('me')} onPerson={person} onPast={() => setOver('past')} onRecap={() => setOver({ week: 0 })} onRecipes={() => setOver('recipes')} onMeal={setMealId} />
         )}
-      </View>
+      </FadeUp>
 
       {simple ? null : (
         <View

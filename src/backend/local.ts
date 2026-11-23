@@ -1,3 +1,4 @@
+import { itemsFromLine } from '../dishes';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Backend, Cheer, Family, Meal, Member, Photo, Recipe, Session, Tick, Voice } from '../types';
 import { CODE_LENGTH, newId } from '../words';
@@ -136,10 +137,17 @@ export const localBackend: Backend & { seedDemo(): Promise<Session>; clear(): Pr
         protein: 2,
         veg: 1,
         items: ['Chicken biryani', 'Shami kabab', 'Raita', 'Salad', 'Firni'],
+        dishes: [
+          { name: 'Chicken biryani', kind: 'base', amount: 3 },
+          { name: 'Shami kabab', kind: 'main', amount: 1 },
+          { name: 'Raita', kind: 'side', amount: 0.5 },
+          { name: 'Salad', kind: 'side', amount: 1 },
+          { name: 'Firni', kind: 'sweet', amount: 1 },
+        ],
         sample: true,
       };
     }
-    return { dish: 'Dal, rice and sabzi', parts: { grain: 40, veg: 35, protein: 15, other: 10 }, amount: 2, protein: 1, veg: 1, sample: true };
+    return { dish: 'Dal, rice and sabzi', parts: { grain: 40, veg: 35, protein: 15, other: 10 }, amount: 2, protein: 1, veg: 1, dishes: [{ name: 'Rice', kind: 'base', amount: 2 }, { name: 'Dal', kind: 'main', amount: 1 }, { name: 'Sabzi', kind: 'side', amount: 1 }], sample: true };
   },
 
   async setHeart(mealId, memberId, on) {
@@ -233,7 +241,7 @@ export const localBackend: Backend & { seedDemo(): Promise<Session>; clear(): Pr
     const meal = (who: Member, back: number, hour: number, slot: Meal['slot'], i: number, extra: Partial<Meal> = {}): Meal => {
       const [dish, g, p, v, parts, fruit = 0, dairy = 0] = dishes[i % dishes.length];
       const grain = /Roti/.test(dish) ? 'Roti' : /Pasta/.test(dish) ? 'Pasta' : /toast/.test(dish) ? 'Bread' : 'Rice';
-      return { id: newId(), memberId: who.id, date: at(back, hour, (i * 7) % 60), slot, photo: null, handfuls: g, protein: p, veg: v, fruit, dairy, hearts: [], dish, parts, grain, ...extra };
+      return { id: newId(), memberId: who.id, date: at(back, hour, (i * 7) % 60), slot, photo: null, handfuls: g, protein: p, veg: v, fruit, dairy, hearts: [], dish, parts, grain, items: itemsFromLine(String(extra.dish ?? dish), { grains: g, protein: p, veg: v }), ...extra };
     };
     for (let back = 0; back <= 20; back++) {
       // Ammi: dinner almost every day, the streak runs back 12 days.

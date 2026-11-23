@@ -3,37 +3,45 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../store';
 import { C } from '../theme';
-import { Row, T, Toggle, field } from '../ui';
-import { BigButton, Icon, Mado, Pill, RoundIcon } from '../design';
+import { Row, T, field } from '../ui';
+import { BigButton, Dropdown, Icon, Mado, Pill, RoundIcon, S, card } from '../design';
 
-const CALLED = ['Mom', 'Dad', 'Ammi', 'Abbu', 'Grandma', 'Grandpa', 'Nani', 'Mama'];
+const RELATIONS = ['Mother', 'Father', 'Grandmother', 'Grandfather', 'Aunt', 'Uncle', 'Mother-in-law', 'Father-in-law', 'Other'];
+type Home = 'yes' | 'weekends' | 'no';
+type Person = { name: string; relation: string | null };
 
 /**
- * A caregiver sets the table, one question per screen. The person they look after
- * only ever enters a code and lands on the camera.
+ * A caregiver sets the table in two steps. Each person they look after is a name
+ * (what they call them at home) and a relation picked from a list. The person
+ * they look after only ever enters a code and lands on the camera.
  */
 export default function SetupFamily({ onBack }: { onBack: () => void }) {
   const store = useStore();
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState(0);
-  const [parentName, setParentName] = useState('');
-  // More than one person: both parents, or a parent and an in-law. The first gets the seat made with the family.
-  const [also, setAlso] = useState<string[]>([]);
+  const [people, setPeople] = useState<Person[]>([{ name: '', relation: null }]);
   const [myName, setMyName] = useState('');
-  // The main grain starts as rice; it can be changed on any meal or in Settings.
-  const food = 'Rice';
+  const [home, setHome] = useState<Home | null>(null);
   const [adult, setAdult] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const them = also.length ? [parentName.trim(), ...also].join(' and ') : parentName.trim() || 'them';
+  const named = people.filter((p) => p.name.trim());
+  const them = named.length ? named.map((p) => p.name.trim()).join(' and ') : 'them';
+  const set = (i: number, change: Partial<Person>) => setPeople(people.map((p, n) => (n === i ? { ...p, ...change } : p)));
 
   async function go() {
     setBusy(true);
     setError(null);
     try {
-      await store.createFamily({ myName: myName.trim(), parentName: parentName.trim(), goalFood: food, goalHandfuls: 2 });
-      for (const name of also.filter((n) => n !== parentName.trim())) await store.addPerson(name).catch(() => undefined);
+      store.setPrefs({
+        sameHome: home === 'yes',
+        homeWeekends: home === 'weekends',
+        relations: Object.fromEntries(named.map((p) => [p.name.trim(), p.relation ?? 'Other'])),
+      });
+      const [first, ...rest] = named;
+      await store.createFamily({ myName: myName.trim(), parentName: first.name.trim(), goalFood: 'Rice', goalHandfuls: 2 });
+      for (const p of rest) await store.addPerson(p.name.trim()).catch(() => undefined);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
       setBusy(false);
@@ -43,45 +51,69 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
   const screens = [
     {
       title: 'Who are you looking after?',
-      lead: 'What do you call them at home? Pick more than one if you look after both.',
+      lead: 'Use the name you call them at home.',
       body: (
-        <>
-          <TextInput value={parentName} onChangeText={setParentName} placeholder="Mom" placeholderTextColor="#9AA79F" style={field} autoCapitalize="words" maxLength={24} autoFocus />
-          <Row gap={8} style={{ flexWrap: 'wrap' }}>
-            {CALLED.map((n) => {
-              const on = parentName === n || also.includes(n);
-              return (
-                <Pill
-                  key={n}
-                  label={n}
-                  on={on}
-                  onPress={() => {
-                    if (parentName === n) {
-                      // Unpick the first: the next one picked moves up.
-                      setParentName(also[0] ?? '');
-                      setAlso(also.slice(1));
-                    } else if (also.includes(n)) setAlso(also.filter((x) => x !== n));
-                    else if (!parentName.trim()) setParentName(n);
-                    else if (also.length < 3) setAlso([...also, n]);
-                  }}
-                />
-              );
-            })}
-          </Row>
-        </>
+        <View style={{ gap: 12 }}>
+          {people.map((p, i) => (
+            <View key={i} style={[card, { padding: 14, gap: 10 }]}>
+              <Row style={{ justifyContent: 'space-between' }}>
+                <T w="bold" size={S.small} color={C.deep}>
+                  {people.length > 1 ? `Person ${i + 1}` : 'Their name'}
+                </T>
+                {people.length > 1 ? (
+                  <Pressable onPress={() => setPeople(people.filter((_, n) => n !== i))} accessibilityRole="button" accessibilityLabel={`Remove person ${i + 1}`} hitSlop={8}>
+                    <Icon name="close" size={18} color={C.muted} />
+                  </Pressable>
+                ) : null}
+              </Row>
+              <TextInput
+                value={p.name}
+                onChangeText={(t) => set(i, { name: t })}
+                placeholder="Ammi, Mom, Nani..."
+                placeholderTextColor="#9AA79F"
+                style={field}
+                autoCapitalize="words"
+                maxLength={24}
+                autoFocus={i === people.length - 1}
+                accessibilityLabel={`Name of person ${i + 1}`}
+              />
+              <Dropdown label={`Who is ${p.name.trim() || 'this'} to you?`} placeholder="They are my..." value={p.relation} options={RELATIONS} onChange={(r) => set(i, { relation: r })} />
+            </View>
+          ))}
+          {people.length < 4 ? (
+            <Pressable onPress={() => setPeople([...people, { name: '', relation: null }])} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, alignSelf: 'flex-start' }}>
+              <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: C.mint, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="plus" size={18} />
+              </View>
+              <T w="bold" size={S.body} color={C.deep}>
+                I look after someone else too
+              </T>
+            </Pressable>
+          ) : null}
+        </View>
       ),
-      ok: parentName.trim().length > 0,
+      ok: people.every((p) => p.name.trim() && p.relation),
     },
     {
-      title: `And what ${also.length ? "do" : "does"} ${them} call you?`,
+      title: `And what ${named.length > 1 ? 'do' : 'does'} ${them} call you?`,
       lead: 'Others who help can join later.',
       body: (
-        <>
+        <View style={{ gap: 14 }}>
           <TextInput value={myName} onChangeText={setMyName} placeholder="Your name" placeholderTextColor="#9AA79F" style={field} autoCapitalize="words" maxLength={24} autoFocus />
-          <View style={{ backgroundColor: C.white, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 8 }}>
-            <Toggle title={`I live with ${them}`} help="Then one photo can cover a meal you eat together." on={store.prefs.sameHome} onChange={(on) => store.setPrefs({ sameHome: on })} />
+          <View style={[card, { padding: 14, gap: 10 }]}>
+            <T w="bold" size={S.body}>
+              Do you live with {them}?
+            </T>
+            <T size={S.small} color={C.muted}>
+              On days you're home, one photo can cover a meal you eat together.
+            </T>
+            <Row gap={8} style={{ flexWrap: 'wrap' }}>
+              <Pill label="Yes" on={home === 'yes'} onPress={() => setHome('yes')} />
+              <Pill label="Weekends" on={home === 'weekends'} onPress={() => setHome('weekends')} />
+              <Pill label="No" on={home === 'no'} onPress={() => setHome('no')} />
+            </Row>
           </View>
-          <Pressable onPress={() => setAdult(!adult)} accessibilityRole="checkbox" accessibilityState={{ checked: adult }} style={{ marginTop: 4 }}>
+          <Pressable onPress={() => setAdult(!adult)} accessibilityRole="checkbox" accessibilityState={{ checked: adult }}>
             <Row gap={10}>
               <View style={{ width: 30, height: 30, borderRadius: 8, borderWidth: 1.5, borderColor: adult ? C.leaf : C.line, backgroundColor: adult ? C.leaf : C.white, alignItems: 'center', justifyContent: 'center' }}>
                 {adult ? <Icon name="check" size={18} color={C.white} /> : null}
@@ -89,9 +121,9 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
               <T>I'm 18 or older</T>
             </Row>
           </Pressable>
-        </>
+        </View>
       ),
-      ok: myName.trim().length > 0 && adult && !busy,
+      ok: myName.trim().length > 0 && home !== null && adult && !busy,
     },
   ];
   const screen = screens[step];

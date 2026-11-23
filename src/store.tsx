@@ -41,6 +41,10 @@ export interface Prefs {
   learnLog: { d: string; p: number }[];
   /** Lives in the same home as the person they look after, so they often eat the same meals. */
   sameHome: boolean;
+  /** Lives with them only at weekends, like a student who goes home on Saturday and Sunday. */
+  homeWeekends: boolean;
+  /** What each person looked after is to me (Mother, Father...), by their name. Kept on this phone. */
+  relations: Record<string, string>;
   /** What this person wants to stay healthy for, in their own words or a tapped choice. */
   why: string | null;
   /** Small things the person said they would try, from Learn. */
@@ -83,6 +87,8 @@ const DEFAULT_PREFS: Prefs = {
   learned: [],
   learnLog: [],
   sameHome: false,
+  homeWeekends: false,
+  relations: {},
   why: null,
   pledges: [],
   familyAlerts: true,
@@ -93,6 +99,13 @@ const DEFAULT_PREFS: Prefs = {
   wear: null,
   guessed: [],
 };
+
+/** Today is a day this person eats at home with the people they look after. */
+export function homeToday(p: Pick<Prefs, 'sameHome' | 'homeWeekends'>, now = new Date()): boolean {
+  if (p.sameHome) return true;
+  const d = now.getDay();
+  return !!p.homeWeekends && (d === 0 || d === 6);
+}
 
 function onBreak(p: Prefs, now = new Date()): boolean {
   return !!p.breakUntil && new Date(p.breakUntil).getTime() > now.getTime();
@@ -566,6 +579,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           party: !!input.party,
           grain: input.grain?.trim() || null,
           sameAs: input.sameAs ?? null,
+          items: input.items?.length ? input.items.slice(0, 12).map((i) => ({ name: i.name.trim().slice(0, 40), kind: i.kind, amount: Math.max(0, Math.min(6, i.amount)) })) : null,
         };
         const saved = await backendFor(session).addMeal(session.code, draft, input.photo, input.voice ?? null);
         setMeals((list) => newestFirst([saved, ...list.filter((m) => m.id !== saved.id)]));

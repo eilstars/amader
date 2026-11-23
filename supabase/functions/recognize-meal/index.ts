@@ -42,12 +42,22 @@ const Guess = z.object({
   fruit_pieces: z.number().describe("Whole fruits or fist-sized portions of cut fruit visible, whole number 0 to 4. Juice does not count."),
   dairy_cups: z.number().describe("Cups of milk, yoghurt, raita or lassi visible, whole number 0 to 4."),
   items: z.array(z.string()).describe("For a buffet or party plate, a short name for each separate food on it, at most 10. Empty for an ordinary plate."),
+  dishes: z
+    .array(
+      z.object({
+        name: z.string().describe('Everyday family name of one dish on the plate, like "Rice", "Masoor dal", "Aloo gobi", "Raita".'),
+        kind: z.enum(["base", "main", "side", "sweet", "drink"]).describe("base: rice, roti, bread, noodles, biryani. main: curry, dal, meat, fish, eggs, paneer. side: vegetables, sabzi, salad, raita. sweet: fruit or dessert. drink: chai, lassi, juice."),
+        amount: z.number().describe("How much, in this kind's measure: base in closed fists, main in small bowls (katori), side in open handfuls, sweet in pieces, drink in cups. Halves allowed, 0.5 to 4."),
+      }),
+    )
+    .describe("Each separate dish on the plate, at most 10."),
   confident: z.boolean().describe("False if the photo is too dark, blurry or far away to judge."),
 });
 
 const SYSTEM = `You look at a photo of a home meal and describe what is on the plate for a family meal-sharing app.
 Many of the families are South Asian, so expect dishes like biryani, khichdi, dal, sabzi, roti, paratha, curry, raita and mithai, and name them the way a family would.
-Estimate portions by food group: grains in closed fists (about half a cup each), protein in palms, vegetables in open handfuls, fruit in pieces, dairy in cups.
+List each dish the way a family would name it, with its kind and amount. Curries often hold dairy, dal or vegetables cooked in; name the dish, not its ingredients.
+Also estimate portions by food group: grains in closed fists (about half a cup each), protein in palms, vegetables in open handfuls, fruit in pieces, dairy in cups.
 If the user says it is a party or buffet plate, list each separate food in items.
 The four percentages describe the food you can see and should add up to about 100.
 Be honest about uncertainty: if you cannot tell, set confident to false rather than guessing.
@@ -129,6 +139,12 @@ Deno.serve(async (req) => {
         fruit: guess.confident ? Math.max(0, Math.min(4, Math.round(guess.fruit_pieces))) : null,
         dairy: guess.confident ? Math.max(0, Math.min(4, Math.round(guess.dairy_cups))) : null,
         items: guess.items.map((x) => x.trim().slice(0, 40)).filter(Boolean).slice(0, 10),
+        dishes: guess.confident
+          ? guess.dishes
+              .map((d) => ({ name: d.name.trim().slice(0, 40), kind: d.kind, amount: Math.max(0.5, Math.min(4, Math.round(d.amount * 2) / 2)) }))
+              .filter((d) => d.name)
+              .slice(0, 10)
+          : [],
         confident: guess.confident,
       },
     });

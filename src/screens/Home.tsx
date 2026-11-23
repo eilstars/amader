@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useStore } from '../store';
+import { homeToday, useStore } from '../store';
 import { C } from '../theme';
 import { Member } from '../types';
 import { T } from '../ui';
@@ -109,7 +109,7 @@ export default function Home({ onAdd, onMeal, onPerson, onQuest, onRecap }: { on
       empty: <Icon name="heart" size={22} color={C.heart} fill={nudged === m.id ? C.heart : 'none'} />,
       onPress: () => {
         setNudged(m.id);
-        if (!prefs.sameHome) sendOnWhatsApp(nudgeText(m.name, todaysPlate(meals, me.id) ? 'ask' : 'together', webUrl ?? ''));
+        if (!homeToday(prefs)) sendOnWhatsApp(nudgeText(m.name, todaysPlate(meals, me.id) ? 'ask' : 'together', webUrl ?? ''));
       },
       onFace: () => onPerson(m.id),
     };
@@ -159,26 +159,6 @@ export default function Home({ onAdd, onMeal, onPerson, onQuest, onRecap }: { on
       </View>
 
       <View style={{ paddingHorizontal: 20, gap: 12, marginTop: 16 }}>
-        {waiting.length ? (
-          <View style={card}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <View style={{ flexDirection: 'row' }}>
-                {waiting.slice(0, 3).map((m, i) => (
-                  <Face key={m.id} member={m} size={32} ring={C.white} style={i ? { marginLeft: -8 } : null} />
-                ))}
-              </View>
-              <T w="bold" size={S.body} style={{ flex: 1, lineHeight: 21 }}>
-                Send {waiting.map((m) => m.name).join(' and ')} {waiting.length > 1 ? 'their seats' : 'a seat'}
-              </T>
-            </View>
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-              {waiting.slice(0, 2).map((m) => (
-                <BigButton key={m.id} label={waiting.length > 1 ? m.name : 'WhatsApp'} icon="whatsapp" size={S.small} height={48} onPress={() => sendOnWhatsApp(store.inviteFor(m.name))} style={{ flex: 1 }} />
-              ))}
-            </View>
-          </View>
-        ) : null}
-
         {note && from ? (
           <View style={{ backgroundColor: C.pinkSoft, borderRadius: 20, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <Face member={from} size={30} ring={C.pinkSoft} />

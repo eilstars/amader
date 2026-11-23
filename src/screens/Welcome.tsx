@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Bob, FadeUp, PopIn } from '../motion';
 import { Image, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BigButton, Face, Icon, Mado, S } from '../design';
@@ -17,7 +18,11 @@ export default function Welcome({ onSetup, onJoin, onTeach }: { onSetup: () => v
   return (
     <ScrollView style={{ flex: 1, backgroundColor: C.rice }} contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom + 20 }}>
       <View style={{ backgroundColor: C.mint, borderBottomLeftRadius: 36, borderBottomRightRadius: 36, paddingTop: insets.top + 36, paddingBottom: 26, alignItems: 'center' }}>
-        <Image source={images.logo} style={{ width: logoW, height: logoW * (459 / 660) }} resizeMode="contain" accessibilityLabel="Amader" />
+        <PopIn from={0.8}>
+          <Bob amp={4} tilt={1.5} ms={2600}>
+            <Image source={images.logo} style={{ width: logoW, height: logoW * (459 / 660) }} resizeMode="contain" accessibilityLabel="Amader" />
+          </Bob>
+        </PopIn>
         <T w="medium" size={S.small} color={C.deep} style={{ marginTop: 6 }}>
           Amader means "ours"
         </T>
@@ -32,14 +37,14 @@ export default function Welcome({ onSetup, onJoin, onTeach }: { onSetup: () => v
         </View>
       </View>
 
-      <View style={{ paddingHorizontal: 24, paddingTop: 24, gap: 6, maxWidth: 480, width: '100%', alignSelf: 'center' }}>
+      <FadeUp delay={250} style={{ paddingHorizontal: 24, paddingTop: 24, gap: 6, maxWidth: 480, width: '100%', alignSelf: 'center' }}>
         <T w="bold" size={34} style={{ lineHeight: 40 }}>
           Did you eat?
         </T>
         <T size={S.body} color={C.muted}>
           Share your plate, see theirs, and eat the same food in the right amounts, together.
         </T>
-      </View>
+      </FadeUp>
 
       <View style={{ flex: 1, minHeight: 24 }} />
 
@@ -66,7 +71,7 @@ export default function Welcome({ onSetup, onJoin, onTeach }: { onSetup: () => v
           </Pressable>
           <Pressable onPress={onTeach} accessibilityRole="button" hitSlop={8}>
             <T w="bold" size={S.small} color={C.deep} style={{ textDecorationLine: 'underline' }}>
-              The idea in 10 seconds
+              Play: fix the plate
             </T>
           </Pressable>
         </View>

@@ -1,3 +1,4 @@
+import type { PlateItem } from '../dishes';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Backend, Cheer, Family, Guess, Meal, Member, Parts, Recipe, Role, Slot, Tick, Voice } from '../types';
@@ -26,6 +27,7 @@ type MealRow = {
   with_others: string | null;
   party: boolean | null;
   grain: string | null;
+  items: PlateItem[] | null;
   same_as: string | null;
   hearts: { member_id: string }[] | null;
 };
@@ -190,7 +192,7 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
       const [mealRows, cheerRows, recipeRows, tickRows] = await Promise.all([
         db
           .from('meals')
-          .select('id, member_id, eaten_at, slot, photo_url, handfuls, protein, veg, fruit, dairy, dish, parts, note, voice_url, with_ids, with_others, party, grain, same_as, hearts(member_id)')
+          .select('id, member_id, eaten_at, slot, photo_url, handfuls, protein, veg, fruit, dairy, dish, parts, note, voice_url, with_ids, with_others, party, grain, same_as, items, hearts(member_id)')
           .eq('family_code', code)
           .gte('eaten_at', since)
           .order('eaten_at', { ascending: false }),
@@ -230,6 +232,7 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
         withOthers: m.with_others,
         party: !!m.party,
         grain: m.grain,
+        items: Array.isArray(m.items) ? m.items : null,
         sameAs: m.same_as,
         hearts: (m.hearts ?? []).map((h) => h.member_id),
       }));
@@ -312,6 +315,7 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
         party: !!meal.party,
         grain: meal.grain ?? null,
         same_as: meal.sameAs ?? null,
+        items: meal.items?.length ? meal.items : null,
       });
       fail(error);
       return { ...meal, photo: photoPath ? (linkOf(photoPath) ?? photo?.uri ?? null) : null, voice: voicePath ? (linkOf(voicePath, VOICE) ?? voice?.uri ?? null) : null };

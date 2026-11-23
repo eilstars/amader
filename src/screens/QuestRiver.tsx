@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { PopIn } from '../motion';
 import { Modal, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SvgXml } from 'react-native-svg';
@@ -7,6 +8,8 @@ import { BigButton, Chip, Confetti, Faces, Icon, K, Mado, RoundIcon, S, Sheet, c
 import { sendOnWhatsApp } from '../nudge';
 import { QUESTS, dayKey, weekKey } from '../quests';
 import { useStore } from '../store';
+import { LESSONS, Lesson } from '../learn';
+import { recentSteps } from '../steps';
 import { C } from '../theme';
 import { Member } from '../types';
 import { T } from '../ui';
@@ -21,6 +24,10 @@ export default function QuestRiver({ onBack, onAdd, onCards }: { onBack: () => v
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [picking, setPicking] = useState(false);
+  // Ticking opens a small moment: what the phone counted, a yes, then a fact about why it matters.
+  const [ticking, setTicking] = useState(false);
+  const [steps, setSteps] = useState<number | null | undefined>(undefined);
+  const [fact, setFact] = useState<Lesson | null>(null);
   const q = store.quest;
   const family = store.family;
   if (!q || !family) return null;
@@ -62,9 +69,6 @@ export default function QuestRiver({ onBack, onAdd, onCards }: { onBack: () => v
             </T>
           </Pressable>
         </View>
-        <Pressable onPress={onCards} accessibilityRole="button" style={{ marginLeft: 18, marginTop: 10, alignSelf: 'flex-start' }}>
-          <Chip text="Why it matters: guess first" icon="book" />
-        </Pressable>
 
         <View style={{ width: W, height: H, alignSelf: 'center', marginTop: 8 }}>
           <SvgXml xml={xml} width={W} height={H} />
@@ -99,7 +103,7 @@ export default function QuestRiver({ onBack, onAdd, onCards }: { onBack: () => v
             const past = i < todayI;
             const done = people.length > 0;
             return (
-              <View key={i} style={{ position: 'absolute', left: x - 26, top: y - 26, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <PopIn key={i} delay={i * 110} style={{ position: 'absolute', left: x - 26, top: y - 26, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: done ? C.leaf : C.white, borderWidth: 4, borderColor: C.mint, alignItems: 'center', justifyContent: 'center' }}>
                   {done ? <Icon name="check" size={16} color={C.white} /> : null}
                   <T w="bold" size={12} color={done ? C.white : past ? C.muted : C.muted} style={{ lineHeight: 14 }}>
@@ -107,7 +111,7 @@ export default function QuestRiver({ onBack, onAdd, onCards }: { onBack: () => v
                   </T>
                 </View>
                 {people.length ? <Faces members={people} size={22} ring={C.mint} /> : null}
-              </View>
+              </PopIn>
             );
           })}
         </View>
@@ -115,11 +119,77 @@ export default function QuestRiver({ onBack, onAdd, onCards }: { onBack: () => v
 
       <View style={{ position: 'absolute', left: 18, right: 18, bottom: insets.bottom + 18 }}>
         {q.quest.how === 'tick' ? (
-          <BigButton label={store.tickedToday ? 'Ticked today. Thank you!' : q.quest.tickLabel ?? 'Done today'} icon="check" kind={store.tickedToday ? 'mint' : 'primary'} onPress={() => store.tickQuest(!store.tickedToday)} />
+          <BigButton
+            label={store.tickedToday ? 'Done today. Thank you!' : q.quest.tickLabel ?? 'Done today'}
+            icon="check"
+            kind={store.tickedToday ? 'mint' : 'primary'}
+            onPress={() => {
+              if (store.tickedToday) return store.tickQuest(false);
+              setSteps(undefined);
+              setTicking(true);
+              if (q.quest.id === 'walk') recentSteps().then(setSteps);
+            }}
+          />
         ) : (
           <BigButton label="Share a plate for it" icon="camera" onPress={onAdd} />
         )}
       </View>
+
+      <Sheet visible={ticking} onClose={() => (setTicking(false), setFact(null))} height={fact ? 420 : 380}>
+        <View style={{ padding: 20, paddingTop: 6, gap: 14, alignItems: 'center' }}>
+          {fact ? (
+            <>
+              <Mado mood="happy" width={88} />
+              <Chip text={`${q.done} of ${q.goal} together`} bg={C.leaf} color={C.white} />
+              <T w="bold" size={S.title} center>
+                Did you know?
+              </T>
+              <T size={S.body} center color={C.deep}>
+                {fact.why}
+              </T>
+              <BigButton label="Nice" onPress={() => (setTicking(false), setFact(null))} style={{ alignSelf: 'stretch' }} />
+            </>
+          ) : (
+            <>
+              <Icon name={q.quest.id === 'walk' ? 'walk' : 'check'} size={44} color={C.leaf} />
+              <T w="bold" size={S.title} center>
+                {q.quest.tickLabel ?? q.quest.goal}?
+              </T>
+              {q.quest.id === 'walk' ? (
+                <T size={S.small} center color={C.muted}>
+                  {steps === undefined
+                    ? 'Checking your steps...'
+                    : steps === null
+                      ? 'Your family sees your stone on the river light up.'
+                      : steps >= 500
+                        ? `Your phone counted ${steps.toLocaleString()} steps in the last 3 hours. Lovely!`
+                        : 'Your phone did not count many steps. A walk without your phone still counts.'}
+                </T>
+              ) : (
+                <T size={S.small} center color={C.muted}>
+                  Your family sees your stone on the river light up.
+                </T>
+              )}
+              <BigButton
+                label="Yes, I did it"
+                icon="check"
+                onPress={() => {
+                  store.tickQuest(true);
+                  const pool = LESSONS.filter((l) => q.quest.briefing.includes(l.id));
+                  setFact(pool.length ? pool[new Date().getDate() % pool.length] : null);
+                  if (!pool.length) setTicking(false);
+                }}
+                style={{ alignSelf: 'stretch' }}
+              />
+              <Pressable onPress={() => setTicking(false)} accessibilityRole="button" hitSlop={8}>
+                <T w="bold" size={S.small} color={C.muted}>
+                  Not yet
+                </T>
+              </Pressable>
+            </>
+          )}
+        </View>
+      </Sheet>
 
       <Sheet visible={picking} onClose={() => setPicking(false)} height="88%">
         <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 10, gap: 10 }}>
@@ -184,9 +254,11 @@ export function Celebration() {
         <Confetti points={[[8, 120, 20], [86, 140, -30], [18, 360, 50], [82, 380, 10], [28, 90, -60], [72, 90, 35], [8, 260, 80], [90, 280, -15], [50, 70, 15]]} />
         <View style={{ alignItems: 'center', gap: 14, flex: 1, justifyContent: 'center' }}>
           <Chip text={`${done} of ${progress.goal} together`} bg={C.leaf} color={C.white} />
-          <View style={{ width: 210, height: 210, borderRadius: 105, backgroundColor: C.white, alignItems: 'center', justifyContent: 'center', borderWidth: 14, borderColor: 'rgba(255,255,255,0.5)' }}>
-            <Mado mood="happy" width={150} costume={quest.costume} />
-          </View>
+          <PopIn delay={200} from={0.3}>
+            <View style={{ width: 210, height: 210, borderRadius: 105, backgroundColor: C.white, alignItems: 'center', justifyContent: 'center', borderWidth: 14, borderColor: 'rgba(255,255,255,0.5)' }}>
+              <Mado mood="happy" width={150} costume={quest.costume} />
+            </View>
+          </PopIn>
           <T w="bold" size={36} center style={{ lineHeight: 40 }}>
             {quest.name} done!
           </T>

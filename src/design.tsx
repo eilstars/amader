@@ -4,7 +4,8 @@
  * Pink is only for notes and hearts. Steel is only for plates. Mado is never cropped and never on dark ground.
  */
 import React from 'react';
-import { Image, Modal, Pressable, ScrollView, StyleProp, View, ViewStyle } from 'react-native';
+import { Animated, Image, Modal, Pressable, ScrollView, StyleProp, View, ViewStyle } from 'react-native';
+import { Bob, FadeUp, FallingBit, PopIn, Squish, useSlide } from './motion';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SvgXml } from 'react-native-svg';
 import { MadoDressed } from './costumes';
@@ -44,6 +45,7 @@ const ICONS = {
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',
   back: '<path d="M15 5l-7 7 7 7"/>',
   next: '<path d="M9 5l7 7-7 7"/>',
+  down: '<path d="M5 9l7 7 7-7"/>',
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
   check: '<path d="M4.5 12.5l5 5 10-11"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/>',
@@ -78,7 +80,7 @@ export function Icon({ name, size = 24, color = C.deep, fill = 'none' }: { name:
 }
 
 // ---------- food and plates: one drawing system ----------
-type FoodKind = 'rice' | 'roti' | 'bread' | 'dal' | 'curry' | 'veg' | 'fruit' | 'dairy' | 'egg';
+export type FoodKind = 'rice' | 'roti' | 'bread' | 'dal' | 'curry' | 'veg' | 'fruit' | 'dairy' | 'egg';
 const FOOD: Record<FoodKind, (x: number, y: number, r: number) => string> = {
   rice: (x, y, r) => {
     const pts: [number, number, number][] = [[-0.45, -0.2, 20], [0.1, -0.5, -30], [0.4, 0.05, 60], [-0.1, 0.35, 10], [-0.5, 0.3, -50], [0.2, 0.5, 30], [0.45, -0.35, -10]];
@@ -216,9 +218,11 @@ export function Faces({ members, size = 24, ring = C.rice }: { members: Member[]
 /** Mado comes in three sizes: 40, 88, 150. Always whole, on light ground, facing the goal. */
 export function Mado({ mood = 'hello', width = 88, flip, costume }: { mood?: 'hello' | 'happy' | 'sleep'; width?: number; flip?: boolean; costume?: string | null }) {
   return (
-    <View style={flip ? { transform: [{ scaleX: -1 }] } : null}>
-      <MadoDressed costume={costume} mood={mood} width={width} />
-    </View>
+    <Bob amp={Math.max(2, width * 0.04)} tilt={mood === 'sleep' ? 0 : 2} ms={mood === 'sleep' ? 3200 : 1900}>
+      <View style={flip ? { transform: [{ scaleX: -1 }] } : null}>
+        <MadoDressed costume={costume} mood={mood} width={width} />
+      </View>
+    </Bob>
   );
 }
 
@@ -228,14 +232,15 @@ export function River({ done, goal, width, goalArt }: { done: number; goal: numb
   const pct = Math.max(0, Math.min(1, goal ? done / goal : 0));
   const usable = width - 90;
   const px = 14 + usable * pct;
+  const left = useSlide(Math.max(0, px - 30), 1200);
   const path = `M14 52 C ${width * 0.22} 22, ${width * 0.36} 76, ${width * 0.57} 48 S ${width - 90} 30, ${width - 40} 44`;
   const xml = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="84" viewBox="0 0 ${width} 84"><path d="${path}" fill="none" stroke="${K.pale}" stroke-width="20" stroke-linecap="round"/><path d="${path}" fill="none" stroke="${C.lightGreen}" stroke-width="20" stroke-linecap="round" stroke-dasharray="${px + 10} 2000"/><path d="M${width * 0.11} 46 q 8 -5 16 0 M${width * 0.31} 56 q 8 -5 16 0 M${width * 0.71} 40 q 8 -5 16 0" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" opacity=".8"/></svg>`;
   return (
     <View style={{ width, height: 84 }}>
       <SvgXml xml={xml} width={width} height={84} />
-      <View style={{ position: 'absolute', left: Math.max(0, px - 30), top: 12 }} accessibilityLabel={`Mado, ${done} of ${goal}`}>
+      <Animated.View style={{ position: 'absolute', left, top: 12 }} accessibilityLabel={`Mado, ${done} of ${goal}`}>
         <Mado width={64} flip />
-      </View>
+      </Animated.View>
       <View style={{ position: 'absolute', right: 0, top: 16, width: 52, height: 52, borderRadius: 26, backgroundColor: C.white, borderWidth: 4, borderColor: K.pale, alignItems: 'center', justifyContent: 'center' }}>{goalArt}</View>
     </View>
   );
@@ -263,7 +268,11 @@ export function RoundTable({ seats, size, center }: { seats: Seat[]; size: numbe
   return (
     <View style={{ width: size, height: size, alignSelf: 'center' }}>
       <View style={{ position: 'absolute', left: 0, top: 0, width: size, height: size, borderRadius: r, backgroundColor: K.table, borderWidth: 9, borderColor: K.tableRim, ...card, padding: 0 }} />
-      {center ? <View style={{ position: 'absolute', left: r - 60, top: r - 26, width: 120, alignItems: 'center' }}>{center}</View> : null}
+      {center ? (
+        <PopIn delay={80} style={{ position: 'absolute', left: r - 60, top: r - 26, width: 120, alignItems: 'center' }}>
+          {center}
+        </PopIn>
+      ) : null}
       {seats.map((seat, i) => {
         // The last seat (me) goes at the bottom; the rest spread round from the top.
         const n = seats.length;
@@ -272,7 +281,8 @@ export function RoundTable({ seats, size, center }: { seats: Seat[]; size: numbe
         const cy = r + ring * Math.sin(angle) - 6;
         return (
           <View key={seat.member.id} style={{ position: 'absolute', left: cx - plate / 2, top: cy - plate / 2, width: plate, alignItems: 'center' }}>
-            <Pressable onPress={seat.onPress} disabled={!seat.onPress} accessibilityRole={seat.onPress ? 'button' : undefined} accessibilityLabel={`${seat.member.name}${seat.meal ? "'s plate" : ''}`}>
+            <PopIn delay={120 + i * 90} k={seat.meal?.id ?? 'empty'}>
+            <Squish onPress={seat.onPress} disabled={!seat.onPress} accessibilityRole={seat.onPress ? 'button' : undefined} accessibilityLabel={`${seat.member.name}${seat.meal ? "'s plate" : ''}`}>
               {seat.meal ? (
                 <View style={seat.glow ? { shadowColor: C.lightGreen, shadowOpacity: 0.9, shadowRadius: 10, shadowOffset: { width: 0, height: 0 }, borderRadius: plate / 2 } : null}>
                   <FoodPlate meal={seat.meal} size={plate} />
@@ -280,14 +290,17 @@ export function RoundTable({ seats, size, center }: { seats: Seat[]; size: numbe
               ) : (
                 <View style={{ width: plate, height: plate, borderRadius: plate / 2, backgroundColor: C.rice, borderWidth: 2.5, borderStyle: 'dashed', borderColor: seat.dim ? C.steel : C.lightGreen, alignItems: 'center', justifyContent: 'center' }}>{seat.empty}</View>
               )}
-            </Pressable>
+            </Squish>
+            </PopIn>
             <Pressable onPress={seat.onFace} disabled={!seat.onFace} style={{ position: 'absolute', left: -8, top: -6 }} accessibilityRole={seat.onFace ? 'button' : undefined} accessibilityLabel={seat.onFace ? `${seat.member.name}'s page` : undefined}>
               <Face member={seat.member} size={26} ring={K.table} />
             </Pressable>
             {seat.heart ? (
-              <View style={{ position: 'absolute', right: -8, top: -4, width: 26, height: 26, borderRadius: 13, backgroundColor: C.white, alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name="heart" size={15} color={C.heart} fill={C.heart} />
-              </View>
+              <PopIn delay={500 + i * 90} style={{ position: 'absolute', right: -8, top: -4 }}>
+                <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: C.white, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name="heart" size={15} color={C.heart} fill={C.heart} />
+                </View>
+              </PopIn>
             ) : null}
             <T w="bold" size={S.small} color={seat.dim ? C.muted : C.deep} numberOfLines={1} style={{ marginTop: 2, width: plate + 30, textAlign: 'center' }}>
               {seat.label ?? seat.member.name}
@@ -304,13 +317,13 @@ export function BigButton({ label, onPress, icon, kind = 'primary', disabled, he
   const bg = kind === 'primary' ? C.leaf : kind === 'mint' ? C.mint : kind === 'pink' ? C.pinkSoft : C.white;
   const fg = kind === 'primary' ? C.white : C.deep;
   return (
-    <Pressable
+    <Squish
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={({ pressed }) => [
-        { height, borderRadius: Math.min(28, height / 2.4), backgroundColor: bg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 16, opacity: disabled ? 0.45 : pressed ? 0.85 : 1 },
+      style={[
+        { height, borderRadius: Math.min(28, height / 2.4), backgroundColor: bg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 16, opacity: disabled ? 0.45 : 1 },
         kind === 'line' && { borderWidth: 1.5, borderColor: K.line2 },
         style,
       ]}
@@ -319,7 +332,7 @@ export function BigButton({ label, onPress, icon, kind = 'primary', disabled, he
       <T w="bold" size={size} color={fg}>
         {label}
       </T>
-    </Pressable>
+    </Squish>
   );
 }
 
@@ -405,7 +418,7 @@ export function Page({ title, sub, onBack, children, bg = C.rice, right, footer 
           </View>
           {right}
         </View>
-        {children}
+        <FadeUp delay={60}>{children}</FadeUp>
       </ScrollView>
       {footer ? <View style={{ position: 'absolute', left: 20, right: 20, bottom: insets.bottom + 20, gap: 10 }}>{footer}</View> : null}
     </View>
@@ -428,8 +441,49 @@ export function Confetti({ points }: { points: [number, number, number][] }) {
   return (
     <>
       {points.map(([x, y, r], i) => (
-        <View key={i} pointerEvents="none" style={{ position: 'absolute', left: `${x}%`, top: y, width: 14, height: 6, borderRadius: 3, backgroundColor: i % 2 ? C.lightGreen : C.leaf, transform: [{ rotate: `${r}deg` }] }} />
+        <FallingBit key={i} x={x} y={y} r={r} i={i} color={i % 2 ? C.lightGreen : C.leaf} />
       ))}
     </>
+  );
+}
+
+/** A drop down: shows the choice, opens a short list right under it. */
+export function Dropdown({ value, options, onChange, placeholder = 'Choose', label }: { value: string | null; options: string[]; onChange: (v: string) => void; placeholder?: string; label: string }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <View>
+      <Pressable
+        onPress={() => setOpen(!open)}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ expanded: open }}
+        style={{ height: 52, borderRadius: 16, borderWidth: 1.5, borderColor: open ? C.leaf : K.line2, backgroundColor: C.white, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center' }}
+      >
+        <T w={value ? 'bold' : 'medium'} size={S.body} color={value ? C.ink : C.muted} style={{ flex: 1 }}>
+          {value ?? placeholder}
+        </T>
+        <Icon name="down" size={20} color={C.deep} />
+      </Pressable>
+      {open ? (
+        <View style={[card, { padding: 6, marginTop: 6 }]}>
+          {options.map((o) => (
+            <Pressable
+              key={o}
+              onPress={() => {
+                onChange(o);
+                setOpen(false);
+              }}
+              accessibilityRole="button"
+              style={({ pressed }) => ({ paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12, flexDirection: 'row', alignItems: 'center', backgroundColor: o === value ? C.mint : pressed ? K.rice : 'transparent' })}
+            >
+              <T w={o === value ? 'bold' : 'medium'} size={S.body} style={{ flex: 1 }}>
+                {o}
+              </T>
+              {o === value ? <Icon name="check" size={18} color={C.leaf} /> : null}
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+    </View>
   );
 }

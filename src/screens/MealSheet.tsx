@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
+import { Beat } from '../motion';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { isBalanced } from '../game';
-import { BigButton, Chip, Face, FoodPlate, Icon, IconName, K, S, card } from '../design';
+import { BigButton, Chip, Face, FoodDot, FoodPlate, Icon, IconName, K, S, card } from '../design';
+import { DishList, dotFor } from './Dishes';
+import { PlateItem, amountText, grainOf, itemsFromLine, portionsOf } from '../dishes';
 import { useStore } from '../store';
 import { C, F } from '../theme';
 import { T } from '../ui';
@@ -43,7 +46,7 @@ export default function MealSheet({ mealId, onPerson, canComment = true }: { mea
   const [sending, setSending] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
-  const [mine, setMine] = useState({ grains: meal?.handfuls ?? 1, protein: meal?.protein ?? 1, veg: meal?.veg ?? 1 });
+  const [mine, setMine] = useState<PlateItem[]>(() => meal?.items?.length ? meal.items.map((i) => ({ ...i })) : meal?.dish ? itemsFromLine(meal.dish, { grains: meal.handfuls, protein: meal.protein, veg: meal.veg }) : []);
   const [joinBusy, setJoinBusy] = useState(false);
   if (!meal) return null;
 
@@ -86,9 +89,10 @@ export default function MealSheet({ mealId, onPerson, canComment = true }: { mea
       await store.addMeal({
         slot: meal!.slot,
         photo: null,
-        portions: { ...mine, fruit: 0, dairy: 0 },
+        portions: portionsOf(mine),
+        items: mine,
         sameAs: meal!.id,
-        grain: meal!.grain ?? undefined,
+        grain: grainOf(mine, meal!.grain ?? store.goalFood),
         withIds: [meal!.memberId, ...(meal!.withIds ?? []).filter((id) => id !== meId)],
         chosenBy: 'tap',
       });
@@ -114,7 +118,18 @@ export default function MealSheet({ mealId, onPerson, canComment = true }: { mea
             <T w="bold" size={S.title} style={{ lineHeight: 26 }}>
               {fasting ? 'Fasting today' : meal.dish || `${slotName(meal.slot)} plate`}
             </T>
-            {counts.length ? (
+            {meal.items?.length ? (
+              <View style={{ gap: 2 }}>
+                {meal.items.map((it, i) => (
+                  <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <FoodDot kind={dotFor(it)} size={18} />
+                    <T w="medium" size={S.small} color={C.deep} style={{ flexShrink: 1 }}>
+                      {it.name} · {amountText(it).toLowerCase()}
+                    </T>
+                  </View>
+                ))}
+              </View>
+            ) : counts.length ? (
               <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
                 {counts.map(([icon, n]) => (
                   <View key={icon} style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
@@ -152,14 +167,10 @@ export default function MealSheet({ mealId, onPerson, canComment = true }: { mea
                 Same food. Your own hands.
               </T>
               <T w="medium" size={S.small} color={C.deep}>
-                {who?.name}'s photo goes on your plate too. Just count yours.
+                {who?.name}'s photo goes on your plate too. Change the amounts to what you ate.
               </T>
             </View>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Stepper icon="fist" value={mine.grains} unit={`fist ${(meal.grain ?? store.goalFood).toLowerCase()}`} onChange={(n) => setMine({ ...mine, grains: n })} />
-              <Stepper icon="palm" value={mine.protein} unit="palm protein" onChange={(n) => setMine({ ...mine, protein: n })} />
-              <Stepper icon="handful" value={mine.veg} unit="handful veg" onChange={(n) => setMine({ ...mine, veg: n })} />
-            </View>
+            <DishList items={mine} onChange={setMine} />
             <BigButton label={joinBusy ? 'Saving...' : 'I ate this too'} icon="check" disabled={joinBusy} onPress={join} />
           </View>
         ) : null}
@@ -212,7 +223,9 @@ export default function MealSheet({ mealId, onPerson, canComment = true }: { mea
       <View style={{ paddingHorizontal: 20, paddingBottom: 12, gap: 8 }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           <Pressable onPress={() => store.toggleHeart(meal.id)} accessibilityRole="button" accessibilityLabel={hearted ? 'Take back heart' : 'Send a heart'} style={{ width: 56, height: 44, borderRadius: 22, backgroundColor: C.pinkSoft, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-            <Icon name="heart" size={22} color={C.heart} fill={hearted ? C.heart : 'none'} />
+            <Beat on={hearted}>
+              <Icon name="heart" size={22} color={C.heart} fill={hearted ? C.heart : 'none'} />
+            </Beat>
             {meal.hearts.length ? (
               <T w="bold" size={S.small} color="#8A2942">
                 {meal.hearts.length}

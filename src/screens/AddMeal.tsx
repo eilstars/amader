@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { DropIn, PopIn } from '../motion';
 import { ActivityIndicator, Image, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -6,14 +7,15 @@ import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { Hand, findHand } from '../hand';
 import { WidgetCard } from './Widget';
 import { UNLOCK } from './SimpleHome';
-import { Stepper } from './MealSheet';
+import { DishList, balanceHint } from './Dishes';
+import { PlateItem, dishLine, grainOf, itemsFromLine, portionsOf } from '../dishes';
 import { plateLine } from '../quests';
 import { wornCostume } from '../costumes';
-import { medKey, useStore } from '../store';
+import { homeToday, medKey, useStore } from '../store';
 import { MedSlot } from '../reminders';
 import { C, F } from '../theme';
 import { ChosenBy, Guess, Meal, Photo, Slot, Voice } from '../types';
-import { GOAL_FOODS, T } from '../ui';
+import { T } from '../ui';
 import { VoiceRecorder } from '../voice';
 import { badgesFor, isBalanced } from '../game';
 import HandMeasure from './HandMeasure';
@@ -30,11 +32,8 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<Step>('photo');
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [slot, setSlot] = useState<Slot>(slotAt(new Date(), store.prefs.times, ramadan));
-  const [grains, setGrains] = useState(store.goalHandfuls);
-  const [protein, setProtein] = useState(1);
-  const [veg, setVeg] = useState(1);
-  const [fruit, setFruit] = useState(0);
-  const [dairy, setDairy] = useState(0);
+  // The plate as dishes. Mado fills it from the photo; the person can change anything.
+  const [items, setItems] = useState<PlateItem[]>([]);
   const [medTaken, setMedTaken] = useState(false);
   const [party, setParty] = useState(false);
   const food = store.goalFood;
@@ -42,14 +41,11 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
   const others = (store.family?.members ?? []).filter((m) => m.id !== me?.id);
   // The grain last time, so someone who mostly eats naan does not have to pick it every meal.
   const lastGrain = store.meals.find((m) => m.memberId === me?.id && m.grain)?.grain ?? food;
-  const [grainName, setGrainName] = useState(lastGrain);
   // People who live together usually eat together, so they are tagged to start with. One tap removes them.
   const [withIds, setWithIds] = useState<string[]>(() =>
-    store.prefs.sameHome && slotAt(new Date(), store.prefs.times, ramadan) !== 'snack' ? others.filter((m) => m.joined).map((m) => m.id) : [],
+    homeToday(store.prefs) && slotAt(new Date(), store.prefs.times, ramadan) !== 'snack' ? others.filter((m) => m.joined).map((m) => m.id) : [],
   );
   const [more, setMore] = useState(false);
-  const [fixing, setFixing] = useState(false);
-  const [dishText, setDishText] = useState('');
   const [widgetLater, setWidgetLater] = useState(false);
   const [withOthers, setWithOthers] = useState('');
   const [text, setText] = useState('');
@@ -92,11 +88,8 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
       .then((found) => {
         setGuess(found);
         if (found && !touched.current) {
-          if (found.amount !== null && found.amount !== undefined) setGrains(found.amount);
-          if (found.protein !== null && found.protein !== undefined) setProtein(found.protein);
-          if (found.veg !== null && found.veg !== undefined) setVeg(found.veg);
-          if (found.fruit !== null && found.fruit !== undefined) setFruit(found.fruit);
-          if (found.dairy !== null && found.dairy !== undefined) setDairy(found.dairy);
+          const dishes = found.dishes?.length ? found.dishes : found.dish ? itemsFromLine(found.dish, { grains: found.amount, protein: found.protein, veg: found.veg }) : [];
+          if (dishes.length) setItems(dishes);
         }
       })
       .finally(() => setGuessing(false));
@@ -140,8 +133,8 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
 
   const fasting = slot === 'fasting';
   const snack = slot === 'snack';
-  const draft = { slot, handfuls: fasting ? null : grains, protein: fasting ? null : protein, veg: fasting ? null : veg };
-  const balanced = isBalanced(draft);
+  const totals = portionsOf(items);
+  const grainName = grainOf(items, lastGrain);
 
   // Medicine that goes with this meal, if the person turned that on and hasn't ticked it yet today.
   const asMed: MedSlot | null = slot === 'suhoor' ? 'breakfast' : slot === 'iftar' ? 'dinner' : slot === 'breakfast' || slot === 'lunch' || slot === 'dinner' ? slot : null;
@@ -156,10 +149,11 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
       const meal = await store.addMeal({
         slot: fastingDay ? 'fasting' : slot,
         photo: fastingDay ? null : photo,
-        portions: fastingDay ? null : { grains, protein, veg, fruit, dairy },
-        guess: photo && guess ? { ...guess, dish: dishText.trim() || guess.dish } : null,
+        portions: fastingDay ? null : totals,
+        items: fastingDay ? null : items,
+        guess: photo && guess ? { ...guess, dish: dishLine(items) || guess.dish } : items.length ? { dish: dishLine(items), parts: { grain: 0, veg: 0, protein: 0, other: 0 }, amount: null } : null,
         chosenBy,
-        note: [dishText.trim() && !guess ? dishText.trim() : '', text.trim()].filter(Boolean).join('. '),
+        note: text.trim(),
         voice,
         withIds,
         withOthers,
@@ -176,12 +170,13 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
     }
   }
 
-  const others3 = others.filter((m) => m.joined);
   const toggleWith = (id: string) => setWithIds((list) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]));
-  const count = (set: (n: number) => void) => (n: number) => {
+  const editItems = (next: PlateItem[]) => {
     touched.current = true;
-    set(n);
+    setItems(next);
   };
+  // Dishes this family often eats come first in the quick picks.
+  const recent = [...new Set(store.meals.flatMap((m) => (m.items ?? []).map((i) => i.name)))].slice(0, 8);
 
   if (step === 'photo') {
     return (
@@ -235,7 +230,6 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
               setPhoto(null);
               setGuess(null);
               setHand(null);
-              setFixing(true);
               setStep('details');
             }}
             disabled={busy}
@@ -259,7 +253,8 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
             onBack={() => setMeasuring(false)}
             onUse={(n) => {
               touched.current = true;
-              setGrains(n);
+              const at = items.findIndex((i) => i.kind === 'base');
+              setItems(at >= 0 ? items.map((x, i) => (i === at ? { ...x, amount: n } : x)) : [{ name: food, kind: 'base', amount: n }, ...items]);
               setByHand(true);
               setMeasuring(false);
             }}
@@ -267,7 +262,8 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
         </ScrollView>
       );
     }
-    const portions = { grains, protein, veg, fruit, dairy, grain: grainName };
+    const portions = { ...totals, grain: grainName };
+    const hint = snack || fasting ? null : balanceHint(items, totals);
     const askGuess = !!photo && store.cloud && !store.session?.demo && store.prefs.guessOn === null;
     return (
       <View style={{ flex: 1, backgroundColor: C.rice }}>
@@ -296,15 +292,8 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
               <View style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.white, borderRadius: 999, paddingLeft: 8, paddingRight: 8, paddingVertical: 4, maxWidth: '100%' }}>
                 <Mado width={40} />
                 <T w="bold" size={S.small} style={{ flexShrink: 1 }}>
-                  {guessing ? 'Mado is looking...' : `${guess?.sample ? 'Sample guess: ' : ''}${dishText || guess?.dish || 'A lovely plate'}?`}
+                  {guessing ? 'Mado is looking...' : `${guess?.sample ? 'Sample guess: ' : ''}${dishLine(items) || guess?.dish || 'A lovely plate'}${touched.current ? '' : '? Fix anything below.'}`}
                 </T>
-                {!guessing && !fixing ? (
-                  <Pressable onPress={() => setFixing(true)} accessibilityRole="button" hitSlop={6} style={{ backgroundColor: C.mint, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
-                    <T w="bold" size={S.small} color={C.deep}>
-                      Not quite
-                    </T>
-                  </Pressable>
-                ) : null}
               </View>
             ) : null}
           </View>
@@ -337,73 +326,27 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
               </View>
             ) : null}
 
-            {fixing ? (
-              <View style={{ gap: 12 }}>
-                <T w="bold" size={S.title}>
-                  What's on your plate?
-                </T>
-                <TextInput
-                  value={dishText}
-                  onChangeText={setDishText}
-                  placeholder="Dal, rice and sabzi"
-                  placeholderTextColor="#8A988F"
-                  maxLength={80}
-                  accessibilityLabel="What is on the plate"
-                  style={{ height: 52, borderRadius: 18, borderWidth: 1.5, borderColor: K.line2, backgroundColor: C.white, paddingHorizontal: 16, fontFamily: F.medium, fontSize: 17, color: C.ink }}
-                />
-                <View style={{ gap: 6 }}>
-                  <T w="bold" size={S.small} color={C.muted}>
-                    Grain
-                  </T>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                    {GOAL_FOODS.map((g) => (
-                      <Pill key={g} label={g} on={grainName === g} onPress={() => setGrainName(g)} food={g === 'Rice' ? 'rice' : g === 'Bread' ? 'bread' : g === 'Roti' || g === 'Naan' || g === 'Tortilla' ? 'roti' : undefined} />
-                    ))}
-                  </View>
-                </View>
-                <View style={{ gap: 6 }}>
-                  <T w="bold" size={S.small} color={C.muted}>
-                    Also on the plate
-                  </T>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                    <Pill label="Fruit" food="fruit" on={fruit > 0} onPress={() => count(setFruit)(fruit > 0 ? 0 : 1)} />
-                    <Pill label="Dairy" food="dairy" on={dairy > 0} onPress={() => count(setDairy)(dairy > 0 ? 0 : 1)} />
-                  </View>
-                </View>
-              </View>
-            ) : null}
-
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ gap: 10 }}>
               <T w="bold" size={S.title}>
-                Count with your hand
+                What's on your plate?
               </T>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                {slots.map((x) => (
+                  <Pill key={x} label={slotName(x)} on={slot === x} onPress={() => setSlot(x)} />
+                ))}
+              </ScrollView>
+              {guessing && !items.length ? (
+                <T w="medium" size={S.small} color={C.muted}>
+                  Mado is reading the dishes...
+                </T>
+              ) : null}
+              <DishList items={items} onChange={editItems} recent={recent} />
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-              {slots.map((x) => (
-                <Pill key={x} label={slotName(x)} on={slot === x} onPress={() => setSlot(x)} />
-              ))}
-            </ScrollView>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Stepper icon="fist" value={grains} unit={`${grains === 1 ? 'fist' : 'fists'} ${grainName.toLowerCase()}`} onChange={(n) => (setByHand(false), count(setGrains)(n))} />
-              <Stepper icon="palm" value={protein} unit={protein === 1 ? 'palm protein' : 'palms protein'} onChange={count(setProtein)} />
-              <Stepper icon="handful" value={veg} unit={veg === 1 ? 'handful veg' : 'handfuls veg'} onChange={count(setVeg)} />
-            </View>
-            {fruit > 0 || dairy > 0 ? (
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                {fruit > 0 ? <Stepper icon="apple" value={fruit} unit={fruit === 1 ? 'piece fruit' : 'pieces fruit'} onChange={count(setFruit)} /> : null}
-                {dairy > 0 ? <Stepper icon="cup" value={dairy} unit={dairy === 1 ? 'cup dairy' : 'cups dairy'} onChange={count(setDairy)} /> : null}
-              </View>
-            ) : !fixing ? (
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <Pill label="Fruit" icon="plus" on={false} onPress={() => count(setFruit)(1)} />
-                <Pill label="Dairy" icon="plus" on={false} onPress={() => count(setDairy)(1)} />
-              </View>
-            ) : null}
-            {!snack && !fasting ? (
+            {hint || (items.length && isBalanced({ slot, handfuls: totals.grains, protein: totals.protein, veg: totals.veg }) && !snack && !fasting) ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.mint, borderRadius: 18, padding: 12 }}>
-                <Icon name={balanced ? 'check' : 'handful'} size={22} color={C.leaf} />
+                <Icon name={hint ? 'handful' : 'check'} size={22} color={C.leaf} />
                 <T w="medium" size={S.small} color={C.deep} style={{ flex: 1 }}>
-                  {balanced ? 'Balanced plate!' : veg < Math.max(1, grains) ? 'One more handful of veg makes it balanced.' : 'A palm of protein makes it balanced.'}
+                  {hint ?? 'Balanced plate!'}
                 </T>
               </View>
             ) : null}
@@ -432,19 +375,42 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
               </Pressable>
             ) : null}
 
-            {others3.length ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, borderTopColor: K.line2, paddingTop: 14 }}>
-                <T w="bold" size={S.body} style={{ flex: 1 }}>
-                  Ate with
+            {others.length ? (
+              <View style={{ gap: 8, borderTopWidth: 1, borderTopColor: K.line2, paddingTop: 14 }}>
+                <T w="bold" size={S.body}>
+                  Who did you eat with?
                 </T>
-                {others3.map((m) => {
-                  const on = withIds.includes(m.id);
-                  return (
-                    <Pressable key={m.id} onPress={() => toggleWith(m.id)} accessibilityRole="checkbox" accessibilityState={{ checked: on }} accessibilityLabel={`Ate with ${m.name}`} style={{ borderRadius: 24, borderWidth: 3, borderColor: on ? C.leaf : 'transparent', opacity: on ? 1 : 0.55 }}>
-                      <Face member={m} size={36} />
-                    </Pressable>
-                  );
-                })}
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {others.map((m) => {
+                    const on = withIds.includes(m.id);
+                    return (
+                      <Pressable
+                        key={m.id}
+                        onPress={() => toggleWith(m.id)}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: on }}
+                        accessibilityLabel={`Ate with ${m.name}`}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 4, paddingRight: 12, height: 42, borderRadius: 21, backgroundColor: on ? C.mint : C.white, borderWidth: on ? 2 : 1.5, borderColor: on ? C.leaf : K.line2 }}
+                      >
+                        <Face member={m} size={32} ring={on ? C.mint : C.white} />
+                        <T w="bold" size={S.small} color={C.deep}>
+                          {m.name}
+                        </T>
+                        {on ? <Icon name="check" size={14} color={C.leaf} /> : null}
+                      </Pressable>
+                    );
+                  })}
+                  <Pressable
+                    onPress={() => setMore(true)}
+                    accessibilityRole="button"
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, height: 42, borderRadius: 21, backgroundColor: C.white, borderWidth: 1.5, borderColor: K.line2, borderStyle: 'dashed' }}
+                  >
+                    <Icon name="plus" size={16} />
+                    <T w="bold" size={S.small} color={C.deep}>
+                      Friends or guests
+                    </T>
+                  </Pressable>
+                </View>
               </View>
             ) : null}
             {withIds.length && photo ? (
@@ -469,7 +435,7 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
                 <TextInput
                   value={withOthers}
                   onChangeText={setWithOthers}
-                  placeholder="Anyone else at the table? (friends, Auntie)"
+                  placeholder="Friends or guests at the table (Shila Auntie)"
                   placeholderTextColor="#8A988F"
                   maxLength={80}
                   style={{ height: 52, borderRadius: 18, borderWidth: 1.5, borderColor: K.line2, backgroundColor: C.white, paddingHorizontal: 16, fontFamily: F.medium, fontSize: 17, color: C.ink }}
@@ -477,8 +443,7 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
               </>
             ) : (
               <View style={{ flexDirection: 'row', gap: 8 }}>
-                <Pill label="Voice note" icon="mic" on={false} onPress={() => setMore(true)} />
-                <Pill label="Someone else" icon="plus" on={false} onPress={() => setMore(true)} />
+                <Pill label="Add a voice note" icon="mic" on={false} onPress={() => setMore(true)} />
               </View>
             )}
             {note ? (
@@ -506,17 +471,19 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + 30, paddingBottom: insets.bottom + 110, paddingHorizontal: 20, alignItems: 'center', gap: 14 }}>
         <Confetti points={[[8, 120, 20], [86, 140, -30], [16, 300, 50], [84, 330, 10], [26, 70, -60], [70, 70, 35]]} />
         {saved && isBalanced(saved) ? <Chip text="Balanced plate" bg={C.leaf} color={C.white} /> : saved?.slot === 'fasting' ? <Chip text="Fasting day" icon="moon" /> : null}
-        <View style={{ width: 230, height: 250 }}>
+        <DropIn style={{ width: 230, height: 250 }}>
           <View style={{ position: 'absolute', left: 5, top: 0, width: 220, height: 220, borderRadius: 110, backgroundColor: K.table, borderWidth: 9, borderColor: K.tableRim, alignItems: 'center', justifyContent: 'center' }}>
             {saved ? <FoodPlate meal={saved} size={170} /> : null}
           </View>
           <View style={{ position: 'absolute', right: -40, bottom: -6 }}>
             <Mado mood="happy" width={150} flip costume={wornCostume(store.family?.costumes, store.prefs.wear)} />
           </View>
-        </View>
-        <T w="bold" size={36} center style={{ lineHeight: 40 }}>
-          {saved?.slot === 'fasting' ? 'Fasting day shared' : 'On the table!'}
-        </T>
+        </DropIn>
+        <PopIn delay={450}>
+          <T w="bold" size={36} center style={{ lineHeight: 40 }}>
+            {saved?.slot === 'fasting' ? 'Fasting day shared' : 'On the table!'}
+          </T>
+        </PopIn>
         {others.length ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Faces members={others.slice(0, 4)} size={28} ring={C.mint} />

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { FadeUp } from '../motion';
 import { Platform, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BigButton, Icon, IconName, Mado, S, card } from '../design';
@@ -61,31 +62,39 @@ export default function Onboarding() {
         </View>
 
         <View style={{ padding: 20, gap: 12, maxWidth: 480, width: '100%', alignSelf: 'center' }}>
-          <Question
-            icon="sun"
-            title="Gentle reminders?"
-            text={'A friendly "Did you eat?" after mealtimes, and a note when family shares a plate.'}
-            value={remind}
-            onChange={setRemind}
-          />
+          <FadeUp delay={120}>
           <Question
             icon="sparkle"
-            title="Can Mado guess your plate?"
-            text="Your photo is sent to an AI service (Claude, by Anthropic) to count the portions. No person at Amader looks at it. Say no and you tap the counts yourself."
+            title="Let Mado read your plate"
+            text="Snap and done. Mado names the dish and counts the portions for you, so sharing takes one tap."
+            fine="Your photo is sent to an AI service (Claude, by Anthropic). No person at Amader looks at it."
             value={guess}
             onChange={(v) => {
               setGuess(v);
               if (!v) setLearn(false);
             }}
           />
+          </FadeUp>
+          <FadeUp delay={240}>
           <Question
             icon="book"
-            title="Help Mado learn our food?"
-            text="Keep your photos and fixes so Mado gets better at dishes from home. Only with your yes, and you can stop any time."
+            title="Teach Mado your food"
+            text="Keep your plate photos so Mado learns the dishes from your kitchen. Your saved plates also fill the summary you can show your doctor."
+            fine="Only your own photos. You can stop and remove them any time in Settings."
             value={learn}
             onChange={setLearn}
-            locked={guess === false ? 'Only if Mado guesses your plate.' : undefined}
+            locked={guess === false ? 'Turn on Mado reading your plate first.' : undefined}
           />
+          </FadeUp>
+          <FadeUp delay={360}>
+          <Question
+            icon="sun"
+            title="Gentle reminders"
+            text={'A friendly "Did you eat?" after mealtimes, and a note when family shares a plate.'}
+            value={remind}
+            onChange={setRemind}
+          />
+          </FadeUp>
           {refused ? (
             <T size={S.small} color={C.deep}>
               Notifications are off for Amader on this phone. You can turn them on in your phone settings. Tap the button again to go on without them.
@@ -94,33 +103,16 @@ export default function Onboarding() {
         </View>
       </ScrollView>
 
-      <View style={{ position: 'absolute', left: 20, right: 20, bottom: insets.bottom + 16, maxWidth: 440, alignSelf: 'center', width: '100%' }}>
+      <View style={{ position: 'absolute', left: 20, right: 20, bottom: insets.bottom + 16 }}>
         <BigButton label={busy ? 'One moment...' : done ? 'Share my first plate' : 'Answer all three'} icon="camera" disabled={!done || busy} onPress={finish} />
       </View>
     </View>
   );
 }
 
-function Question({ icon, title, text, value, onChange, locked }: { icon: IconName; title: string; text: string; value: Answer; onChange: (v: boolean) => void; locked?: string }) {
-  const choice = (label: string, v: boolean) => {
-    const on = value === v;
-    return (
-      <Pressable
-        onPress={() => onChange(v)}
-        disabled={!!locked}
-        accessibilityRole="radio"
-        accessibilityState={{ checked: on, disabled: !!locked }}
-        style={{ flex: 1, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6, backgroundColor: on ? (v ? C.leaf : C.deep) : C.white, borderWidth: on ? 0 : 1.5, borderColor: '#D8E2DC' }}
-      >
-        {on ? <Icon name="check" size={16} color={C.white} /> : null}
-        <T w="bold" size={S.small + 1} color={on ? C.white : C.deep}>
-          {label}
-        </T>
-      </Pressable>
-    );
-  };
+function Question({ icon, title, text, fine, value, onChange, locked }: { icon: IconName; title: string; text: string; fine?: string; value: Answer; onChange: (v: boolean) => void; locked?: string }) {
   return (
-    <View style={[card, { padding: 14, gap: 10, opacity: locked ? 0.55 : 1 }]}>
+    <View style={[card, { padding: 14, gap: 10, opacity: locked ? 0.55 : 1 }, value === true && { borderWidth: 2, borderColor: C.leaf }]}>
       <View style={{ flexDirection: 'row', gap: 12 }}>
         <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.mint, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name={icon} size={22} />
@@ -129,15 +121,42 @@ function Question({ icon, title, text, value, onChange, locked }: { icon: IconNa
           <T w="bold" size={S.body} style={{ lineHeight: 21 }}>
             {title}
           </T>
-          <T size={S.small} color={C.muted}>
+          <T size={S.small} color={C.deep}>
             {locked ?? text}
           </T>
+          {fine && !locked ? (
+            <T size={12} color={C.muted}>
+              {fine}
+            </T>
+          ) : null}
         </View>
       </View>
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        {choice('Yes', true)}
-        {choice('No thanks', false)}
-      </View>
+      {locked ? null : value === null ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <Pressable onPress={() => onChange(true)} accessibilityRole="button" accessibilityLabel={`Yes: ${title}`} style={({ pressed }) => ({ flex: 1, height: 48, borderRadius: 24, backgroundColor: C.leaf, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.85 : 1 })}>
+            <T w="bold" size={S.body} color={C.white}>
+              Yes, please
+            </T>
+          </Pressable>
+          <Pressable onPress={() => onChange(false)} accessibilityRole="button" accessibilityLabel={`Skip: ${title}`} hitSlop={10}>
+            <T w="medium" size={S.small} color={C.muted}>
+              Skip
+            </T>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          {value ? <Icon name="check" size={18} color={C.leaf} /> : null}
+          <T w="bold" size={S.small} color={value ? C.leaf : C.muted} style={{ flex: 1 }}>
+            {value ? 'On' : 'Skipped'}
+          </T>
+          <Pressable onPress={() => onChange(!value)} accessibilityRole="button" hitSlop={10}>
+            <T w="bold" size={S.small} color={C.deep} style={{ textDecorationLine: 'underline' }}>
+              {value ? 'Undo' : 'Turn on'}
+            </T>
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }

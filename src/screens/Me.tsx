@@ -162,7 +162,15 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
           <TimeRow icon="partly-sunny-outline" label="Lunch" hour={prefs.times.lunch} min={11} max={16} onChange={(h) => remind({ times: { ...prefs.times, lunch: h } })} />
           <TimeRow icon="moon-outline" label="Dinner" hour={prefs.times.dinner} min={17} max={23} onChange={(h) => remind({ times: { ...prefs.times, dinner: h } })} />
           <View style={{ height: 1, backgroundColor: '#EDF0EA', marginVertical: 4 }} />
-          <Toggle title="We live together" help="One photo can cover a meal you eat together." on={prefs.sameHome} onChange={(on) => store.setPrefs({ sameHome: on })} />
+          <T w="semibold">Do you live together?</T>
+          <T size={14} color={C.muted}>
+            On days you're home, one photo can cover a meal you eat together.
+          </T>
+          <Row gap={8} style={{ flexWrap: 'wrap' }}>
+            <Pill label="Yes" on={prefs.sameHome} onPress={() => store.setPrefs({ sameHome: true, homeWeekends: false })} />
+            <Pill label="Weekends" on={!prefs.sameHome && prefs.homeWeekends} onPress={() => store.setPrefs({ sameHome: false, homeWeekends: true })} />
+            <Pill label="No" on={!prefs.sameHome && !prefs.homeWeekends} onPress={() => store.setPrefs({ sameHome: false, homeWeekends: false })} />
+          </Row>
         </View>
 
         <Eyebrow>Fasting</Eyebrow>
@@ -339,7 +347,7 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
         <Eyebrow>More</Eyebrow>
         <View style={[section, { gap: 10 }]}>
           <Btn kind="ghost" icon="document-text-outline" label="Meal summary PDF for the doctor" onPress={onCheckup} />
-          <Btn kind="ghost" icon="hand-left-outline" label="Drag the rice: the idea in ten seconds" onPress={onTeach} />
+          <Btn kind="ghost" icon="hand-left-outline" label="Fix the plate: a quick game" onPress={onTeach} />
           {confirming ? (
             <View style={{ gap: 8 }}>
               <T>{store.session?.demo ? 'Leave the sample family?' : 'This removes your meals, notes, recipes and photos for good. Your family will no longer see them.'}</T>

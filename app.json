@@ -53,6 +53,12 @@
         }
       ],
       [
+        "expo-sensors",
+        {
+          "motionPermission": "Amader counts your steps after a meal so you can see your walk for the family quest. The steps stay on your phone."
+        }
+      ],
+      [
         "expo-notifications",
         {
           "color": "#1F7A5A"
