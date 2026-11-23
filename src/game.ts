@@ -3,8 +3,9 @@ import { daysBetween, startOfDay } from './words';
 
 /**
  * Rewards. The health payoff of eating well comes years later, so every share has to feel
- * good today: points right away, a streak that grows, badges, and a family board where
- * everyone is best at something. Nobody is ever last on it.
+ * good today. The family quest (quests.ts) is the one counter people see. Here: a personal streak,
+ * badges, and a family board where everyone is best at something. Points are only used inside
+ * the board to break ties; nobody sees them.
  */
 
 export const POINTS = {
@@ -91,11 +92,11 @@ export function streakGoal(streak: number): number {
 
 /** What reaching the next streak goal gives. A reward has to beat the effort, so each one is concrete. */
 export function streakReward(goal: number): string {
-  if (goal <= 3) return 'the First Bite badge and 30 bonus points';
-  if (goal <= 7) return 'the One Week badge, 70 bonus points and a rest day that keeps your streak';
-  if (goal <= 14) return 'the Two Weeks badge and a new plate colour';
-  if (goal <= 30) return 'the Month at the Table badge and a family celebration card';
-  return `the ${goal} Days badge`;
+  if (goal <= 3) return 'the Three in a Row badge';
+  if (goal <= 7) return 'the One Week badge';
+  if (goal <= 14) return 'the Two Weeks badge';
+  if (goal <= 30) return 'the Month at the Table badge';
+  return 'a new best streak';
 }
 
 export interface Score {
@@ -128,7 +129,8 @@ export function scores(family: Family, meals: Meal[], cheers: Cheer[], from: Dat
       together: mine.filter((m) => (m.withIds?.length ?? 0) > 0 || !!m.withOthers).length,
       cheersSent,
       heartsSent,
-      streak: streakOf(meals, member.id, to),
+      // A week that hasn't ended yet counts the streak up to now, not up to Sunday.
+      streak: streakOf(meals, member.id, to.getTime() > Date.now() ? new Date() : to),
     };
   });
 }
@@ -167,6 +169,7 @@ export function badgesFor(memberId: string, meals: Meal[], cheers: Cheer[], reci
   if (shared >= 1) list.push({ id: 'first', title: 'First Bite', how: 'Shared a first meal', icon: 'restaurant' });
   if (best >= 3) list.push({ id: 's3', title: 'Three in a Row', how: '3 days in a row', icon: 'flame' });
   if (best >= 7) list.push({ id: 's7', title: 'One Week', how: '7 days in a row', icon: 'flame' });
+  if (best >= 14) list.push({ id: 's14', title: 'Two Weeks', how: '14 days in a row', icon: 'flame' });
   if (best >= 30) list.push({ id: 's30', title: 'Month at the Table', how: '30 days in a row', icon: 'trophy' });
   if (mine.filter(isBalanced).length >= 5) list.push({ id: 'bal5', title: 'Half Veggies', how: '5 balanced plates', icon: 'leaf' });
   if (mine.filter((m) => (m.withIds?.length ?? 0) > 0 || m.withOthers).length >= 3) list.push({ id: 'tog3', title: 'Shared Table', how: '3 meals eaten together', icon: 'people' });

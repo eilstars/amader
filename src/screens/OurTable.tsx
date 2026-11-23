@@ -7,12 +7,11 @@ import { C } from '../theme';
 import { Meal, Member } from '../types';
 import { webUrl } from '../backend';
 import { nudgeText, sendOnWhatsApp } from '../nudge';
-import { POINTS, familyStreak, learnPointsSince, pointsFor, streakOf } from '../game';
+import { streakOf } from '../game';
 import { Avatar, Btn, Chip, Puti, PutiSays, Row, T, WeekStrip } from '../ui';
 import { dayCounts, dayHeading, greeting, inWeek, sameDay, spacedCode, startOfDay, weekDays, weekLabel } from '../words';
 import MealCard from './MealCard';
 import MedsCard from './Meds';
-import { QuestCard } from './Quest';
 
 type Filter = { kind: 'all' } | { kind: 'person'; id: string } | { kind: 'together' };
 
@@ -20,7 +19,7 @@ type Filter = { kind: 'all' } | { kind: 'person'; id: string } | { kind: 'togeth
  * The family table. Kept light on purpose: who has eaten today, one thing to do, and the week's plates.
  * Everything else lives one tap away, on a person's page or in Recap.
  */
-export default function OurTable({ onAdd, onMe, onPerson, onQuests }: { onAdd: () => void; onMe: () => void; onPerson: (id: string) => void; onQuests?: () => void }) {
+export default function OurTable({ onAdd, onMe, onPerson }: { onAdd: () => void; onMe: () => void; onPerson: (id: string) => void; onQuests?: () => void }) {
   const store = useStore();
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
@@ -38,9 +37,6 @@ export default function OurTable({ onAdd, onMe, onPerson, onQuests }: { onAdd: (
   const waiting = family.members.filter((m) => !m.joined);
   const myStreak = streakOf(meals, me.id);
   const joined = family.members.filter((m) => m.joined);
-  const familyDays = familyStreak(meals, joined.map((m) => m.id));
-  const weekStart = weekDays(0)[0];
-  const myPoints = meals.filter((m) => m.memberId === me.id && new Date(m.date) >= weekStart).reduce((sum, m) => sum + pointsFor(m), 0) + learnPointsSince(prefs.learnLog, weekStart);
 
   // The newest note to me from the last few days, if any.
   const note = cheers.find((c) => c.toId === me.id && !c.mealId && today.getTime() - new Date(c.date).getTime() < 4 * 86_400_000);
@@ -89,16 +85,6 @@ export default function OurTable({ onAdd, onMe, onPerson, onQuests }: { onAdd: (
               Our Table
             </T>
           </View>
-          <Pressable onPress={() => onPerson(me.id)} accessibilityRole="button" accessibilityLabel={`My progress: ${myStreak} day streak, ${myPoints} points this week`} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.white, borderRadius: 999, paddingHorizontal: 12, height: 44, marginRight: 8 }}>
-            <Ionicons name="flame" size={18} color={C.heart} />
-            <T w="bold" size={16}>
-              {myStreak}
-            </T>
-            <Ionicons name="star" size={17} color={C.leaf} style={{ marginLeft: 4 }} />
-            <T w="bold" size={16}>
-              {myPoints}
-            </T>
-          </Pressable>
           <Pressable onPress={onMe} accessibilityRole="button" accessibilityLabel="Settings" style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: C.white, alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="settings-outline" size={22} color={C.deep} />
           </Pressable>
@@ -108,18 +94,26 @@ export default function OurTable({ onAdd, onMe, onPerson, onQuests }: { onAdd: (
             <Seat key={m.id} member={m} you={m.id === me.id} count={todaysOf(m.id).length} streak={streakOf(meals, m.id)} onPress={() => onPerson(m.id)} />
           ))}
         </ScrollView>
-        {joined.length > 1 ? (
-          <Row gap={8}>
-            <Ionicons name="people" size={18} color={C.deep} />
-            <T w="semibold" size={15} color={C.deep} style={{ flex: 1 }}>
-              {familyDays > 0 ? `Family streak: ${familyDays} day${familyDays === 1 ? '' : 's'} everyone shared` : 'Family streak starts when everyone shares today'}
-            </T>
-          </Row>
-        ) : null}
       </View>
 
       <View style={{ padding: 16, gap: 12 }}>
         {store.news ? <NewsCard /> : null}
+
+        {waiting.length > 0 && !store.session?.demo ? (
+          <View style={{ backgroundColor: C.white, borderRadius: 18, padding: 14, gap: 8, borderWidth: joined.length < 2 ? 2 : 1, borderColor: joined.length < 2 ? C.leaf : '#E6EBE6' }}>
+            {joined.length < 2 ? (
+              <T w="bold" size={19}>
+                Invite your family first
+              </T>
+            ) : null}
+            <T w={joined.length < 2 ? 'regular' : 'semibold'} color={joined.length < 2 ? C.muted : C.ink}>
+              {joined.length < 2 ? `The family quest starts when someone joins. Family code ${spacedCode(family.code)}` : `Family code ${spacedCode(family.code)}`}
+            </T>
+            {waiting.map((w) => (
+              <Btn key={w.id} icon="logo-whatsapp" label={`Send ${w.name} the invite`} onPress={() => sendOnWhatsApp(store.inviteFor(w.name))} />
+            ))}
+          </View>
+        ) : null}
 
         {!iShared ? (
           <View style={{ backgroundColor: C.white, borderRadius: 22, padding: 14, gap: 10, borderWidth: 2, borderColor: C.leaf }}>
@@ -130,7 +124,7 @@ export default function OurTable({ onAdd, onMe, onPerson, onQuests }: { onAdd: (
                   Did you eat?
                 </T>
                 <T size={15} color={C.muted}>
-                  {prefs.sameHome ? 'Eating together? One photo covers the whole table.' : myStreak > 0 ? `Keep your ${myStreak} day streak going.` : `+${POINTS.meal + POINTS.photo} points for your first plate.`}
+                  {prefs.sameHome ? 'Eating together? One photo covers the whole table.' : myStreak > 0 ? `Keep your ${myStreak} day streak going.` : 'Your family sees it the moment you share.'}
                 </T>
               </View>
             </Row>
@@ -139,8 +133,6 @@ export default function OurTable({ onAdd, onMe, onPerson, onQuests }: { onAdd: (
         ) : null}
 
         <MedsCard />
-
-        <QuestCard onOpen={onQuests} />
 
         {note && from ? (
           <Pressable onPress={() => onPerson(me.id)} accessibilityRole="button">
@@ -177,14 +169,6 @@ export default function OurTable({ onAdd, onMe, onPerson, onQuests }: { onAdd: (
           </View>
         ) : null}
 
-        {waiting.length > 0 && !store.session?.demo ? (
-          <View style={{ backgroundColor: C.white, borderRadius: 18, padding: 14, gap: 8, borderWidth: 1, borderColor: '#E6EBE6' }}>
-            <T w="semibold">Family code {spacedCode(family.code)}</T>
-            {waiting.map((w) => (
-              <Btn key={w.id} icon="logo-whatsapp" label={`Send ${w.name} the invite`} onPress={() => sendOnWhatsApp(store.inviteFor(w.name))} />
-            ))}
-          </View>
-        ) : null}
 
         <View style={{ backgroundColor: C.white, borderRadius: 22, padding: 12, gap: 10, borderWidth: 1, borderColor: '#E6EBE6' }}>
           <WeekStrip

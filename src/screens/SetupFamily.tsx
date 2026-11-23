@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { C } from '../theme';
-import { Btn, Chip, GOAL_FOODS, Puti, RoundButton, Row, T, Toggle, field } from '../ui';
+import { Btn, Chip, Puti, RoundButton, Row, T, Toggle, field } from '../ui';
 
 const CALLED = ['Mom', 'Dad', 'Ammi', 'Abbu', 'Grandma', 'Grandpa', 'Nani', 'Mama'];
 
@@ -20,7 +20,8 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
   // More than one person: both parents, or a parent and an in-law. The first gets the seat made with the family.
   const [also, setAlso] = useState<string[]>([]);
   const [myName, setMyName] = useState('');
-  const [food, setFood] = useState('Rice');
+  // The main grain starts as rice; it can be changed on any meal or in Settings.
+  const food = 'Rice';
   const [adult, setAdult] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,21 +81,7 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
           <View style={{ backgroundColor: C.white, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 8 }}>
             <Toggle title={`I live with ${them}`} help="Then one photo can cover a meal you eat together." on={store.prefs.sameHome} onChange={(on) => store.setPrefs({ sameHome: on })} />
           </View>
-        </>
-      ),
-      ok: myName.trim().length > 0,
-    },
-    {
-      title: 'What fills most plates?',
-      lead: 'Counted in fists. You can change it on any meal.',
-      body: (
-        <>
-          <Row gap={8} style={{ flexWrap: 'wrap' }}>
-            {GOAL_FOODS.map((f) => (
-              <Chip key={f} label={f} on={food === f} onPress={() => setFood(f)} />
-            ))}
-          </Row>
-          <Pressable onPress={() => setAdult(!adult)} accessibilityRole="checkbox" accessibilityState={{ checked: adult }} style={{ marginTop: 12 }}>
+          <Pressable onPress={() => setAdult(!adult)} accessibilityRole="checkbox" accessibilityState={{ checked: adult }} style={{ marginTop: 4 }}>
             <Row gap={10}>
               <View style={{ width: 30, height: 30, borderRadius: 8, borderWidth: 1.5, borderColor: adult ? C.leaf : C.line, backgroundColor: adult ? C.leaf : C.white, alignItems: 'center', justifyContent: 'center' }}>
                 {adult ? <Ionicons name="checkmark" size={18} color={C.white} /> : null}
@@ -104,7 +91,7 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
           </Pressable>
         </>
       ),
-      ok: adult && !busy,
+      ok: myName.trim().length > 0 && adult && !busy,
     },
   ];
   const screen = screens[step];

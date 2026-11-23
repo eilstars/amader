@@ -141,7 +141,6 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
   const snack = slot === 'snack';
   const draft = { slot, handfuls: fasting ? null : grains, protein: fasting ? null : protein, veg: fasting ? null : veg };
   const balanced = isBalanced(draft);
-  const preview = pointsFor({ ...draft, id: '', memberId: '', date: '', photo: photo ? 'x' : null, hearts: [], withIds, withOthers: withOthers || null });
 
   // Medicine that goes with this meal, if the person turned that on and hasn't ticked it yet today.
   const asMed: MedSlot | null = slot === 'suhoor' ? 'breakfast' : slot === 'iftar' ? 'dinner' : slot === 'breakfast' || slot === 'lunch' || slot === 'dinner' ? slot : null;
@@ -187,11 +186,6 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
       <View style={{ flex: 1, backgroundColor: C.night, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 20, paddingHorizontal: 22 }}>
         <Row style={{ justifyContent: 'space-between' }}>
           {close}
-          <View style={{ backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6 }}>
-            <T w="semibold" size={14} color={C.white}>
-              Meal {store.myMealCount + 1} of {store.nextMilestone}
-            </T>
-          </View>
         </Row>
 
         <Row style={{ justifyContent: 'space-between', marginTop: 16 }}>
@@ -283,11 +277,6 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
           <T w="bold" size={24} style={{ flex: 1 }}>
             Your plate
           </T>
-          <View style={{ backgroundColor: C.mint, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 }}>
-            <T w="bold" size={15} color={C.deep}>
-              +{preview} points
-            </T>
-          </View>
         </Row>
 
         {/* The plate itself: the photo, or a drawing that changes as the portions change. */}
@@ -395,7 +384,7 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
             <Row gap={8} style={{ paddingHorizontal: 4 }}>
               <Ionicons name={balanced ? 'checkmark-circle' : 'bulb-outline'} size={20} color={C.leaf} />
               <T size={15} color={C.deep} style={{ flex: 1 }}>
-                {balanced ? 'Balanced plate! +10 bonus points.' : veg < Math.max(1, grains) ? 'One more handful of vegetables makes it balanced (+10).' : 'A palm of protein makes it balanced (+10).'}
+                {balanced ? 'Balanced plate!' : veg < Math.max(1, grains) ? 'One more handful of vegetables makes it balanced.' : 'A palm of protein makes it balanced.'}
               </T>
             </Row>
           ) : null}
@@ -481,7 +470,6 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
   const meId = me?.id ?? '';
   const streak = streakOf(store.meals, meId);
   const goal = streakGoal(streak);
-  const earned = saved ? pointsFor(saved) : 0;
   const badgesNow = badgesFor(meId, store.meals, store.cheers, store.recipes.filter((r) => r.addedBy === meId).length);
   const fresh = badgesNow.filter((b) => !badgesBefore.includes(b.id));
   const week = weekDays();
@@ -489,17 +477,7 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: C.rice }} contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom + 20 }}>
       <View style={{ backgroundColor: C.mint, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, paddingTop: insets.top + 24, paddingBottom: 24, alignItems: 'center', gap: 8, paddingHorizontal: 22 }}>
-        <Row gap={14}>
-          <PutiDressed costume={wornCostume(store.family?.costumes, store.prefs.wear)} mood="happy" width={96} />
-          <View style={{ width: 118, height: 118, borderRadius: 59, backgroundColor: C.white, borderWidth: 8, borderColor: C.leaf, alignItems: 'center', justifyContent: 'center' }}>
-            <T w="bold" size={34} color={C.deep} style={{ lineHeight: 38 }}>
-              +{earned}
-            </T>
-            <T size={13} color={C.muted}>
-              points
-            </T>
-          </View>
-        </Row>
+        <PutiDressed costume={wornCostume(store.family?.costumes, store.prefs.wear)} mood="happy" width={150} />
         <T w="bold" size={28} center>
           {saved?.slot === 'fasting' ? 'Fasting day shared' : `Lovely plate, ${me?.name ?? ''}!`}
         </T>
@@ -522,7 +500,7 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
       </View>
 
       <View style={{ padding: 20, gap: 14, flex: 1 }}>
-        {saved && store.quest && (!store.simple || store.daysShared >= UNLOCK.quest) ? (
+        {saved && store.quest && store.questLive && (!store.simple || store.daysShared >= UNLOCK.quest) ? (
           <View style={{ backgroundColor: C.white, borderRadius: 20, padding: 14, gap: 10, borderWidth: 2, borderColor: C.leaf }}>
             <Row gap={10}>
               <Ionicons name={store.quest.quest.icon as keyof typeof Ionicons.glyphMap} size={24} color={C.leaf} />
@@ -554,27 +532,6 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
             </View>
           </View>
         ))}
-
-        <View style={{ backgroundColor: C.white, borderRadius: 20, padding: 16, gap: 12 }}>
-          <Row style={{ justifyContent: 'space-between' }}>
-            <Eyebrow>Your week</Eyebrow>
-            <T size={14} color={C.muted}>
-              Next goal: {goal} days
-            </T>
-          </Row>
-          <Row style={{ justifyContent: 'space-between' }} gap={2}>
-            {week.map((day, i) => {
-              const that = mine.filter((m) => sameDay(new Date(m.date), day));
-              return <DayRing key={i} letter={DAY_LETTERS[i]} count={that.filter((m) => m.slot !== 'fasting').length} fasting={that.some((m) => m.slot === 'fasting')} today={sameDay(day, new Date())} />;
-            })}
-          </Row>
-          <View style={{ height: 10, borderRadius: 5, backgroundColor: C.soft, overflow: 'hidden' }}>
-            <View style={{ width: `${Math.min(100, (streak / goal) * 100)}%`, height: 10, borderRadius: 5, backgroundColor: C.leaf }} />
-          </View>
-          <T size={15} color={C.muted}>
-            {goal - streak} more {goal - streak === 1 ? 'day' : 'days'} to unlock {streakReward(goal)}.
-          </T>
-        </View>
 
         {/* Now and then, not every meal: the second plate, then every sixth, until it's added. */}
         {!store.prefs.widgetSeen && !widgetLater && (store.myMealCount === 2 || store.myMealCount % 6 === 0) ? (

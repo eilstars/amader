@@ -8,11 +8,11 @@ import { LEARN_NOTE, LESSONS } from '../learn';
 import { QUESTS, weekKey } from '../quests';
 import { CostumeArt, PutiDressed, costumeName, isCostume, wornCostume } from '../costumes';
 import { Avatar, Btn, Eyebrow, Row, T } from '../ui';
+import { familyStreak } from '../game';
+import { sendOnWhatsApp } from '../nudge';
 import { dayHeading } from '../words';
 import { Card } from './Learn';
 
-const GUESS_RIGHT = 5;
-const GUESS_PLAYED = 2;
 
 /** Ionicons by name, for quest icons kept as plain strings. */
 type Icon = keyof typeof Ionicons.glyphMap;
@@ -82,6 +82,55 @@ export function QuestCard({ onOpen, showPeople }: { onOpen?: () => void; showPeo
   );
 }
 
+/**
+ * The one counter, pinned at the top of every tab: Puti in the family's costume, this week's
+ * quest and how far the family got, and the family streak. Everyone in the family sees the same
+ * numbers, because they come from shared plates and ticks. Tap it for the quest.
+ */
+export function FamilyBar({ onOpen }: { onOpen: () => void }) {
+  const store = useStore();
+  const insets = useSafeAreaInsets();
+  const progress = store.quest;
+  if (!progress || !store.family || !store.questLive) return null;
+  const { quest, done, goal, finished } = progress;
+  const joined = store.family.members.filter((m) => m.joined).map((m) => m.id);
+  const streak = familyStreak(store.meals, joined);
+  return (
+    <Pressable
+      onPress={onOpen}
+      accessibilityRole="button"
+      accessibilityLabel={`${quest.name}: ${Math.min(done, goal)} of ${goal}. Family streak ${streak} days. Open quests.`}
+      style={{ backgroundColor: C.deep, paddingTop: insets.top + 8, paddingBottom: 10, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+    >
+      <PutiDressed costume={wornCostume(store.family.costumes, store.prefs.wear)} mood="happy" width={52} />
+      <View style={{ flex: 1, gap: 4 }}>
+        <Row style={{ justifyContent: 'space-between' }}>
+          <T w="bold" size={15} color={C.white} numberOfLines={1} style={{ flex: 1 }}>
+            {quest.name}
+          </T>
+          <T w="semibold" size={14} color="#C9E4D6">
+            {finished ? 'Done!' : `${done} of ${goal}`}
+          </T>
+        </Row>
+        <View style={{ height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.18)', overflow: 'hidden' }}>
+          <View style={{ width: `${Math.min(100, (done / goal) * 100)}%`, height: 8, borderRadius: 4, backgroundColor: C.lightGreen }} />
+        </View>
+      </View>
+      <View style={{ alignItems: 'center', minWidth: 44 }}>
+        <Row gap={3}>
+          <Ionicons name="flame" size={18} color={C.heart} />
+          <T w="bold" size={17} color={C.white}>
+            {streak}
+          </T>
+        </Row>
+        <T size={11} color="#C9E4D6">
+          together
+        </T>
+      </View>
+    </Pressable>
+  );
+}
+
 /** "I walked after a meal": one tap, once a day, and a second tap takes it back. */
 export function TickButton() {
   const store = useStore();
@@ -105,7 +154,7 @@ export function Celebration() {
   const store = useStore();
   const progress = store.quest;
   const key = progress ? `${weekKey()}:${progress.quest.id}` : '';
-  const show = !!progress?.finished && !store.prefs.celebrated.includes(key);
+  const show = store.questLive && !!progress?.finished && !store.prefs.celebrated.includes(key);
   if (!progress) return null;
   const { quest, done } = progress;
   const people = store.family?.members.filter((m) => (progress.byMember[m.id] ?? 0) > 0) ?? [];
@@ -163,8 +212,6 @@ export default function Quests({ onCards, onTeach }: { onCards: () => void; onTe
   const briefing = progress.quest.briefing.map((id) => LESSONS.find((l) => l.id === id)).filter((l) => !!l);
   const worn = wornCostume(family.costumes, store.prefs.wear);
 
-  const earn = (p: number, extra: Partial<typeof store.prefs> = {}) =>
-    store.setPrefs({ learnLog: [...store.prefs.learnLog, { d: new Date().toISOString(), p }].slice(-400), ...extra });
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }}>
@@ -180,12 +227,28 @@ export default function Quests({ onCards, onTeach }: { onCards: () => void; onTe
           </View>
           <PutiDressed costume={worn} mood="happy" width={110} />
         </Row>
-        <QuestCard showPeople />
-        <Pressable onPress={() => setPicking(!picking)} accessibilityRole="button" hitSlop={8}>
+        {!store.questLive ? (
+          <View style={{ backgroundColor: C.white, borderRadius: 22, padding: 14, gap: 10 }}>
+            <T w="bold" size={19}>
+              Quests start when your family joins
+            </T>
+            <T size={15} color={C.muted}>
+              A quest is a team goal for the week. Invite someone and you'll fill the bar together, and Puti earns a costume when you finish.
+            </T>
+            {family.members
+              .filter((m) => !m.joined)
+              .map((m) => (
+                <Btn key={m.id} icon="logo-whatsapp" label={`Send ${m.name} the invite`} onPress={() => sendOnWhatsApp(store.inviteFor(m.name))} />
+              ))}
+          </View>
+        ) : (
+          <QuestCard showPeople />
+        )}
+        {store.questLive ? <Pressable onPress={() => setPicking(!picking)} accessibilityRole="button" hitSlop={8}>
           <T w="semibold" size={15} color={C.deep} style={{ textDecorationLine: 'underline' }}>
             {picking ? 'Close' : 'Pick a different quest for this week'}
           </T>
-        </Pressable>
+        </Pressable> : null}
         {picking ? (
           <View style={{ gap: 8 }}>
             {QUESTS.map((q) => {
@@ -231,19 +294,17 @@ export default function Quests({ onCards, onTeach }: { onCards: () => void; onTe
             replay={store.prefs.learned.includes(lesson.id)}
             combo={0}
             pledged={store.prefs.pledges.includes(lesson.id)}
-            onAnswer={(right) => {
-              const replay = store.prefs.learned.includes(lesson.id);
-              const p = replay ? (right ? 2 : 0) : right ? 10 : 4;
-              earn(p, replay ? {} : { learned: [...store.prefs.learned, lesson.id] });
-              return p;
+            onAnswer={() => {
+              if (!store.prefs.learned.includes(lesson.id)) store.setPrefs({ learned: [...store.prefs.learned, lesson.id] });
+              return 0;
             }}
-            onPledge={() => earn(5, { pledges: [...store.prefs.pledges, lesson.id] })}
+            onPledge={() => store.setPrefs({ pledges: [...store.prefs.pledges, lesson.id] })}
             onNext={() => undefined}
             hideNext
           />
         ))}
 
-        <GuessThePlate onPoints={earn} />
+        <GuessThePlate />
 
         <Wardrobe />
 
@@ -263,7 +324,7 @@ export default function Quests({ onCards, onTeach }: { onCards: () => void; onTe
  * Guess the plate: a recent plate from someone else in the family, and "how many fists of rice?".
  * It trains the eye for portions. The answer is just what they counted, never good or bad.
  */
-function GuessThePlate({ onPoints }: { onPoints: (p: number, extra?: Partial<ReturnType<typeof useStore>['prefs']>) => void }) {
+function GuessThePlate() {
   const store = useStore();
   const meId = store.session?.meId;
   const [picked, setPicked] = useState<number | null>(null);
@@ -287,7 +348,7 @@ function GuessThePlate({ onPoints }: { onPoints: (p: number, extra?: Partial<Ret
       <Row style={{ justifyContent: 'space-between' }}>
         <Eyebrow>Guess the plate</Eyebrow>
         <T size={13} color={C.muted}>
-          +{GUESS_RIGHT} for a match
+          Train your eye for portions
         </T>
       </Row>
       <Row gap={12}>
@@ -318,7 +379,7 @@ function GuessThePlate({ onPoints }: { onPoints: (p: number, extra?: Partial<Ret
               onPress={() => {
                 setPicked(n);
                 setMealId(meal.id);
-                onPoints(n === answer ? GUESS_RIGHT : GUESS_PLAYED, { guessed: [...store.prefs.guessed, meal.id].slice(-100) });
+                store.setPrefs({ guessed: [...store.prefs.guessed, meal.id].slice(-100) });
               }}
               accessibilityRole="button"
               accessibilityLabel={`${n === 4 ? '4 or more' : n} ${n === 1 ? 'fist' : 'fists'}`}
@@ -334,7 +395,7 @@ function GuessThePlate({ onPoints }: { onPoints: (p: number, extra?: Partial<Ret
       {answered ? (
         <View style={{ gap: 10 }}>
           <T size={16}>
-            {who?.name ?? 'They'} counted {answer >= 4 ? '4 or more fists' : `${answer} ${answer === 1 ? 'fist' : 'fists'}`}. {picked === answer ? `Same as you, +${GUESS_RIGHT}.` : `Thanks for playing, +${GUESS_PLAYED}.`}
+            {who?.name ?? 'They'} counted {answer >= 4 ? '4 or more fists' : `${answer} ${answer === 1 ? 'fist' : 'fists'}`}. {picked === answer ? 'Same as you!' : 'Fists are easier to see than they sound. Try another.'}
           </T>
           {candidates.some((m) => m.id !== meal.id && !store.prefs.guessed.includes(m.id)) ? (
             <Btn

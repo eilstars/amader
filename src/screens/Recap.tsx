@@ -30,7 +30,7 @@ export default function Recap({ onCheckup, onPerson }: { onCheckup: () => void; 
   const end = new Date(days[6].getFullYear(), days[6].getMonth(), days[6].getDate(), 23, 59, 59);
   const board = scores(family, meals, cheers, days[0], end);
   const titles = boardTitles(board);
-  const familyPoints = board.reduce((sum, s) => sum + s.points, 0);
+  const familyPlates = board.reduce((sum, s) => sum + s.meals, 0);
   const loved = [...week].sort((a, b) => b.hearts.length - a.hearts.length)[0];
   const myScore = board.find((s) => s.member.id === me.id);
   const grain = store.goalFood.toLowerCase();
@@ -58,7 +58,7 @@ export default function Recap({ onCheckup, onPerson }: { onCheckup: () => void; 
         <Row gap={8}>
           <Stat icon="restaurant" value={count} label="your meals" tone="white" />
           <Stat icon="leaf" value={mine.filter(isBalanced).length} label="balanced" tone="white" />
-          <Stat icon="star" value={myScore?.points ?? 0} label="points" tone="white" />
+          <Stat icon="flame" value={myScore?.streak ?? 0} label="day streak" tone="white" />
         </Row>
       </View>
 
@@ -100,7 +100,7 @@ export default function Recap({ onCheckup, onPerson }: { onCheckup: () => void; 
             </T>
             <View style={{ backgroundColor: C.mint, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 2 }}>
               <T w="semibold" size={14} color={C.deep}>
-                {familyPoints} points together
+                {familyPlates} plates together
               </T>
             </View>
           </Row>
@@ -122,10 +122,10 @@ export default function Recap({ onCheckup, onPerson }: { onCheckup: () => void; 
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
                   <T w="bold" size={17} color={C.deep}>
-                    {s.points}
+                    {s.meals}
                   </T>
                   <T size={12} color={C.muted}>
-                    {s.streak > 0 ? `${s.streak} day streak` : 'points'}
+                    {s.meals === 1 ? 'plate' : 'plates'}{s.streak > 0 ? ` · ${s.streak} day streak` : ''}
                   </T>
                 </View>
               </Row>

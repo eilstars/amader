@@ -4,36 +4,26 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { C } from '../theme';
-import { LEARN_NOTE, LESSONS, LEVELS, Lesson } from '../learn';
+import { LEARN_NOTE, LESSONS, Lesson } from '../learn';
 import { Btn, Puti, RoundButton, Row, T } from '../ui';
 
-const RIGHT = 10;
-const TRIED = 4;
-const PLEDGE = 5;
-const COMBO = 5;
-const REPLAY = 2;
 
 /**
  * Learn as a game: your reason at the top, then one card at a time. Guess, see what is at stake
- * for the people you love, pick one small thing to try. Points, combos and levels along the way.
+ * for the people you love, pick one small thing to try. No points: the family quest is the game.
  */
 export default function Learn({ onTeach, onClose }: { onTeach: () => void; onClose?: () => void }) {
   const store = useStore();
   const insets = useSafeAreaInsets();
   const { prefs } = store;
   const lessons = LESSONS.filter((l) => !l.ramadan || prefs.ramadan);
-  const total = prefs.learnLog.reduce((sum, e) => sum + e.p, 0);
-  const level = [...LEVELS].reverse().find((l) => total >= l.at) ?? LEVELS[0];
-  const next = LEVELS.find((l) => l.at > total);
   const [index, setIndex] = useState(() => {
     const fresh = lessons.findIndex((l) => !prefs.learned.includes(l.id));
     return fresh === -1 ? 0 : fresh;
   });
-  const [combo, setCombo] = useState(0);
   const lesson = lessons[index % lessons.length];
   const seen = lessons.filter((l) => prefs.learned.includes(l.id)).length;
 
-  const earn = (p: number, extra: Partial<typeof prefs> = {}) => store.setPrefs({ learnLog: [...store.prefs.learnLog, { d: new Date().toISOString(), p }].slice(-400), ...extra });
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }}>
@@ -43,20 +33,10 @@ export default function Learn({ onTeach, onClose }: { onTeach: () => void; onClo
           <T w="bold" size={28} style={{ lineHeight: 34, flex: 1 }}>
             Cards
           </T>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.white, borderRadius: 999, paddingHorizontal: 12, height: 40 }}>
-            <Ionicons name="star" size={18} color={C.leaf} />
-            <T w="bold">{total}</T>
-            <T size={14} color={C.muted}>
-              · {level.name}
-            </T>
-          </View>
         </Row>
-        <Levels total={total} />
-        {next ? (
-          <T size={14} color={C.deep}>
-            {next.at - total} points to {next.name}
-          </T>
-        ) : null}
+        <T size={15} color={C.deep}>
+          {seen} of {lessons.length} cards seen
+        </T>
       </View>
 
       <View style={{ padding: 16, gap: 14 }}>
@@ -66,24 +46,17 @@ export default function Learn({ onTeach, onClose }: { onTeach: () => void; onClo
           number={(index % lessons.length) + 1}
           of={lessons.length}
           replay={prefs.learned.includes(lesson.id)}
-          combo={combo}
+          combo={0}
           pledged={prefs.pledges.includes(lesson.id)}
-          onAnswer={(right) => {
+          onAnswer={() => {
             const replay = prefs.learned.includes(lesson.id);
-            const nextCombo = right ? combo + 1 : 0;
-            setCombo(nextCombo);
-            const base = replay ? (right ? REPLAY : 0) : right ? RIGHT : TRIED;
-            const bonus = !replay && nextCombo >= 3 ? COMBO : 0;
-            earn(base + bonus, replay ? {} : { learned: [...store.prefs.learned, lesson.id] });
-            return base + bonus;
+            if (!replay) store.setPrefs({ learned: [...store.prefs.learned, lesson.id] });
+            return 0;
           }}
-          onPledge={() => earn(PLEDGE, { pledges: [...store.prefs.pledges, lesson.id] })}
+          onPledge={() => store.setPrefs({ pledges: [...store.prefs.pledges, lesson.id] })}
           onNext={() => setIndex(index + 1)}
         />
 
-        <T size={14} color={C.muted} center>
-          {seen} of {lessons.length} cards seen
-        </T>
 
 
         <Pressable onPress={onTeach} accessibilityRole="button">
@@ -230,7 +203,7 @@ export function Card({
               </Row>
             ) : (
               <Btn
-                label={`I'll try it  +${PLEDGE}`}
+                label="I'll try it"
                 kind="primary"
                 onPress={() => {
                   setTried(true);
@@ -244,24 +217,5 @@ export function Card({
         </View>
       ) : null}
     </View>
-  );
-}
-
-/** The road from Curious to Table Teacher, as stepping stones. */
-function Levels({ total }: { total: number }) {
-  return (
-    <Row style={{ justifyContent: 'space-between' }}>
-      {LEVELS.map((l, i) => {
-        const done = total >= l.at;
-        return (
-          <React.Fragment key={l.name}>
-            {i > 0 ? <View style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: done ? C.leaf : '#BFDCCB' }} /> : null}
-            <View accessibilityLabel={`${l.name}${done ? ', reached' : ''}`} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: done ? C.leaf : C.white, borderWidth: 2, borderColor: done ? C.leaf : '#BFDCCB', alignItems: 'center', justifyContent: 'center' }}>
-              {done ? <Ionicons name="star" size={14} color={C.white} /> : <T size={12} w="bold" color={C.muted}>{i + 1}</T>}
-            </View>
-          </React.Fragment>
-        );
-      })}
-    </Row>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, Pressable, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { C } from '../theme';
@@ -16,7 +16,7 @@ import Checkup from './Checkup';
 import Profile from './Profile';
 import Learn from './Learn';
 import Recipes from './Recipes';
-import Quests, { Celebration } from './Quest';
+import Quests, { Celebration, FamilyBar } from './Quest';
 import SimpleHome from './SimpleHome';
 
 type Sheet = 'add' | 'me' | 'checkup' | 'teach' | 'widget' | 'cards' | { profile: string } | null;
@@ -63,9 +63,13 @@ export default function Main({ openCamera }: { openCamera: boolean }) {
   }, [toast]);
 
   const simple = store.simple;
+  // The family counter sits on top of every tab except Quests, which is the counter opened up.
+  const showBar = !simple && tab !== 'quests' && store.questLive && !!store.quest;
 
   return (
     <View style={{ flex: 1, backgroundColor: C.rice }}>
+      {showBar ? <FamilyBar onOpen={() => setTab('quests')} /> : null}
+      <SafeAreaInsetsContext.Provider value={showBar ? { ...insets, top: 0 } : insets}>
       <View style={{ flex: 1 }}>
         {simple ? <SimpleHome onAdd={() => setSheet('add')} onMe={() => setSheet('me')} onPerson={person} /> : null}
         {!simple && tab === 'table' ? <OurTable onAdd={() => setSheet('add')} onMe={() => setSheet('me')} onPerson={person} onQuests={() => setTab('quests')} /> : null}
@@ -73,6 +77,7 @@ export default function Main({ openCamera }: { openCamera: boolean }) {
         {!simple && tab === 'recipes' ? <Recipes /> : null}
         {!simple && tab === 'quests' ? <Quests onCards={() => setSheet('cards')} onTeach={() => setSheet('teach')} /> : null}
       </View>
+      </SafeAreaInsetsContext.Provider>
 
       {simple ? null : (
         <View

@@ -7,7 +7,7 @@ import { useStore } from '../store';
 import { C } from '../theme';
 import { webUrl } from '../backend';
 import { nudgeText, sendOnWhatsApp } from '../nudge';
-import { Badge, badgesFor, bestStreak, isBalanced, plateAverage, pointsFor, streakGoal, streakOf, streakReward } from '../game';
+import { Badge, badgesFor, bestStreak, isBalanced, plateAverage, streakGoal, streakOf, streakReward } from '../game';
 import { Avatar, Btn, Chip, Eyebrow, PageHead, Row, Stat, T, WeekStrip, field } from '../ui';
 import { dayCounts, dayHeading, handsText, inWeek, roleName, weekDays, weekLabel } from '../words';
 import MealCard from './MealCard';
@@ -24,6 +24,7 @@ const ALL_BADGES: Badge[] = [
   { id: 'cheer3', title: 'Cheerleader', how: 'Send 3 notes', icon: 'heart' },
   { id: 'recipe', title: 'Keeper of Recipes', how: 'Save a family recipe', icon: 'book' },
   { id: 'fast', title: 'Fasting Day', how: 'Share a fasting day', icon: 'moon' },
+  { id: 's14', title: 'Two Weeks', how: '14 days in a row', icon: 'flame' },
   { id: 's30', title: 'Month at the Table', how: '30 days in a row', icon: 'trophy' },
   { id: 'm50', title: 'Fifty Plates', how: '50 meals shared', icon: 'star' },
 ];
@@ -46,7 +47,7 @@ export default function Profile({ memberId, onClose }: { memberId: string; onClo
   const week = inWeek(theirs, days);
   const streak = streakOf(meals, person.id);
   const goal = streakGoal(streak);
-  const points = week.reduce((sum, m) => sum + pointsFor(m), 0);
+  const plates = week.filter((m) => m.slot !== 'fasting').length;
   const earned = new Set(badgesFor(person.id, meals, cheers, recipes.filter((r) => r.addedBy === person.id).length).map((b) => b.id));
   const avg = plateAverage(week);
 
@@ -92,7 +93,7 @@ export default function Profile({ memberId, onClose }: { memberId: string; onClo
 
         <Row gap={8}>
           <Stat icon="flame" value={streak} label="day streak" />
-          <Stat icon="star" value={points} label="points" />
+          <Stat icon="restaurant" value={plates} label={offset === 0 ? 'this week' : 'that week'} />
           <Stat icon="ribbon" value={earned.size} label="badges" />
         </Row>
 
@@ -108,7 +109,7 @@ export default function Profile({ memberId, onClose }: { memberId: string; onClo
             <View style={{ height: 10, borderRadius: 5, backgroundColor: C.leaf, width: `${Math.round((streak / goal) * 100)}%` }} />
           </View>
           <T size={14} color={C.muted}>
-            Reaching it gives {streakReward(goal)}.
+            Reaching it earns {streakReward(goal)}.
           </T>
         </View>
 

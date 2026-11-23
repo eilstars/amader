@@ -197,6 +197,8 @@ interface Store {
   ticks: Tick[];
   /** This week's family quest and how far along it is. */
   quest: QuestProgress | null;
+  /** The family quest runs once at least two people have joined: a team needs a team. */
+  questLive: boolean;
   /** I already ticked today's quest. */
   tickedToday: boolean;
   /** Pick this week's quest for the whole family. */
@@ -679,6 +681,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
       ticks,
       quest,
+      questLive: (family?.members.filter((m) => m.joined).length ?? 0) >= 2,
       tickedToday,
       setQuest(id) {
         if (!session || !family || !questById(id)) return;

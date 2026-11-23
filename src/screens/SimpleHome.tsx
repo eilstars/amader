@@ -35,7 +35,7 @@ export default function SimpleHome({ onAdd, onMe, onPerson }: { onAdd: () => voi
   const note = cheers.find((c) => c.toId === me.id && !c.mealId && today.getTime() - new Date(c.date).getTime() < 4 * 86_400_000);
   const from = note ? store.member(note.fromId) : undefined;
   const canComment = store.daysShared >= UNLOCK.comments;
-  const questOpen = store.daysShared >= UNLOCK.quest;
+  const questOpen = store.questLive && store.daysShared >= UNLOCK.quest;
   const breakEnds = prefs.breakUntil ? new Date(prefs.breakUntil) : null;
 
   return (
