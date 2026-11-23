@@ -89,8 +89,12 @@ export default function QuestRiver({ onBack, onAdd, onCards }: { onBack: () => v
 
   const H = 600 * k + 70;
   const done = todayI < 0 ? 0 : AT[todayI];
-  const ripples = [[300, 40], [120, 190], [260, 360], [180, 470], [150, 530]].map(([x, y]) => `M${x * k} ${y * k + 20} q ${8 * k} -5 ${16 * k} 0`).join(' ');
-  const xml = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><g transform="translate(0 20) scale(${k})"><path d="${RIVER}" fill="none" stroke="${K.pale}" stroke-width="58" stroke-linecap="round"/><path d="${RIVER}" fill="none" stroke="${C.lightGreen}" stroke-width="58" stroke-linecap="round" stroke-dasharray="${done * length} ${length * 2}"/></g><path d="${ripples}" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"/></svg>`;
+  // Little ripples sit on the water halfway between stones, all drawn the same way.
+  const ripples = AT.slice(0, -1)
+    .map((f, i) => at((f + AT[i + 1]) / 2))
+    .map(([x, y]) => `M${x * k - 9} ${y * k + 20} q 4.5 -4 9 0 q 4.5 4 9 0`)
+    .join(' ');
+  const xml = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><g transform="translate(0 20) scale(${k})"><path d="${RIVER}" fill="none" stroke="${K.pale}" stroke-width="58" stroke-linecap="round"/><path d="${RIVER}" fill="none" stroke="${C.lightGreen}" stroke-width="58" stroke-linecap="round" stroke-dasharray="${done * length} ${length * 2}"/></g><path d="${ripples}" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/></svg>`;
 
   return (
     <View style={{ flex: 1, backgroundColor: C.mint }}>
