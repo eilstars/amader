@@ -6,6 +6,8 @@
  * the balanced-plate check and the doctor summary.
  */
 
+import { normalizeDish } from './foodwords';
+
 export type DishKind = 'base' | 'main' | 'side' | 'sweet' | 'drink';
 
 export interface PlateItem {
@@ -42,7 +44,8 @@ const COUNTED: [RegExp, string, string][] = [
 /** How a dish is counted: "slice", "piece", "egg", or its kind's measure ("fist", "bowl"...). */
 export function measureOf(item: Pick<PlateItem, 'name' | 'kind'>): { one: string; many: string; counted: boolean } {
   if (item.kind !== 'drink') {
-    for (const [re, one, many] of COUNTED) if (re.test(item.name)) return { one, many, counted: true };
+    const n = `${item.name} ${normalizeDish(item.name)}`;
+    for (const [re, one, many] of COUNTED) if (re.test(n)) return { one, many, counted: true };
   }
   const k = KINDS[item.kind];
   return { one: k.one, many: k.many, counted: false };
@@ -87,8 +90,11 @@ const COMBO = has(['sandwich', 'burger', 'wrap', 'sub\\b', 'hot ?dog', 'kathi ro
 
 /** A good first guess at what a dish is, from its name. The person can change it. */
 export function kindOf(name: string): DishKind {
-  const n = name.trim();
+  // Read the family's words and the database's together: "bhat" is rice, "macher jhol" is fish curry.
+  const n = `${name.trim()} ${normalizeDish(name)}`.trim();
   if (COMBO.test(n)) return 'main';
+  // Mashes, fries and vegetable dishes eaten on the side: aloo bhorta, begun bhaja, aloo gobi.
+  if (/bhorta|bharta|bhortha|bhaja|bhaji|gobi|gobhi|sabzi|sabji|sobji/i.test(n) && !PROTEIN.test(n)) return 'side';
   if (/raita|chutney|achar|pickle|kachumber/i.test(n)) return 'side';
   if (DRINK.test(n) && !BASE.test(n)) return 'drink';
   if (SWEET.test(n) || (FRUIT.test(n) && !PROTEIN.test(n))) return 'sweet';

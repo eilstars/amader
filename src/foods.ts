@@ -1,5 +1,6 @@
 import { PlateItem, measureOf } from './dishes';
 import type { FamilyDish } from './types';
+import { normalizeDish } from './foodwords';
 
 /**
  * The food database: about 5,000 foods and dishes from USDA FoodData Central (FNDDS, public domain),
@@ -25,7 +26,15 @@ const words = (s: string) => s.toLowerCase().split(/[^a-z0-9']+/).filter(Boolean
 
 /** Foods whose name matches what someone is typing. Family names and whole-word matches come first. */
 export function searchFoods(query: string, limit = 6): string[] {
-  const q = query.trim().toLowerCase();
+  const asTyped = query.trim().toLowerCase();
+  const norm = normalizeDish(asTyped);
+  // Search what they meant ("macher jhol" → "fish curry"), but keep exact database names as typed.
+  const q = norm && !exactRow(asTyped) ? norm : asTyped;
+  const first = rank(q, limit);
+  return first.length || q === asTyped ? first : rank(asTyped, limit);
+}
+
+function rank(q: string, limit: number): string[] {
   const qs = words(q);
   if (q.length < 2 || !qs.length) return [];
   const list = all();
@@ -70,14 +79,29 @@ function exactRow(n?: string): Row | null {
   return list[lower.indexOf(n.toLowerCase())] ?? null;
 }
 
-/** The database food behind a dish: one the family taught, the one picked, the same name, or a search match. */
-function find(item: Pick<PlateItem, 'name' | 'food'>): Row | null {
-  return taught.get(item.name.trim().toLowerCase()) ?? exactRow(item.food) ?? exactRow(item.name) ?? exactRow(searchFoods(item.name, 1)[0]);
+// When nothing matches, a plain stand-in for the kind of dish, so every plate still gets an estimate.
+const STAND_IN: Record<PlateItem['kind'], string> = { base: 'Rice', main: 'Curry', side: 'Mixed vegetables', sweet: 'Cake', drink: 'Chai' };
+
+/**
+ * The database food behind a dish, and how sure Amader is: one the family taught, the one picked,
+ * the same name, the name in database words ("macher jhol" → fish curry), a search match,
+ * and last a stand-in for its kind ("guess").
+ */
+function lookup(item: Pick<PlateItem, 'name' | 'food' | 'kind'>): { r: Row; sure: boolean } | null {
+  const name = item.name.trim().toLowerCase();
+  const norm = normalizeDish(name);
+  const r = taught.get(name) ?? exactRow(item.food) ?? exactRow(name) ?? exactRow(norm) ?? exactRow(searchFoods(name, 1)[0]);
+  if (r) return { r, sure: true };
+  const guess = item.kind ? exactRow(STAND_IN[item.kind]) : null;
+  return guess ? { r: guess, sure: false } : null;
+}
+function find(item: Pick<PlateItem, 'name' | 'food' | 'kind'>): Row | null {
+  return lookup(item)?.r ?? null;
 }
 
-/** Whether Amader can tell what's in a dish, from the database or from the family. */
-export function knowsDish(item: Pick<PlateItem, 'name' | 'food'>): boolean {
-  return !!find(item);
+/** Whether Amader can tell what's in a dish, from the database or from the family, rather than guessing. */
+export function knowsDish(item: Pick<PlateItem, 'name' | 'food' | 'kind'>): boolean {
+  return !!lookup(item)?.sure;
 }
 
 /**
@@ -130,9 +154,10 @@ export function estimate(items: PlateItem[]): { total: Nutrients; known: number;
   const total = zero();
   let known = 0;
   for (const it of items) {
-    const r = find(it);
-    if (!r) continue;
-    known++;
+    const hit = lookup(it);
+    if (!hit) continue;
+    const r = hit.r;
+    if (hit.sure) known++;
     const k = grams(it, r) / 100;
     total.kcal += r[1] * k;
     total.carbs += r[2] * k;

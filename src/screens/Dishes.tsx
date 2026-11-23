@@ -3,6 +3,7 @@ import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { FoodDot, FoodKind, Icon, K, S, card } from '../design';
 import { COMMON, DishKind, KINDS, KIND_ORDER, PlateItem, amountText, firstAmount, kindOf } from '../dishes';
 import { knowsDish, searchFoods } from '../foods';
+import { splitDishes } from '../foodwords';
 import { useStore } from '../store';
 import { C, F } from '../theme';
 import { T } from '../ui';
@@ -31,6 +32,7 @@ function DishRow({ item, onChange, onRemove }: { item: PlateItem; onChange: (i: 
   const [open, setOpen] = useState(false);
   const [teach, setTeach] = useState(false);
   const known = knowsDish(item);
+  const taught = store.dishes.some((d) => d.name.toLowerCase() === item.name.trim().toLowerCase());
   const round = (name: 'minus' | 'plus', label: string, dir: 1 | -1) => (
     <Pressable
       onPress={() => onChange({ ...item, amount: step(item.amount, dir) })}
@@ -60,7 +62,7 @@ function DishRow({ item, onChange, onRemove }: { item: PlateItem; onChange: (i: 
           <Icon name="close" size={16} color={C.muted} />
         </Pressable>
       </View>
-      {!known && !teach ? (
+      {!known && !taught && !teach ? (
         <Pressable onPress={() => setTeach(true)} accessibilityRole="button" accessibilityLabel={`Tell Mado what's in ${item.name}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: C.mint }}>
           <Icon name="sparkle" size={14} color={C.leaf} />
           <T w="bold" size={13} color={C.deep}>
@@ -217,11 +219,18 @@ export function DishList({ items, onChange, recent = [] }: { items: PlateItem[];
   const picks = [...new Set([...recent, ...COMMON])].filter((n) => !here.has(n.toLowerCase())).slice(0, 12);
   const found = text.trim().length >= 2 ? searchFoods(text, 6) : [];
   const add = (raw: string, food?: string) => {
-    const name = raw.trim().replace(/\s+/g, ' ');
-    if (!name || items.length >= 12) return;
-    const nice = (name.charAt(0).toUpperCase() + name.slice(1)).slice(0, 40);
-    const kind: DishKind = kindOf(nice);
-    onChange([...items, { name: nice, kind, amount: firstAmount({ name: nice, kind }, items), ...(food ? { food } : {}) }]);
+    if (!raw.trim() || items.length >= 12) return;
+    // Typed lines can hold several dishes: "rice, dal and fish curry" or "dal bhat".
+    const names = food ? [raw.trim()] : splitDishes(raw);
+    let next = items;
+    for (const one of names) {
+      if (next.length >= 12) break;
+      const nice = (one.charAt(0).toUpperCase() + one.slice(1)).replace(/\s+/g, ' ').slice(0, 40);
+      if (next.some((i) => i.name.toLowerCase() === nice.toLowerCase())) continue;
+      const kind: DishKind = kindOf(nice);
+      next = [...next, { name: nice, kind, amount: firstAmount({ name: nice, kind }, next), ...(food ? { food } : {}) }];
+    }
+    onChange(next);
     setText('');
   };
   return (

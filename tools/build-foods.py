@@ -85,7 +85,7 @@ ALIASES = [
     ('Chana', 'Chickpeas, from dried, fat added'), ('Chana masala', 'Chickpeas, from dried, fat added'), ('Chole', 'Chickpeas, from dried, fat added'),
     ('Rajma', 'Kidney beans, from dried, fat added'), ('Sambar', 'Sambar, vegetable stew'),
     ('Chicken curry', 'Chicken curry'), ('Fish curry', 'Fish curry'), ('Beef curry', 'Beef curry'), ('Mutton curry', 'Lamb or mutton with gravy'),
-    ('Goat curry', 'Goat'), ('Lamb curry', 'Lamb or mutton with gravy'), ('Prawn curry', 'Fish curry'), ('Shrimp curry', 'Fish curry'),
+    ('Goat curry', 'Goat'), ('Lamb curry', 'Lamb or mutton with gravy'), 
     ('Fried fish', 'Fish, NS as to type, fried'), ('Grilled chicken', 'Chicken, NS as to part, grilled without sauce, skin not eaten'),
     ('Kebab', 'Lamb shish kabob with vegetables, excluding potatoes'), ('Chicken kebab', 'Chicken or turkey shish kabob with vegetables, excluding potatoes'),
     ('Egg', 'Egg, whole, boiled or poached'), ('Boiled egg', 'Egg, whole, boiled or poached'), ('Fried egg', 'Egg, whole, fried with oil'),
@@ -100,6 +100,9 @@ ALIASES = [
     ('Kheer', 'Pudding, rice'), ('Payesh', 'Pudding, rice'), ('Fruit', 'Apple, raw'), ('Apple', 'Apple, raw'), ('Banana', 'Banana, raw'),
     ('Mango', 'Mango, raw'), ('Orange', 'Orange, raw'), ('Guava', 'Guava, raw'), ('Papaya', 'Papaya, raw'), ('Grapes', 'Grapes, raw'),
     ('Dates', 'Date'), ('Patty', 'Beef, ground, patty'), ('Burger', 'Hamburger, NFS'), ('Hamburger', 'Hamburger, NFS'),
+    ('Curry', 'Chicken curry'), ('Toast', 'Bread, white, toasted'), ('Mishti doi', 'Yogurt, whole milk, fruit'), ('Muri', 'Rice cake'), ('Biscuits', 'Cookie, NFS'),
+    ('Cauliflower', 'Cauliflower, NS as to form, cooked'), ('Pumpkin', 'Pumpkin, canned, cooked'), ('Potato', 'Potato, boiled, NFS'),
+    ('Begun bhorta', 'Eggplant, cooked, fat added'), ('Firni', 'Firni, Indian pudding'), ('Ghee', 'Ghee, clarified butter'),
     ('Cheeseburger', 'Cheeseburger, NFS'), ('Pho', 'Soup, pho, with meat'), ('Oatmeal', 'Oatmeal, NFS'), ('Porridge', 'Oatmeal, NFS'), ('Cake', 'Cake or cupcake, NFS'), ('Biscuit', 'Cookie, NFS'), ('Ice cream', 'Ice cream, NFS'), ('Smoothie', 'Fruit smoothie, NFS'),
 ]
 
@@ -113,6 +116,11 @@ for r in [
     blend('Chai', [('Tea, hot, leaf, black', 150), ('Milk, whole', 80), ('Sugar, white, granulated or lump', 10)]),
     blend('Lassi', [('Yogurt, whole milk, plain', 150), ('Milk, whole', 70), ('Sugar, white, granulated or lump', 15)]),
     blend('Raita', [('Yogurt, whole milk, plain', 160), ('Cucumber, raw', 70)], cup=230),
+    # Home curries: the main thing cooked down with onion, tomato and oil.
+    blend('Egg curry', [('Egg, whole, boiled or poached', 100), ('Onions, cooked, fat added', 60), ('Tomatoes, cooked, as ingredient', 60), ('Vegetable oil, NFS', 10)], piece=115),
+    blend('Prawn curry', [('Shrimp, NFS', 100), ('Onions, cooked, fat added', 60), ('Tomatoes, cooked, as ingredient', 60), ('Vegetable oil, NFS', 10)]),
+    blend('Aloo bhorta', [('Potato, mashed, NFS', 150), ('Onions, cooked, fat added', 15), ('Vegetable oil, NFS', 8)], cup=210),
+    blend('Aloo gobi', [('Potato, boiled, NFS', 100), ('Cauliflower, NS as to form, cooked', 100), ('Onions, cooked, fat added', 30), ('Vegetable oil, NFS', 10)], cup=180),
 ]:
     rows.append(r)
     seen.add(r[0].lower())
