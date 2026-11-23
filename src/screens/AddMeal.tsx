@@ -263,7 +263,7 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
       );
     }
     const portions = { ...totals, grain: grainName };
-    const hint = snack || fasting ? null : balanceHint(items, totals);
+    const hint = snack || fasting ? null : balanceHint(items, totals, slot);
     const askGuess = !!photo && store.cloud && !store.session?.demo && store.prefs.guessOn === null;
     return (
       <View style={{ flex: 1, backgroundColor: C.rice }}>
