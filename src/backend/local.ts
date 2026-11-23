@@ -46,10 +46,10 @@ export const localBackend: Backend & { seedDemo(): Promise<Session>; clear(): Pr
     return { parentName: null, fromName: null, waiting: [] };
   },
 
-  async addPerson(_code, name) {
+  async addPerson(_code, name, role = 'parent') {
     const family = await read<Family>(FAMILY);
     if (!family) throw new Error('No family yet.');
-    const person: Member = { id: newId(), name, role: 'parent', tint: family.members.length % 4, joined: false };
+    const person: Member = { id: newId(), name, role, tint: family.members.length % 4, joined: false };
     family.members.push(person);
     await write(FAMILY, family);
     return person;

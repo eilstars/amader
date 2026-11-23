@@ -380,7 +380,8 @@ begin
   return json_build_object(
     'parent_name', (select name from public.members where family_code = v_code and role = 'parent' and not joined order by created_at limit 1),
     'from_name', (select name from public.members where family_code = v_code and joined order by created_at limit 1),
-    'waiting', (select coalesce(json_agg(name order by created_at), '[]'::json) from public.members where family_code = v_code and role = 'parent' and not joined)
+    'waiting', (select coalesce(json_agg(name order by created_at), '[]'::json) from public.members where family_code = v_code and role = 'parent' and not joined),
+    'helpers', (select coalesce(json_agg(name order by created_at), '[]'::json) from public.members where family_code = v_code and role = 'child' and not joined)
   );
 end;
 $$;
@@ -407,12 +408,17 @@ begin
     select id into v_me from public.members
       where family_code = v_code and role = 'parent' and not joined
       order by (lower(name) = lower(trim(coalesce(p_name, '')))) desc, created_at limit 1 for update;
-    if v_me is not null then
-      update public.members
-        set user_id = auth.uid(), joined = true, name = coalesce(nullif(trim(p_name), ''), name)
-        where id = v_me;
-      return json_build_object('code', v_code, 'me_id', v_me);
-    end if;
+  else
+    -- A sibling or helper the family added: take the seat saved under their name.
+    select id into v_me from public.members
+      where family_code = v_code and role = 'child' and not joined and lower(name) = lower(trim(coalesce(p_name, '')))
+      order by created_at limit 1 for update;
+  end if;
+  if v_me is not null then
+    update public.members
+      set user_id = auth.uid(), joined = true, name = coalesce(nullif(trim(p_name), ''), name)
+      where id = v_me;
+    return json_build_object('code', v_code, 'me_id', v_me);
   end if;
   if (select count(*) from public.members where user_id = auth.uid()) >= 5 then
     raise exception 'This phone is already in the most families allowed.';
@@ -428,8 +434,10 @@ begin
 end;
 $$;
 
--- Look after someone else too: a new empty seat they take when they join with the family code.
-create or replace function public.add_person(p_code text, p_name text)
+-- A new empty seat they take when they join with the family code: someone looked after ('parent'),
+-- or someone else at the table, like a sibling who helps ('child').
+drop function if exists public.add_person(text, text);
+create or replace function public.add_person(p_code text, p_name text, p_role text default 'parent')
 returns json language plpgsql security definer set search_path = public as $$
 declare
   v_row public.members;
@@ -441,7 +449,7 @@ begin
     raise exception 'This family table is full';
   end if;
   insert into public.members (family_code, user_id, name, role, tint, joined)
-    values (p_code, null, trim(p_name), 'parent', (select count(*) from public.members where family_code = p_code)::int % 4, false)
+    values (p_code, null, trim(p_name), case when p_role = 'child' then 'child' else 'parent' end, (select count(*) from public.members where family_code = p_code)::int % 4, false)
     returning * into v_row;
   return json_build_object('id', v_row.id, 'name', v_row.name, 'role', v_row.role, 'tint', v_row.tint, 'joined', v_row.joined);
 end;
@@ -477,9 +485,9 @@ grant execute on function public.create_family(text, text, text, int) to authent
 grant execute on function public.invite_info(text) to authenticated;
 grant execute on function public.join_family(text, text, text) to authenticated;
 grant execute on function public.delete_me(uuid) to authenticated;
-revoke execute on function public.add_person(text, text) from public, anon;
+revoke execute on function public.add_person(text, text, text) from public, anon;
 revoke execute on function public.save_push_token(uuid, text) from public, anon;
-grant execute on function public.add_person(text, text) to authenticated;
+grant execute on function public.add_person(text, text, text) to authenticated;
 grant execute on function public.save_push_token(uuid, text) to authenticated;
 revoke execute on function public.check_code_tries() from public, anon, authenticated;
 grant execute on function public.my_family_codes() to authenticated;

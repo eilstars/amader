@@ -201,10 +201,10 @@ export interface Backend {
   mode: 'local' | 'cloud';
   createFamily(input: { myName: string; parentName: string; goalFood: string; goalHandfuls: number; myRole?: Role }): Promise<Session>;
   /** Looks up an invite code before joining. Null if the code is unknown. */
-  inviteInfo(code: string): Promise<{ parentName: string | null; fromName: string | null; waiting: string[] } | null>;
+  inviteInfo(code: string): Promise<{ parentName: string | null; fromName: string | null; waiting: string[]; helpers?: string[] } | null>;
   joinFamily(input: { code: string; name: string; role: Role }): Promise<Session>;
   /** Adds another person the family looks after. They get their own seat and join with the same code. */
-  addPerson(code: string, name: string): Promise<Member>;
+  addPerson(code: string, name: string, role?: Role): Promise<Member>;
   /** Saves this phone's push address so the family can tell it when someone eats or comments. */
   savePushToken(code: string, meId: string, token: string | null): Promise<void>;
   /** Asks the server to tell the rest of the family about a meal or a comment. Never throws. */

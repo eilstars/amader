@@ -7,6 +7,7 @@ import { Row, T, field } from '../ui';
 import { BigButton, Dropdown, Icon, Mado, RoundIcon, S, card } from '../design';
 import { HomeDays } from './HomeDays';
 
+const HELPERS = ['Sister', 'Brother', 'Husband or wife', 'Cousin', 'Aunt', 'Uncle', 'Friend', 'Other'];
 const RELATIONS = ['Mother', 'Father', 'Grandmother', 'Grandfather', 'Aunt', 'Uncle', 'Mother-in-law', 'Father-in-law', 'Other'];
 type Person = { name: string; relation: string | null };
 
@@ -22,12 +23,17 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
   const [people, setPeople] = useState<Person[]>([{ name: '', relation: null }]);
   const [myName, setMyName] = useState('');
   const [homeDays, setHomeDays] = useState<number[]>([]);
+  // Others at the table who aren't looked after: siblings, a spouse, a cousin who helps.
+  const [helpers, setHelpers] = useState<Person[]>([]);
   const [adult, setAdult] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const named = people.filter((p) => p.name.trim());
-  const them = named.length ? named.map((p) => p.name.trim()).join(' and ') : 'them';
+  // One person by name; with more than one, just "them".
+  const them = named.length === 1 ? named[0].name.trim() : 'them';
+  const setHelper = (i: number, change: Partial<Person>) => setHelpers(helpers.map((p, n) => (n === i ? { ...p, ...change } : p)));
+  const helpersNamed = helpers.filter((h) => h.name.trim());
   const set = (i: number, change: Partial<Person>) => setPeople(people.map((p, n) => (n === i ? { ...p, ...change } : p)));
 
   async function go() {
@@ -38,11 +44,12 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
         homeDays,
         sameHome: homeDays.length === 7,
         homeWeekends: false,
-        relations: Object.fromEntries(named.map((p) => [p.name.trim(), p.relation ?? 'Other'])),
+        relations: Object.fromEntries([...named, ...helpersNamed].map((p) => [p.name.trim(), p.relation ?? 'Other'])),
       });
       const [first, ...rest] = named;
       await store.createFamily({ myName: myName.trim(), parentName: first.name.trim(), goalFood: 'Rice', goalHandfuls: 2 });
       for (const p of rest) await store.addPerson(p.name.trim()).catch(() => undefined);
+      for (const h of helpersNamed) await store.addPerson(h.name.trim(), 'child').catch(() => undefined);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
       setBusy(false);
@@ -96,8 +103,8 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
       ok: people.every((p) => p.name.trim() && p.relation),
     },
     {
-      title: `And what ${named.length > 1 ? 'do' : 'does'} ${them} call you?`,
-      lead: 'Others who help can join later.',
+      title: named.length === 1 ? `And what does ${them} call you?` : 'And what do they call you?',
+      lead: 'You can add brothers, sisters and anyone else who sits at the table.',
       body: (
         <View style={{ gap: 14 }}>
           <TextInput value={myName} onChangeText={setMyName} placeholder="Your name" placeholderTextColor="#9AA79F" style={field} autoCapitalize="words" maxLength={24} autoFocus />
@@ -106,6 +113,35 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
               Which days are you home with {them}?
             </T>
             <HomeDays value={homeDays} onChange={setHomeDays} />
+          </View>
+          <View style={[card, { padding: 14, gap: 10 }]}>
+            <T w="bold" size={S.body}>
+              Anyone else at the table?
+            </T>
+            <T size={S.small} color={C.muted}>
+              Siblings or anyone who helps. They get a seat and an invite. Optional.
+            </T>
+            {helpers.map((h, i) => (
+              <View key={i} style={{ gap: 8, borderTopWidth: i ? 1 : 0, borderTopColor: '#EDF0EA', paddingTop: i ? 10 : 0 }}>
+                <Row gap={8}>
+                  <TextInput value={h.name} onChangeText={(t) => setHelper(i, { name: t })} placeholder="Their name" placeholderTextColor="#9AA79F" style={[field, { flex: 1 }]} autoCapitalize="words" maxLength={24} autoFocus accessibilityLabel={`Name of helper ${i + 1}`} />
+                  <Pressable onPress={() => setHelpers(helpers.filter((_, n) => n !== i))} accessibilityRole="button" accessibilityLabel={`Remove helper ${i + 1}`} hitSlop={8}>
+                    <Icon name="close" size={18} color={C.muted} />
+                  </Pressable>
+                </Row>
+                <Dropdown label={`Who is ${h.name.trim() || 'this'} to you?`} placeholder="They are my..." value={h.relation} options={HELPERS} onChange={(r) => setHelper(i, { relation: r })} />
+              </View>
+            ))}
+            {named.length + helpers.length < 7 ? (
+              <Pressable onPress={() => setHelpers([...helpers, { name: '', relation: null }])} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start' }}>
+                <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: C.mint, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name="plus" size={18} />
+                </View>
+                <T w="bold" size={S.body} color={C.deep}>
+                  Add a sibling or helper
+                </T>
+              </Pressable>
+            ) : null}
           </View>
           <Pressable onPress={() => setAdult(!adult)} accessibilityRole="checkbox" accessibilityState={{ checked: adult }}>
             <Row gap={10}>

@@ -144,12 +144,12 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
       const { data, error } = await db.rpc('invite_info', { p_code: code });
       fail(error);
       if (!data) return null;
-      return { parentName: (data.parent_name as string) ?? null, fromName: (data.from_name as string) ?? null, waiting: ((data.waiting as string[] | null) ?? []).filter(Boolean) };
+      return { parentName: (data.parent_name as string) ?? null, fromName: (data.from_name as string) ?? null, waiting: ((data.waiting as string[] | null) ?? []).filter(Boolean), helpers: ((data.helpers as string[] | null) ?? []).filter(Boolean) };
     },
 
-    async addPerson(code, name) {
+    async addPerson(code, name, role = 'parent') {
       await signedIn();
-      const { data, error } = await db.rpc('add_person', { p_code: code, p_name: name });
+      const { data, error } = await db.rpc('add_person', { p_code: code, p_name: name, p_role: role });
       fail(error);
       const row = data as MemberRow;
       return { id: row.id, name: row.name, role: row.role, tint: row.tint, joined: row.joined };

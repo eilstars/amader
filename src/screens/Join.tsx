@@ -18,6 +18,8 @@ export default function Join({ onBack, onJoined }: { onBack: () => void; onJoine
   const [from, setFrom] = useState<string | null>(null);
   // Seats saved for people the family looks after. With more than one, they tap their own name.
   const [waiting, setWaiting] = useState<string[]>([]);
+  // Seats saved for siblings or helpers.
+  const [helpers, setHelpers] = useState<string[]>([]);
   const [unknown, setUnknown] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,10 +40,12 @@ export default function Join({ onBack, onJoined }: { onBack: () => void; onJoine
         }
         setFrom(info.fromName);
         setWaiting(info.waiting);
+        setHelpers(info.helpers ?? []);
         if (info.parentName) {
           setName((current) => current || info.parentName || '');
         } else {
           setRole('child');
+          if (info.helpers?.length === 1) setName((current) => current || info.helpers?.[0] || '');
         }
       })
       .catch((e) => {
@@ -108,10 +112,13 @@ export default function Join({ onBack, onJoined }: { onBack: () => void; onJoine
           <T w="semibold" size={15} color="#3B4B42">
             What your family calls you
           </T>
-          {waiting.length > 1 ? (
+          {waiting.length + helpers.length > 1 ? (
             <Row gap={8} style={{ flexWrap: 'wrap' }}>
               {waiting.map((w) => (
                 <Pill key={w} label={`I'm ${w}`} on={name === w && role === 'parent'} onPress={() => (setName(w), setRole('parent'))} />
+              ))}
+              {helpers.map((w) => (
+                <Pill key={`h-${w}`} label={`I'm ${w}`} on={name === w && role === 'child'} onPress={() => (setName(w), setRole('child'))} />
               ))}
             </Row>
           ) : null}

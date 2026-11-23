@@ -27,7 +27,7 @@ function DishRow({ item, onChange, onRemove }: { item: PlateItem; onChange: (i: 
   const [open, setOpen] = useState(false);
   const round = (name: 'minus' | 'plus', label: string, dir: 1 | -1) => (
     <Pressable
-      onPress={() => (dir === -1 && item.amount <= 0.5 ? onRemove() : onChange({ ...item, amount: step(item.amount, dir) }))}
+      onPress={() => onChange({ ...item, amount: step(item.amount, dir) })}
       accessibilityRole="button"
       accessibilityLabel={`${label} ${item.name}`}
       hitSlop={6}
@@ -50,6 +50,9 @@ function DishRow({ item, onChange, onRemove }: { item: PlateItem; onChange: (i: 
         </Pressable>
         {round('minus', 'Less', -1)}
         {round('plus', 'More', 1)}
+        <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Remove ${item.name}`} hitSlop={8} style={{ width: 28, height: 34, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="close" size={16} color={C.muted} />
+        </Pressable>
       </View>
       {open ? (
         <View style={{ gap: 6 }}>
@@ -72,11 +75,6 @@ function DishRow({ item, onChange, onRemove }: { item: PlateItem; onChange: (i: 
                 </T>
               </Pressable>
             ))}
-            <Pressable onPress={onRemove} accessibilityRole="button" style={{ paddingHorizontal: 12, paddingVertical: 7 }}>
-              <T w="bold" size={13} color={C.muted} style={{ textDecorationLine: 'underline' }}>
-                Remove
-              </T>
-            </Pressable>
           </View>
         </View>
       ) : null}

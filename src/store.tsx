@@ -176,9 +176,9 @@ interface Store {
   /** The invite text addressed to one person. */
   inviteFor(name: string | undefined): string;
   createFamily(input: { myName: string; parentName: string; goalFood: string; goalHandfuls: number }): Promise<void>;
-  inviteInfo(code: string): Promise<{ parentName: string | null; fromName: string | null; waiting: string[] } | null>;
+  inviteInfo(code: string): Promise<{ parentName: string | null; fromName: string | null; waiting: string[]; helpers?: string[] } | null>;
   /** Look after someone else too. They join with the same family code. */
-  addPerson(name: string): Promise<Member>;
+  addPerson(name: string, role?: Role): Promise<Member>;
   /** Comments on a meal. Goes to whoever shared it, or back to the last person who commented when it's my own meal. */
   comment(mealId: string, text: string): Promise<void>;
   /** The latest "Mom shared lunch", while the app is open. */
@@ -455,11 +455,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         }, 7000);
       },
 
-      async addPerson(name) {
+      async addPerson(name, role = 'parent') {
         // Read the session from the ref: setup calls this right after making the family, before a re-render.
         const s = sessionRef.current;
         if (!s) throw new Error('No family yet.');
-        const person = await backendFor(s).addPerson(s.code, name.trim().slice(0, 24));
+        const person = await backendFor(s).addPerson(s.code, name.trim().slice(0, 24), role);
         setFamily((f) => (f ? { ...f, members: [...f.members, person] } : f));
         return person;
       },

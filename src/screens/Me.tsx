@@ -21,7 +21,7 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
   const [improveNote, setImproveNote] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [refused, setRefused] = useState(false);
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState<false | 'parent' | 'child'>(false);
   const [newName, setNewName] = useState('');
   const [addBusy, setAddBusy] = useState(false);
   const [addFailed, setAddFailed] = useState<string | null>(null);
@@ -88,11 +88,11 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
           ))}
           {adding ? (
             <View style={{ gap: 8, borderTopWidth: 1, borderTopColor: '#EDF0EA', paddingTop: 10 }}>
-              <T w="semibold">Who else do you look after?</T>
+              <T w="semibold">{adding === 'child' ? 'Who else sits at the table?' : 'Who else do you look after?'}</T>
               <TextInput
                 value={newName}
                 onChangeText={setNewName}
-                placeholder="Dad, Grandma, Nani..."
+                placeholder={adding === 'child' ? 'Your sister, brother, cousin...' : 'Dad, Grandma, Nani...'}
                 placeholderTextColor="#9AA79F"
                 autoFocus
                 maxLength={24}
@@ -113,7 +113,7 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
                     setAddBusy(true);
                     setAddFailed(null);
                     try {
-                      await store.addPerson(newName);
+                      await store.addPerson(newName, adding || 'parent');
                       setNewName('');
                       setAdding(false);
                     } catch (e) {
@@ -127,7 +127,10 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
               </Row>
             </View>
           ) : (
-            <Btn kind="ghost" icon="person-add-outline" label="I look after someone else too" onPress={() => setAdding(true)} style={{ marginTop: 4 }} />
+            <>
+              <Btn kind="ghost" icon="person-add-outline" label="I look after someone else too" onPress={() => setAdding('parent')} style={{ marginTop: 4 }} />
+              <Btn kind="ghost" icon="people-outline" label="Add a sibling or helper" onPress={() => setAdding('child')} />
+            </>
           )}
           {!store.session?.demo ? (
             <>
