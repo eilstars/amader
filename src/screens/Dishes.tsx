@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { FoodDot, FoodKind, Icon, K, S, card } from '../design';
-import { COMMON, DishKind, KINDS, KIND_ORDER, PlateItem, amountText, kindOf } from '../dishes';
+import { COMMON, DishKind, KINDS, KIND_ORDER, PlateItem, amountText, firstAmount, kindOf } from '../dishes';
 import { searchFoods } from '../foods';
 import { C, F } from '../theme';
 import { T } from '../ui';
@@ -10,6 +10,7 @@ import { T } from '../ui';
 export function dotFor(item: Pick<PlateItem, 'name' | 'kind'>): FoodKind {
   const n = item.name.toLowerCase();
   if (item.kind === 'base') return /roti|chapat|naan|paratha|porota|puri|luchi|tortilla/.test(n) ? 'roti' : /bread|toast|bun/.test(n) ? 'bread' : 'rice';
+  if (/cheese|paneer/.test(n)) return 'dairy';
   if (item.kind === 'main') return /egg|dim\b|anda|omelet/.test(n) ? 'egg' : /dal|daal|dahl|lentil|sambar|chana|chole|rajma/.test(n) ? 'dal' : 'curry';
   if (item.kind === 'side') return /raita|yog|dahi|doi/.test(n) ? 'dairy' : 'veg';
   if (item.kind === 'drink') return 'dairy';
@@ -97,7 +98,7 @@ export function DishList({ items, onChange, recent = [] }: { items: PlateItem[];
     if (!name || items.length >= 12) return;
     const nice = (name.charAt(0).toUpperCase() + name.slice(1)).slice(0, 40);
     const kind: DishKind = kindOf(nice);
-    onChange([...items, { name: nice, kind, amount: kind === 'base' ? 2 : 1, ...(food ? { food } : {}) }]);
+    onChange([...items, { name: nice, kind, amount: firstAmount({ name: nice, kind }, items), ...(food ? { food } : {}) }]);
     setText('');
   };
   return (
@@ -148,10 +149,4 @@ export function DishList({ items, onChange, recent = [] }: { items: PlateItem[];
   );
 }
 
-/** A gentle, plain-words hint about what would balance the plate. Never about what to cut. */
-export function balanceHint(items: PlateItem[], p: { grains: number; protein: number; veg: number }): string | null {
-  if (!items.length) return null;
-  if (p.veg >= Math.max(1, p.grains) && p.protein > 0) return null;
-  if (p.protein === 0) return 'A bowl of dal, egg, meat or fish would balance it.';
-  return 'A handful of vegetables or salad would balance it.';
-}
+export { balanceHint } from '../dishes';

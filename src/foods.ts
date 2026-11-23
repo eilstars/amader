@@ -1,4 +1,4 @@
-import type { PlateItem } from './dishes';
+import { PlateItem, measureOf } from './dishes';
 
 /**
  * The food database: about 5,000 foods and dishes from USDA FoodData Central (FNDDS, public domain),
@@ -63,6 +63,7 @@ function find(item: Pick<PlateItem, 'name' | 'food'>): Row | null {
 function grams(item: PlateItem, r: Row): number {
   const cup = r[8];
   const piece = r[9];
+  if (measureOf(item).counted) return item.amount * (piece || (cup ? cup * 0.5 : 100));
   switch (item.kind) {
     case 'base':
       return item.amount * (cup ? cup * 0.75 : piece || 120);
