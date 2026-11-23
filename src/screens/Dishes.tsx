@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { FoodDot, FoodKind, Icon, K, S, card } from '../design';
 import { COMMON, DishKind, KINDS, KIND_ORDER, PlateItem, amountText, firstAmount, kindOf } from '../dishes';
-import { knowsDish, searchFoods } from '../foods';
+import { isOneDish, knowsDish, searchFoods } from '../foods';
 import { splitDishes } from '../foodwords';
 import { useStore } from '../store';
 import { C, F } from '../theme';
@@ -221,7 +221,7 @@ export function DishList({ items, onChange, recent = [] }: { items: PlateItem[];
   const add = (raw: string, food?: string) => {
     if (!raw.trim() || items.length >= 12) return;
     // Typed lines can hold several dishes: "rice, dal and fish curry" or "dal bhat".
-    const names = food ? [raw.trim()] : splitDishes(raw);
+    const names = food ? [raw.trim()] : splitDishes(raw, isOneDish);
     let next = items;
     for (const one of names) {
       if (next.length >= 12) break;

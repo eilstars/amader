@@ -17,6 +17,10 @@ const PHRASES: [RegExp, string][] = [
   [/\b(begun|baingan|brinjal) (bhorta|bharta|bhortha)\b/g, 'begun bhorta'],
   [/\b(alu|aloo|aaloo) (gobi|gobhi|phulkopi|fulkopi)\b/g, 'aloo gobi'],
   [/\b(palak|saag|sag) paneer\b/g, 'palak paneer'],
+  [/\bbanh mi\b/g, 'sandwich'],
+  [/\bmapo tofu\b/g, 'tofu'],
+  [/\bmenudo\b/g, 'beef soup'],
+  [/\b(sinigang|egusi|pepper soup|tinola|nilaga)\b( soup)?/g, 'soup'],
 ];
 
 // One word at a time: spelling → the database's word. Empty string drops the word.
@@ -49,7 +53,22 @@ say('upma', 'poha', 'chira', 'chura');
 say('cauliflower', 'gobi', 'gobhi', 'phulkopi', 'fulkopi');
 say('bhindi', 'dherosh', 'dheros', 'okra');
 say('biscuits', 'biscuit', 'cookies', 'cookie');
-say('', 'homemade', 'home', 'made', 'leftover', 'leftovers', 'some', 'little', 'bit', 'of', 'the', 'a', 'my', 'fresh', 'plain', 'dish', 'bowl', 'plate');
+// Spanish, Tagalog and others, for families beyond South Asia.
+say('rice', 'arroz', 'kanin', 'fan');
+say('chicken', 'pollo', 'manok', 'poulet');
+say('beef', 'carne', 'res', 'asada');
+say('pork', 'cerdo', 'puerco', 'baboy', 'carnitas', 'lechon');
+say('fish', 'pescado', 'isda', 'poisson');
+say('egg', 'huevo', 'huevos', 'itlog');
+say('beans', 'frijoles', 'habichuelas', 'bean', 'pinto', 'rajmah');
+say('plantain', 'platano', 'platanos', 'maduros', 'tostones', 'plantains');
+say('cheese', 'queso');
+say('soup', 'sopa', 'caldo', 'sabaw');
+say('salad', 'ensalada');
+say('congee', 'jook', 'juk', 'lugaw', 'arroz caldo');
+say('kebab', 'kofta', 'kafta', 'kabob', 'kabab', 'seekh');
+say('grilled', 'jerk', 'tandoori', 'tikka', 'asado', 'bbq', 'barbecue');
+say('', 'con', 'de', 'la', 'el', 'y', 'homemade', 'home', 'made', 'leftover', 'leftovers', 'some', 'little', 'bit', 'of', 'the', 'a', 'my', 'fresh', 'plain', 'dish', 'bowl', 'plate');
 
 const PROTEINS = ['fish', 'chicken', 'beef', 'mutton', 'egg', 'prawn', 'dal', 'chana'];
 
@@ -83,7 +102,10 @@ const PAIRS: [RegExp, string[]][] = [
 ];
 
 /** "Rice, dal and fish curry" or "dal bhat" → separate dishes. A single dish comes back as one. */
-export function splitDishes(line: string): string[] {
+export function splitDishes(line: string, isDish?: (name: string) => boolean): string[] {
+  // "Mac and cheese", "rice and peas", "fish and chips" are one dish: keep a line the database knows whole.
+  const whole = line.trim().replace(/\s+/g, ' ');
+  if (isDish && !/,/.test(whole) && isDish(whole)) return [whole.charAt(0).toUpperCase() + whole.slice(1)];
   const parts = line
     .split(/,|\band\b|\bwith\b|&|\+|\/|\bar\b|\baur\b/i)
     .map((p) => p.trim().replace(/\s+/g, ' '))

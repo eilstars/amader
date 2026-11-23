@@ -34,11 +34,11 @@ export const KIND_ORDER: DishKind[] = ['base', 'main', 'side', 'sweet', 'drink']
  * slices of bread, pieces of roti, eggs, a whole sandwich. Everything else uses its kind's measure.
  */
 const COUNTED: [RegExp, string, string][] = [
-  [/\b(sandwich|burger|wrap|sub\b|hot ?dog|kathi roll|frankie|shawarma)/i, 'whole', 'whole'],
-  [/\b(bread|toast|cheese|pizza)/i, 'slice', 'slices'],
+  [/\b(sandwich|burger|wrap|sub\b|hot ?dog|kathi roll|frankie|shawarma|tacos?|burritos?|gyros?)/i, 'whole', 'whole'],
+  [/\b(bread|toast|pizza)|^cheese$|cheese slice/i, 'slice', 'slices'],
   [/\b(eggs?|anda|omelet+e?|dim\b)/i, 'egg', 'eggs'],
-  [/\b(roti|chapat+i|chapathi|phulka|naan|nan\b|paratha|porota|puri|luchi|tortilla|dosa|idli|bun|bagel)/i, 'piece', 'pieces'],
-  [/\b(patty|pattie|kebab|kabab|samosa|singara|pakora|cutlet|chop\b|nugget|sausage|biscuit|cookie|ladoo|laddu|rasgulla|roshogolla|gulab jamun|sandesh|pitha|date|khejur)/i, 'piece', 'pieces'],
+  [/\b(roti|chapat+i|chapathi|phulka|naan|nan\b|paratha|porota|puri|luchi|tortilla|dosa|idli|bun|bagel|pita)/i, 'piece', 'pieces'],
+  [/\b(tamale|pupusa|enchilada|dumpling|momo|gyoza|lumpia|egg roll|spring roll|falafel|pierogi|empanada|arepa|sushi|patty|pattie|kebab|kabab|samosa|singara|pakora|cutlet|chop\b|nugget|sausage|biscuit|cookie|ladoo|laddu|rasgulla|roshogolla|gulab jamun|sandesh|pitha|date|khejur)/i, 'piece', 'pieces'],
 ];
 
 /** How a dish is counted: "slice", "piece", "egg", or its kind's measure ("fist", "bowl"...). */
@@ -76,10 +76,10 @@ export function firstAmount(item: Pick<PlateItem, 'name' | 'kind'>, plate: Pick<
 
 // Words that say what a dish carries. Many languages and spellings, since families name food their own way.
 const has = (words: string[]) => new RegExp(`\\b(${words.join('|')})`, 'i');
-const BASE = has(['rice', 'bhat', 'bhaat', 'chawal', 'roti', 'chapati', 'chapathi', 'phulka', 'naan', 'nan\\b', 'paratha', 'porota', 'puri', 'luchi', 'bread', 'toast', 'pasta', 'noodle', 'spaghetti', 'tortilla', 'idli', 'dosa', 'upma', 'poha', 'khichdi', 'khichuri', 'kichuri', 'biryani', 'biriyani', 'pulao', 'polao', 'pilaf', 'fried rice', 'couscous', 'injera', 'ugali', 'fufu', 'bun', 'bagel', 'oats', 'oatmeal', 'porridge', 'grits', 'cereal', 'muri', 'chira', 'potato', 'aloo bhaja', 'fries']);
+const BASE = has(['rice', 'bhat', 'bhaat', 'chawal', 'roti', 'chapati', 'chapathi', 'phulka', 'naan', 'nan\\b', 'paratha', 'porota', 'puri', 'luchi', 'bread', 'toast', 'pasta', 'noodle', 'spaghetti', 'tortilla', 'idli', 'dosa', 'upma', 'poha', 'khichdi', 'khichuri', 'kichuri', 'biryani', 'biriyani', 'pulao', 'polao', 'pilaf', 'fried rice', 'couscous', 'injera', 'ugali', 'fufu', 'bun', 'bagel', 'pita', 'plantain', 'platano', 'arepa', 'oats', 'oatmeal', 'porridge', 'grits', 'cereal', 'muri', 'chira', 'potato', 'aloo bhaja', 'fries']);
 const PROTEIN = has(['chicken', 'murgh', 'mutton', 'lamb', 'goat', 'beef', 'gosht', 'meat', 'keema', 'kebab', 'kabab', 'tikka', 'fish', 'machh', 'mach\\b', 'maach', 'ilish', 'rui', 'salmon', 'tuna', 'prawn', 'shrimp', 'chingri', 'egg', 'dim\\b', 'anda', 'omelet', 'dal\\b', 'daal', 'dahl', 'lentil', 'masoor', 'moong', 'mung', 'toor', 'chana', 'chole', 'chickpea', 'rajma', 'bean', 'sambar', 'paneer', 'tofu', 'soy', 'haleem', 'nihari', 'korma', 'rezala', 'patty', 'pattie', 'burger', 'sausage', 'bacon', 'ham\\b', 'turkey', 'pork', 'steak', 'cheese']);
 const DAIRY = has(['paneer', 'yoghurt', 'yogurt', 'dahi', 'doi', 'raita', 'korma', 'makhani', 'butter chicken', 'malai', 'cream', 'kheer', 'payesh', 'payash', 'firni', 'lassi', 'milk', 'dudh', 'cheese', 'kadhi', 'rezala', 'shrikhand', 'rasmalai', 'mishti doi']);
-const VEG = has(['sabzi', 'sabji', 'shobji', 'bhaji', 'bhaaji', 'shak', 'saag', 'sag\\b', 'palak', 'spinach', 'gobi', 'cauliflower', 'cabbage', 'bhindi', 'okra', 'dherosh', 'begun', 'baingan', 'brinjal', 'eggplant', 'lau', 'lauki', 'gourd', 'potol', 'karela', 'korola', 'bean', 'peas', 'matar', 'carrot', 'salad', 'veg', 'vegetable', 'kosambari', 'kachumber', 'mixed', 'labra', 'chorchori', 'tomato', 'cucumber', 'broccoli', 'greens', 'lettuce', 'onion', 'pepper', 'pumpkin', 'kumro', 'sambar', 'avial', 'poriyal', 'thoran', 'stir fry', 'jalfrezi']);
+const VEG = has(['sabzi', 'sabji', 'shobji', 'bhaji', 'bhaaji', 'shak', 'saag', 'sag\\b', 'palak', 'spinach', 'gobi', 'cauliflower', 'cabbage', 'bhindi', 'okra', 'dherosh', 'begun', 'baingan', 'brinjal', 'eggplant', 'lau', 'lauki', 'gourd', 'potol', 'karela', 'korola', 'bean', 'peas', 'matar', 'carrot', 'salad', 'veg', 'vegetable', 'kosambari', 'kachumber', 'mixed', 'labra', 'chorchori', 'tomato', 'cucumber', 'broccoli', 'greens', 'green bean', 'bok choy', 'kimchi', 'lettuce', 'onion', 'pepper', 'pumpkin', 'kumro', 'sambar', 'avial', 'poriyal', 'thoran', 'stir fry', 'jalfrezi']);
 const FRUIT = has(['apple', 'banana', 'kola\\b', 'mango', 'aam\\b', 'orange', 'guava', 'peyara', 'papaya', 'pepe', 'grape', 'berries', 'berry', 'melon', 'pear', 'kiwi', 'pomegranate', 'dates', 'khejur', 'litchi', 'lychee', 'jackfruit', 'fruit']);
 const SWEET = has(['mithai', 'mishti', 'sweet', 'rasgulla', 'roshogolla', 'gulab jamun', 'jalebi', 'ladoo', 'laddu', 'barfi', 'halwa', 'kheer', 'payesh', 'firni', 'cake', 'biscuit', 'cookie', 'chocolate', 'dessert', 'ice cream', 'pitha', 'sandesh']);
 const DRINK = has(['chai', 'tea', 'coffee', 'lassi', 'milk', 'juice', 'borhani', 'shake', 'smoothie', 'water', 'sharbat', 'falooda']);
@@ -93,7 +93,10 @@ export function kindOf(name: string): DishKind {
   // Read the family's words and the database's together: "bhat" is rice, "macher jhol" is fish curry.
   const n = `${name.trim()} ${normalizeDish(name)}`.trim();
   if (COMBO.test(n)) return 'main';
+  // Soups and stews are eaten by the bowl, whatever is in them.
+  if (/soup|stew|caldo|sopa|pho|ramen|congee|jook|pozole|menudo|borscht|sinigang|chowder/i.test(n)) return 'main';
   // Mashes, fries and vegetable dishes eaten on the side: aloo bhorta, begun bhaja, aloo gobi.
+  if (/green beans?|bok choy|kimchi|broccoli/i.test(n)) return 'side';
   if (/bhorta|bharta|bhortha|bhaja|bhaji|gobi|gobhi|sabzi|sabji|sobji/i.test(n) && !PROTEIN.test(n)) return 'side';
   if (/raita|chutney|achar|pickle|kachumber/i.test(n)) return 'side';
   if (DRINK.test(n) && !BASE.test(n)) return 'drink';

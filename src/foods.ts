@@ -34,8 +34,12 @@ export function searchFoods(query: string, limit = 6): string[] {
   return first.length || q === asTyped ? first : rank(asTyped, limit);
 }
 
-function rank(q: string, limit: number): string[] {
-  const qs = words(q);
+// "Tortillas" finds tortilla, "potatoes" finds potato.
+const stem = (w: string) => (w.length > 4 && w.endsWith('es') && !w.endsWith('ses') ? w.slice(0, -2) : w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w);
+
+function rank(query: string, limit: number): string[] {
+  const qs = words(query).map(stem);
+  const q = qs.join(' ');
   if (q.length < 2 || !qs.length) return [];
   const list = all();
   const scored: [number, number][] = [];
@@ -48,7 +52,7 @@ function rank(q: string, limit: number): string[] {
     else if (name.startsWith(q)) score -= 5e5;
     else if (ws[0].startsWith(qs[0])) score -= 2e5;
     // "roti" should find roti before rotisserie chicken.
-    if (!qs.every((t) => ws.includes(t))) score += 3e5;
+    if (!qs.every((t) => ws.includes(t) || ws.includes(`${t}s`))) score += 3e5;
     score += name.length * 50; // shorter, plainer names first
     scored.push([score, i]);
   }
@@ -73,6 +77,12 @@ export function setFamilyDishes(dishes: FamilyDish[]) {
   taught = next;
 }
 
+/** Whether a whole typed line is one dish the database knows, like "mac and cheese". */
+export function isOneDish(line: string): boolean {
+  const n = line.trim().toLowerCase();
+  return !!(taught.get(n) ?? exactRow(n) ?? exactRow(normalizeDish(n)));
+}
+
 function exactRow(n?: string): Row | null {
   if (!n) return null;
   const list = all();
@@ -90,7 +100,7 @@ const STAND_IN: Record<PlateItem['kind'], string> = { base: 'Rice', main: 'Curry
 function lookup(item: Pick<PlateItem, 'name' | 'food' | 'kind'>): { r: Row; sure: boolean } | null {
   const name = item.name.trim().toLowerCase();
   const norm = normalizeDish(name);
-  const r = taught.get(name) ?? exactRow(item.food) ?? exactRow(name) ?? exactRow(norm) ?? exactRow(searchFoods(name, 1)[0]);
+  const r = taught.get(name) ?? exactRow(item.food) ?? exactRow(name) ?? exactRow(norm) ?? exactRow(stem(name)) ?? exactRow(searchFoods(name, 1)[0]);
   if (r) return { r, sure: true };
   const guess = item.kind ? exactRow(STAND_IN[item.kind]) : null;
   return guess ? { r: guess, sure: false } : null;

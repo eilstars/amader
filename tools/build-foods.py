@@ -100,7 +100,14 @@ ALIASES = [
     ('Kheer', 'Pudding, rice'), ('Payesh', 'Pudding, rice'), ('Fruit', 'Apple, raw'), ('Apple', 'Apple, raw'), ('Banana', 'Banana, raw'),
     ('Mango', 'Mango, raw'), ('Orange', 'Orange, raw'), ('Guava', 'Guava, raw'), ('Papaya', 'Papaya, raw'), ('Grapes', 'Grapes, raw'),
     ('Dates', 'Date'), ('Patty', 'Beef, ground, patty'), ('Burger', 'Hamburger, NFS'), ('Hamburger', 'Hamburger, NFS'),
-    ('Curry', 'Chicken curry'), ('Toast', 'Bread, white, toasted'), ('Mishti doi', 'Yogurt, whole milk, fruit'), ('Muri', 'Rice cake'), ('Biscuits', 'Cookie, NFS'),
+    ('Curry', 'Chicken curry'), ('Beans', 'Beans, NFS'), ('Tortilla', 'Tortilla, NFS'), ('Tamale', 'Tamale, NFS'), ('Taco', 'Taco, NFS'), ('Spaghetti', 'Pasta, cooked'), ('Pizza', 'Pizza, cheese, from restaurant or fast food, NS as to type of crust'),
+    ('Pupusa', 'Pupusa, with beans'), ('Enchilada', 'Enchilada, NFS'), ('Plantain', 'Plantain, cooked with oil'),
+    ('Arroz con pollo', 'Soupy rice with chicken, Puerto Rican style'), ('Chicken adobo', 'Chicken with gravy'), ('Adobo', 'Chicken with gravy'),
+    ('Lumpia', 'Egg roll, with beef and/or pork'), ('Egg roll', 'Egg roll, with beef and/or pork'), ('Pancit', 'Lo mein, NFS'),
+    ('Bok choy', 'Cabbage, Chinese, cooked, fat added'), ('Tofu', 'Tofu and vegetables excluding carrots, broccoli, and dark-green leafy; no potatoes, with soy-based sauce'),
+    ('Bulgogi', 'Beef, NFS'), ('Char siu', 'Pork, NFS'), ('Pork', 'Pork, NFS'), ('Beef', 'Beef, NFS'), ('Pot roast', 'Beef, pot roast'),
+    ('Meatloaf', 'Meat loaf made with beef'), ('Pita', 'Bread, pita'), ('Sandwich', 'Sandwich, NFS'), ('Soup', 'Soup, NFS'),
+    ('Mac and cheese', 'Macaroni or noodles with cheese'), ('Rice and peas', 'Rice, white, with peas, NS as to fat'), ('Saltfish', 'Biscayne codfish, Puerto Rican style'), ('Toast', 'Bread, white, toasted'), ('Mishti doi', 'Yogurt, whole milk, fruit'), ('Muri', 'Rice cake'), ('Biscuits', 'Cookie, NFS'),
     ('Cauliflower', 'Cauliflower, NS as to form, cooked'), ('Pumpkin', 'Pumpkin, canned, cooked'), ('Potato', 'Potato, boiled, NFS'),
     ('Begun bhorta', 'Eggplant, cooked, fat added'), ('Firni', 'Firni, Indian pudding'), ('Ghee', 'Ghee, clarified butter'),
     ('Cheeseburger', 'Cheeseburger, NFS'), ('Pho', 'Soup, pho, with meat'), ('Oatmeal', 'Oatmeal, NFS'), ('Porridge', 'Oatmeal, NFS'), ('Cake', 'Cake or cupcake, NFS'), ('Biscuit', 'Cookie, NFS'), ('Ice cream', 'Ice cream, NFS'), ('Smoothie', 'Fruit smoothie, NFS'),
@@ -119,6 +126,7 @@ for r in [
     # Home curries: the main thing cooked down with onion, tomato and oil.
     blend('Egg curry', [('Egg, whole, boiled or poached', 100), ('Onions, cooked, fat added', 60), ('Tomatoes, cooked, as ingredient', 60), ('Vegetable oil, NFS', 10)], piece=115),
     blend('Prawn curry', [('Shrimp, NFS', 100), ('Onions, cooked, fat added', 60), ('Tomatoes, cooked, as ingredient', 60), ('Vegetable oil, NFS', 10)]),
+    blend('Jollof rice', [('Rice, white, cooked, no added fat', 150), ('Tomatoes, cooked, as ingredient', 60), ('Onions, cooked, fat added', 30), ('Vegetable oil, NFS', 8)], cup=200),
     blend('Aloo bhorta', [('Potato, mashed, NFS', 150), ('Onions, cooked, fat added', 15), ('Vegetable oil, NFS', 8)], cup=210),
     blend('Aloo gobi', [('Potato, boiled, NFS', 100), ('Cauliflower, NS as to form, cooked', 100), ('Onions, cooked, fat added', 30), ('Vegetable oil, NFS', 10)], cup=180),
 ]:
