@@ -1,7 +1,7 @@
 import type { PlateItem } from '../dishes';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Backend, Cheer, Family, Guess, Meal, Member, Parts, Recipe, Role, Slot, Tick, Voice } from '../types';
+import { Backend, Cheer, Family, FamilyDish, Guess, Meal, Member, Parts, Recipe, Role, Slot, Tick, Voice } from '../types';
 import { unitWord } from '../words';
 
 const BUCKET = 'meal-photos';
@@ -189,7 +189,7 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
       fail(mem.error);
       const since = new Date(Date.now() - 120 * 86_400_000).toISOString();
       const tickSince = new Date(Date.now() - 21 * 86_400_000).toISOString().slice(0, 10);
-      const [mealRows, cheerRows, recipeRows, tickRows] = await Promise.all([
+      const [mealRows, cheerRows, recipeRows, tickRows, dishRows] = await Promise.all([
         db
           .from('meals')
           .select('id, member_id, eaten_at, slot, photo_url, handfuls, protein, veg, fruit, dairy, dish, parts, note, voice_url, with_ids, with_others, party, grain, same_as, items, hearts(member_id)')
@@ -199,6 +199,7 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
         db.from('cheers').select('id, from_id, to_id, meal_id, text, created_at').eq('family_code', code).gte('created_at', since).order('created_at', { ascending: false }),
         db.from('recipes').select('id, added_by, title, from_whom, ingredients, steps, story, photo_url, voice_url, created_at').eq('family_code', code).order('created_at', { ascending: false }),
         db.from('ticks').select('member_id, day, kind').eq('family_code', code).gte('day', tickSince),
+        db.from('family_dishes').select('id, added_by, name, parts, created_at').eq('family_code', code).order('created_at', { ascending: false }).limit(300),
       ]);
       fail(tickRows.error);
       const ticks: Tick[] = ((tickRows.data ?? []) as { member_id: string; day: string; kind: string }[]).map((t) => ({ memberId: t.member_id, day: t.day, kind: t.kind }));
@@ -249,7 +250,11 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
         voice: linkOf(r.voice_url, VOICE),
         date: r.created_at,
       }));
-      return { family, meals, cheers, recipes, ticks };
+      // Older databases may not have the table yet: then the family simply has no taught dishes.
+      const dishes: FamilyDish[] = dishRows.error
+        ? []
+        : ((dishRows.data ?? []) as { id: string; added_by: string; name: string; parts: FamilyDish['parts']; created_at: string }[]).map((d) => ({ id: d.id, addedBy: d.added_by, name: d.name, parts: Array.isArray(d.parts) ? d.parts : [], date: d.created_at }));
+      return { family, meals, cheers, recipes, ticks, dishes };
     },
 
     async setQuest(code, quest) {
@@ -324,6 +329,12 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
     async sendCheer(code, cheer) {
       await signedIn();
       const { error } = await db.from('cheers').insert({ id: cheer.id, family_code: code, from_id: cheer.fromId, to_id: cheer.toId, meal_id: cheer.mealId ?? null, text: cheer.text });
+      fail(error);
+    },
+
+    async addDish(code, dish) {
+      await signedIn();
+      const { error } = await db.from('family_dishes').insert({ id: dish.id, family_code: code, added_by: dish.addedBy, name: dish.name, parts: dish.parts });
       fail(error);
     },
 

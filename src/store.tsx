@@ -2,7 +2,8 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { cloudBackend, localBackend, webUrl } from './backend';
-import { Backend, Cheer, Family, Guess, Meal, Member, NewMeal, NewRecipe, Photo, Recipe, Role, Session, Tick } from './types';
+import { Backend, Cheer, Family, FamilyDish, Guess, Meal, Member, NewMeal, NewRecipe, Photo, Recipe, Role, Session, Tick } from './types';
+import { setFamilyDishes } from './foods';
 import { QuestProgress, dayKey, questById, questProgress, weekKey } from './quests';
 import { MedSlot, pushAddress, syncReminders } from './reminders';
 import { refreshWidgets } from './widgets';
@@ -160,6 +161,8 @@ interface Store {
   meals: Meal[];
   cheers: Cheer[];
   recipes: Recipe[];
+  /** Dishes the family taught Amader (what goes in them). */
+  dishes: FamilyDish[];
   me: Member | null;
   goalFood: string;
   goalHandfuls: number;
@@ -208,6 +211,8 @@ interface Store {
   sendCheer(toId: string, text: string, mealId?: string | null): Promise<void>;
   addRecipe(recipe: NewRecipe): Promise<Recipe>;
   deleteRecipe(recipeId: string): Promise<void>;
+  /** Teaches Amader what goes into a dish, for the whole family. */
+  addDish(name: string, parts: FamilyDish['parts']): Promise<void>;
   setGoal(goalFood: string, goalHandfuls: number): void;
   /** Sample family only: look at the app as someone else. */
   viewAs(memberId: string): void;
@@ -263,6 +268,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [meals, setMeals] = useState<Meal[]>([]);
   const [cheers, setCheers] = useState<Cheer[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [dishes, setDishes] = useState<FamilyDish[]>([]);
+  // The food database reads the family's own dishes when it judges a plate or writes the doctor summary.
+  setFamilyDishes(dishes);
   const [ticks, setTicks] = useState<Tick[]>([]);
   const [pendingCode, setPendingCode] = useState<string | null>(null);
   const [checkupDate, setCheckup] = useState<string | null>(null);
@@ -292,6 +300,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setCheers([...data.cheers].sort((a, b) => (a.date < b.date ? 1 : -1)));
     setRecipes([...data.recipes].sort((a, b) => (a.date < b.date ? 1 : -1)));
     setTicks(data.ticks ?? []);
+    setDishes(data.dishes ?? []);
   }, []);
 
   const start = useCallback(
@@ -404,6 +413,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       meals,
       cheers,
       recipes,
+      dishes,
       me,
       goalFood,
       goalHandfuls,
@@ -655,6 +665,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return saved;
       },
 
+      async addDish(name, parts) {
+        if (!session) return;
+        const dish: FamilyDish = { id: newId(), addedBy: session.meId, name: name.trim().slice(0, 40), parts: parts.slice(0, 8), date: new Date().toISOString() };
+        // Show it straight away; a failed save only means it is asked again next time.
+        setDishes((list) => [dish, ...list.filter((d) => d.name.toLowerCase() !== dish.name.toLowerCase())]);
+        await backendFor(session).addDish(session.code, dish).catch(() => undefined);
+      },
+
       async deleteRecipe(recipeId) {
         if (!session) return;
         await backendFor(session).deleteRecipe(session.code, recipeId);
@@ -698,6 +716,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setMeals([]);
         setCheers([]);
         setRecipes([]);
+        setDishes([]);
         setTicks([]);
         setCheckup(null);
       },
@@ -742,7 +761,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         await syncReminders(planFor(next, doneToday, today));
       },
     };
-  }, [ready, session, family, meals, cheers, recipes, ticks, pendingCode, checkupDate, prefs, pendingAction, news, pull, start]);
+  }, [ready, session, family, meals, cheers, recipes, dishes, ticks, pendingCode, checkupDate, prefs, pendingAction, news, pull, start]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

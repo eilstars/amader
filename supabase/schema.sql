@@ -121,6 +121,18 @@ create table if not exists public.recipes (
 );
 create index if not exists recipes_family on public.recipes (family_code, created_at desc);
 
+-- Dishes the family taught Amader: what goes in them, as foods from the app's food database.
+-- Lets the app judge any home dish by what's in it. Newest wins when a name is taught twice.
+create table if not exists public.family_dishes (
+  id uuid primary key default gen_random_uuid(),
+  family_code text not null references public.families (code) on delete cascade,
+  added_by uuid not null references public.members (id) on delete cascade,
+  name text not null check (char_length(name) between 1 and 40),
+  parts jsonb not null check (jsonb_typeof(parts) = 'array' and jsonb_array_length(parts) between 1 and 8 and octet_length(parts::text) <= 1200),
+  created_at timestamptz not null default now()
+);
+create index if not exists family_dishes_family on public.family_dishes (family_code, created_at desc);
+
 -- Keep what a phone can write small and sane, so one bad actor in a family cannot fill the database.
 alter table public.families drop constraint if exists families_goal_food_len;
 alter table public.families add constraint families_goal_food_len check (char_length(goal_food) between 1 and 30);
@@ -218,6 +230,7 @@ create policy "examples: take back my own" on public.examples
 
 alter table public.cheers enable row level security;
 alter table public.recipes enable row level security;
+alter table public.family_dishes enable row level security;
 
 drop policy if exists "cheers: family can read" on public.cheers;
 create policy "cheers: family can read" on public.cheers
@@ -253,6 +266,22 @@ create policy "recipes: add my own" on public.recipes
 
 drop policy if exists "recipes: remove my own" on public.recipes;
 create policy "recipes: remove my own" on public.recipes
+  for delete to authenticated using (added_by in (select public.my_member_ids()));
+
+drop policy if exists "family dishes: family can read" on public.family_dishes;
+create policy "family dishes: family can read" on public.family_dishes
+  for select to authenticated using (family_code in (select public.my_family_codes()));
+
+drop policy if exists "family dishes: add my own" on public.family_dishes;
+create policy "family dishes: add my own" on public.family_dishes
+  for insert to authenticated
+  with check (
+    added_by in (select public.my_member_ids())
+    and family_code in (select m.family_code from public.members m where m.id = added_by)
+  );
+
+drop policy if exists "family dishes: remove my own" on public.family_dishes;
+create policy "family dishes: remove my own" on public.family_dishes
   for delete to authenticated using (added_by in (select public.my_member_ids()));
 
 drop policy if exists "family: members can read" on public.families;
@@ -540,5 +569,6 @@ grant select, insert, delete on public.hearts to authenticated;
 grant select, insert, delete on public.examples to authenticated;
 grant select, insert, delete on public.cheers to authenticated;
 grant select, insert, delete on public.recipes to authenticated;
+grant select, insert, delete on public.family_dishes to authenticated;
 -- A phone that is not signed in can run nothing.
 revoke execute on all functions in schema public from anon, public;

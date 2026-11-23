@@ -99,7 +99,8 @@ ALIASES = [
     ('Doi', 'Yogurt, whole milk, plain'), ('Milk', 'Milk, whole'), ('Tea', 'Tea, hot, leaf, black'), ('Coffee', 'Coffee, brewed'),
     ('Kheer', 'Pudding, rice'), ('Payesh', 'Pudding, rice'), ('Fruit', 'Apple, raw'), ('Apple', 'Apple, raw'), ('Banana', 'Banana, raw'),
     ('Mango', 'Mango, raw'), ('Orange', 'Orange, raw'), ('Guava', 'Guava, raw'), ('Papaya', 'Papaya, raw'), ('Grapes', 'Grapes, raw'),
-    ('Dates', 'Date'), ('Cake', 'Cake or cupcake, NFS'), ('Biscuit', 'Cookie, NFS'), ('Ice cream', 'Ice cream, NFS'), ('Smoothie', 'Fruit smoothie, NFS'),
+    ('Dates', 'Date'), ('Patty', 'Beef, ground, patty'), ('Burger', 'Hamburger, NFS'), ('Hamburger', 'Hamburger, NFS'),
+    ('Cheeseburger', 'Cheeseburger, NFS'), ('Pho', 'Soup, pho, with meat'), ('Oatmeal', 'Oatmeal, NFS'), ('Porridge', 'Oatmeal, NFS'), ('Cake', 'Cake or cupcake, NFS'), ('Biscuit', 'Cookie, NFS'), ('Ice cream', 'Ice cream, NFS'), ('Smoothie', 'Fruit smoothie, NFS'),
 ]
 
 rows, seen = [], set()

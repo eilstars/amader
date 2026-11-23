@@ -110,6 +110,19 @@ export interface Cheer {
   mealId?: string | null;
 }
 
+/**
+ * A dish the family taught Amader: what goes into it, by rough share.
+ * Lets any home dish ("Nani's khichuri", "jollof", "pho") be judged by what's in it, not by its name.
+ */
+export interface FamilyDish {
+  id: string;
+  addedBy: string;
+  name: string;
+  /** Foods from the food database, with a share of 1 (a little), 2 (some) or 3 (a lot). */
+  parts: { food: string; share: number }[];
+  date: string;
+}
+
 /** A family recipe, so it is not lost. */
 export interface Recipe {
   id: string;
@@ -209,7 +222,7 @@ export interface Backend {
   savePushToken(code: string, meId: string, token: string | null): Promise<void>;
   /** Asks the server to tell the rest of the family about a meal or a comment. Never throws. */
   notifyFamily(code: string, event: { kind: 'meal'; mealId: string } | { kind: 'comment'; cheerId: string }): Promise<void>;
-  load(code: string): Promise<{ family: Family; meals: Meal[]; cheers: Cheer[]; recipes: Recipe[]; ticks: Tick[] } | null>;
+  load(code: string): Promise<{ family: Family; meals: Meal[]; cheers: Cheer[]; recipes: Recipe[]; ticks: Tick[]; dishes?: FamilyDish[] } | null>;
   setQuest(code: string, quest: string | null): Promise<void>;
   /** Adds a costume the family just earned. Safe to call twice. */
   addCostume(code: string, costume: string): Promise<void>;
@@ -221,6 +234,8 @@ export interface Backend {
   sendCheer(code: string, cheer: Cheer): Promise<void>;
   addRecipe(code: string, recipe: Recipe, photo: Photo | null, voice: Voice | null): Promise<Recipe>;
   deleteRecipe(code: string, recipeId: string): Promise<void>;
+  /** Saves what goes into a dish the food database doesn't know, for the whole family. */
+  addDish(code: string, dish: FamilyDish): Promise<void>;
   setGoal(code: string, goalFood: string, goalHandfuls: number): Promise<void>;
   /** Keeps a photo and the person's own answer to help improve recognition. Only called after they opted in. */
   saveExample(example: Example): Promise<void>;

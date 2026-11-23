@@ -1,4 +1,5 @@
 import { PlateItem, measureOf } from './dishes';
+import type { FamilyDish } from './types';
 
 /**
  * The food database: about 5,000 foods and dishes from USDA FoodData Central (FNDDS, public domain),
@@ -48,11 +49,35 @@ export function searchFoods(query: string, limit = 6): string[] {
     .map(([, i]) => list[i][0]);
 }
 
-/** The database food behind a dish: the one picked, else the same name, else the best search match. */
-function find(item: Pick<PlateItem, 'name' | 'food'>): Row | null {
+// Dishes the family taught Amader, as rows built from their parts. Set by the store.
+let taught = new Map<string, Row>();
+export function setFamilyDishes(dishes: FamilyDish[]) {
+  const next = new Map<string, Row>();
+  for (const d of [...dishes].reverse()) {
+    const parts = d.parts.map((p) => ({ r: exactRow(p.food), share: Math.max(1, Math.min(3, p.share)) })).filter((p): p is { r: Row; share: number } => !!p.r);
+    if (!parts.length) continue;
+    const total = parts.reduce((a, p) => a + p.share, 0);
+    const n = [0, 0, 0, 0, 0, 0, 0];
+    parts.forEach((p) => n.forEach((_, i) => (n[i] += (p.r[i + 1] as number) * (p.share / total))));
+    next.set(d.name.toLowerCase(), [d.name, ...(n as [number, number, number, number, number, number, number]), 240, 0, 3]);
+  }
+  taught = next;
+}
+
+function exactRow(n?: string): Row | null {
+  if (!n) return null;
   const list = all();
-  const exact = (n?: string) => (n ? list[lower.indexOf(n.toLowerCase())] ?? null : null);
-  return exact(item.food) ?? exact(item.name) ?? exact(searchFoods(item.name, 1)[0]);
+  return list[lower.indexOf(n.toLowerCase())] ?? null;
+}
+
+/** The database food behind a dish: one the family taught, the one picked, the same name, or a search match. */
+function find(item: Pick<PlateItem, 'name' | 'food'>): Row | null {
+  return taught.get(item.name.trim().toLowerCase()) ?? exactRow(item.food) ?? exactRow(item.name) ?? exactRow(searchFoods(item.name, 1)[0]);
+}
+
+/** Whether Amader can tell what's in a dish, from the database or from the family. */
+export function knowsDish(item: Pick<PlateItem, 'name' | 'food'>): boolean {
+  return !!find(item);
 }
 
 /**
@@ -70,12 +95,23 @@ function grams(item: PlateItem, r: Row): number {
     case 'main':
       return item.amount * (cup || 240);
     case 'side':
-      return item.amount * (cup ? cup * 0.5 : 80);
+      return item.amount * 80; // a handful of vegetables is about one 80 g portion
     case 'sweet':
       return item.amount * (piece || (cup ? cup * 0.5 : 100));
     case 'drink':
       return item.amount * (cup || 240);
   }
+}
+
+/** One dish's estimate, or null when Amader doesn't know what's in it. */
+export function dishNutrients(item: PlateItem): (Nutrients & { grams: number; light: boolean }) | null {
+  const r = find(item);
+  if (!r) return null;
+  const g = grams(item, r);
+  const k = g / 100;
+  // "Light" foods fill the plate with few calories and some fiber: vegetables, salad, most fruit.
+  const light = r[1] < 70 && r[3] >= 1 && item.kind !== 'drink';
+  return { kcal: r[1] * k, carbs: r[2] * k, fiber: r[3] * k, sugar: r[4] * k, protein: r[5] * k, fat: r[6] * k, sodium: r[7] * k, grams: g, light };
 }
 
 export interface Nutrients {

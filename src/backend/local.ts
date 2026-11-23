@@ -1,6 +1,6 @@
 import { itemsFromLine } from '../dishes';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Backend, Cheer, Family, Meal, Member, Photo, Recipe, Session, Tick, Voice } from '../types';
+import { Backend, Cheer, Family, FamilyDish, Meal, Member, Photo, Recipe, Session, Tick, Voice } from '../types';
 import { CODE_LENGTH, newId } from '../words';
 
 const FAMILY = 'amader.family';
@@ -8,6 +8,7 @@ const MEALS = 'amader.meals';
 const PHOTO = 'amader.photo.';
 const CHEERS = 'amader.cheers';
 const RECIPES = 'amader.recipes';
+const DISHES = 'amader.dishes';
 const TICKS = 'amader.ticks';
 /** Phone storage is small, so only the newest photos are kept in this mode. */
 const KEEP_PHOTOS = 30;
@@ -74,13 +75,14 @@ export const localBackend: Backend & { seedDemo(): Promise<Session>; clear(): Pr
     const cheers = (await read<Cheer[]>(CHEERS)) ?? [];
     const recipes = (await read<Recipe[]>(RECIPES)) ?? [];
     const ticks = (await read<Tick[]>(TICKS)) ?? [];
+    const dishes = (await read<FamilyDish[]>(DISHES)) ?? [];
     const withPhotos = meals.filter((m) => m.photo === 'stored');
     if (withPhotos.length) {
       const pairs = await AsyncStorage.multiGet(withPhotos.map((m) => PHOTO + m.id));
       const byId = new Map(pairs.map(([key, value]) => [key.slice(PHOTO.length), value]));
       meals = meals.map((m) => (m.photo === 'stored' ? { ...m, photo: byId.get(m.id) ?? null } : m));
     }
-    return { family, meals, cheers, recipes, ticks };
+    return { family, meals, cheers, recipes, ticks, dishes };
   },
 
   async setQuest(_code, quest) {
@@ -163,6 +165,11 @@ export const localBackend: Backend & { seedDemo(): Promise<Session>; clear(): Pr
     const cheers = (await read<Cheer[]>(CHEERS)) ?? [];
     cheers.push(cheer);
     await write(CHEERS, cheers);
+  },
+
+  async addDish(_code, dish) {
+    const dishes = (await read<FamilyDish[]>(DISHES)) ?? [];
+    await write(DISHES, [dish, ...dishes.filter((d) => d.name.toLowerCase() !== dish.name.toLowerCase())]);
   },
 
   async addRecipe(_code, recipe, photo, voice) {
