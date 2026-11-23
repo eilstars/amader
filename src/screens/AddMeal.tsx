@@ -7,7 +7,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Hand, findHand } from '../hand';
 import { DairyArt, FruitArt, GrainArt, PlateCard, ProteinArt, VegArt } from '../food';
 import { WidgetCard } from './Widget';
-import { useStore } from '../store';
+import { medKey, useStore } from '../store';
+import { MedSlot } from '../reminders';
 import { C, F } from '../theme';
 import { ChosenBy, Guess, Meal, Photo, Slot, Voice } from '../types';
 import { Avatar, Btn, Chip, DayRing, Eyebrow, GOAL_FOODS, HandCount, Puti, Row, T } from '../ui';
@@ -31,6 +32,7 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
   const [veg, setVeg] = useState(1);
   const [fruit, setFruit] = useState(0);
   const [dairy, setDairy] = useState(0);
+  const [medTaken, setMedTaken] = useState(false);
   const [party, setParty] = useState(false);
   const food = store.goalFood;
   const me = store.me;
@@ -137,6 +139,10 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
   const balanced = isBalanced(draft);
   const preview = pointsFor({ ...draft, id: '', memberId: '', date: '', photo: photo ? 'x' : null, hearts: [], withIds, withOthers: withOthers || null });
 
+  // Medicine that goes with this meal, if the person turned that on and hasn't ticked it yet today.
+  const asMed: MedSlot | null = slot === 'suhoor' ? 'breakfast' : slot === 'iftar' ? 'dinner' : slot === 'breakfast' || slot === 'lunch' || slot === 'dinner' ? slot : null;
+  const medSlot = asMed && store.prefs.meds.on && store.prefs.meds.slots.includes(asMed) && !store.prefs.meds.taken.includes(medKey(new Date(), asMed)) ? asMed : null;
+
   async function save(fastingDay = false) {
     setBusy(true);
     setNote(null);
@@ -156,6 +162,7 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
         party,
         grain: grainName,
       });
+      if (medSlot && medTaken) store.toggleMed(new Date(), medSlot);
       setSaved(meal);
       setStep('saved');
     } catch (e) {
@@ -389,6 +396,23 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
             </Row>
           ) : null}
         </View>
+
+        {medSlot ? (
+          <Pressable
+            onPress={() => setMedTaken(!medTaken)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: medTaken }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: medTaken ? C.mint : C.white, borderRadius: 18, padding: 12, borderWidth: 1.5, borderColor: medTaken ? C.leaf : '#E6EBE6' }}
+          >
+            <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: medTaken ? C.leaf : C.white, borderWidth: 2, borderColor: C.leaf, alignItems: 'center', justifyContent: 'center' }}>
+              {medTaken ? <Ionicons name="checkmark" size={20} color={C.white} /> : null}
+            </View>
+            <T w="semibold" size={17} style={{ flex: 1 }}>
+              I took my medicine with this meal
+            </T>
+            <Ionicons name="medical" size={20} color={C.leaf} />
+          </Pressable>
+        ) : null}
 
         {others.length ? (
           <View style={{ gap: 8 }}>

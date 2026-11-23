@@ -3,7 +3,7 @@ import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { cloudBackend, localBackend, webUrl } from './backend';
 import { Backend, Cheer, Family, Guess, Meal, Member, NewMeal, NewRecipe, Photo, Recipe, Role, Session } from './types';
-import { pushAddress, syncReminders } from './reminders';
+import { MedSlot, pushAddress, syncReminders } from './reminders';
 import { refreshWidgets } from './widgets';
 import { widgetData } from './widget-data';
 import { DEFAULT_TIMES, MILESTONES, MealTimes, newId, newestFirst, sameDay, slotAt } from './words';
@@ -41,6 +41,12 @@ export interface Prefs {
   pledges: string[];
   /** Tell me when someone in the family shares a meal or comments on mine. */
   familyAlerts: boolean;
+  /**
+   * Medicine with meals, like a weekly pill organizer: which meals it goes with, and which
+   * compartments were ticked ("2026-11-23:breakfast"). Kept on this phone only. The family never sees it,
+   * and no medicine names or doses are asked for.
+   */
+  meds: { on: boolean; slots: MedSlot[]; taken: string[] };
 }
 const DEFAULT_PREFS: Prefs = {
   guessOn: null,
@@ -59,7 +65,19 @@ const DEFAULT_PREFS: Prefs = {
   why: null,
   pledges: [],
   familyAlerts: true,
+  meds: { on: false, slots: [], taken: [] },
 };
+
+/** The key for one organizer compartment: a local date and a meal. */
+export function medKey(day: Date, slot: MedSlot): string {
+  const d = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}:${slot}`;
+}
+
+function medsPlan(p: Prefs, today: Date) {
+  const slots = p.meds.on ? p.meds.slots : [];
+  return { meds: slots, medsDone: slots.filter((x) => p.meds.taken.includes(medKey(today, x))) };
+}
 
 /** Shown at the top of the table when someone in the family just shared, while the app is open. */
 export interface News {
@@ -103,6 +121,10 @@ interface Store {
   news: News | null;
   clearNews(): void;
   setFamilyAlerts(on: boolean): Promise<boolean>;
+  /** Turns medicine nudges on or off, or changes which meals they go with. Resolves false if the phone refused. */
+  setMeds(change: Partial<Pick<Prefs['meds'], 'on' | 'slots'>>): Promise<boolean>;
+  /** Ticks or unticks one compartment of the week's organizer. */
+  toggleMed(day: Date, slot: MedSlot): void;
   joinFamily(input: { code: string; name: string; role: Role }): Promise<void>;
   loadDemo(): Promise<void>;
   addMeal(input: NewMeal): Promise<Meal>;
@@ -258,6 +280,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       suhoorHour: prefs.suhoorHour,
       iftarHour: prefs.iftarHour,
       doneToday,
+      ...medsPlan(prefs, today),
     };
     const remindKey = JSON.stringify([plan, today.toDateString()]);
     const widgetKey = JSON.stringify(widget);
@@ -333,7 +356,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setPendingCode(null);
       },
       async loadDemo() {
-        savePrefs({ onboarded: true, guessOn: true, improveOn: false });
+        // The sample shows the medicine organizer with a few days already ticked.
+        const back = (n: number) => new Date(Date.now() - n * 86_400_000);
+        const taken = [1, 2, 3].flatMap((n) => [medKey(back(n), 'breakfast'), ...(n === 2 ? [] : [medKey(back(n), 'dinner')])]);
+        savePrefs({ onboarded: true, guessOn: true, improveOn: false, meds: { on: true, slots: ['breakfast', 'dinner'], taken } });
         const s = await localBackend.seedDemo();
         await start(s);
         // The sample family shows what it's like when someone shares: Ammi has a snack a few seconds in.
@@ -371,6 +397,35 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         await backendFor(session).sendCheer(session.code, cheer);
         setCheers((list) => [cheer, ...list]);
         if (!session.demo) backendFor(session).notifyFamily(session.code, { kind: 'comment', cheerId: cheer.id });
+      },
+
+      async setMeds(change) {
+        const meds = { ...prefsRef.current.meds, ...change };
+        if (meds.on && !meds.slots.length) meds.slots = ['breakfast', 'dinner'];
+        const next = { ...prefsRef.current, meds };
+        const today = new Date();
+        const doneToday = meals.filter((m) => m.memberId === session?.meId && sameDay(new Date(m.date), today)).map((m) => m.slot);
+        const ok = await syncReminders({
+          on: next.reminderOn,
+          nudges: next.nudgesOn,
+          times: next.times,
+          ramadan: next.ramadan,
+          suhoorHour: next.suhoorHour,
+          iftarHour: next.iftarHour,
+          doneToday,
+          ...medsPlan(next, today),
+        });
+        // The organizer still works without notifications, so it stays on; only the nudge is missing.
+        savePrefs({ meds });
+        return ok;
+      },
+
+      toggleMed(day, slot) {
+        const key = medKey(day, slot);
+        const taken = prefsRef.current.meds.taken;
+        const next = taken.includes(key) ? taken.filter((k) => k !== key) : [...taken, key];
+        // Keep about two months of ticks.
+        savePrefs({ meds: { ...prefsRef.current.meds, taken: next.sort().slice(-200) } });
       },
 
       news,
@@ -422,6 +477,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           suhoorHour: next.suhoorHour,
           iftarHour: next.iftarHour,
           doneToday,
+          ...medsPlan(next, today),
         });
         // If the phone said no, keep the times but show the reminders as off.
         savePrefs(ok ? change : { ...change, reminderOn: false, nudgesOn: false });

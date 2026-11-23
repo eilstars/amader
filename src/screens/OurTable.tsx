@@ -11,6 +11,7 @@ import { POINTS, familyStreak, learnPointsSince, pointsFor, streakOf } from '../
 import { Avatar, Btn, Chip, Puti, PutiSays, Row, T, WeekStrip } from '../ui';
 import { dayCounts, dayHeading, greeting, inWeek, sameDay, spacedCode, startOfDay, weekDays, weekLabel } from '../words';
 import MealCard from './MealCard';
+import MedsCard from './Meds';
 
 type Filter = { kind: 'all' } | { kind: 'person'; id: string } | { kind: 'together' };
 
@@ -135,6 +136,8 @@ export default function OurTable({ onAdd, onMe, onPerson }: { onAdd: () => void;
             <Btn label="Show my plate" icon="camera" onPress={onAdd} />
           </View>
         ) : null}
+
+        <MedsCard />
 
         {note && from ? (
           <Pressable onPress={() => onPerson(me.id)} accessibilityRole="button">

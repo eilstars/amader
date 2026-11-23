@@ -22,6 +22,7 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
   const [addBusy, setAddBusy] = useState(false);
   const [addFailed, setAddFailed] = useState<string | null>(null);
   const [alertsRefused, setAlertsRefused] = useState(false);
+  const [medsRefused, setMedsRefused] = useState(false);
   const { family, me, prefs } = store;
   if (!family || !me) return null;
 
@@ -180,6 +181,46 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
             </T>
           ) : null}
           <Btn kind="ghost" icon="apps-outline" label="Add the home screen widget" onPress={onWidget} style={{ marginTop: 6 }} />
+        </View>
+
+        <Eyebrow>Medicine with meals</Eyebrow>
+        <View style={section}>
+          <Toggle
+            title="Remind me to take medicine with meals"
+            help="Like a weekly pill box: a nudge at the meal and a box to tick. Only on this phone. Your family doesn't see it, and Amader never asks what you take."
+            on={prefs.meds.on}
+            onChange={async (on) => setMedsRefused(!(await store.setMeds({ on })) && on)}
+          />
+          {prefs.meds.on ? (
+            <>
+              <T size={14} color={C.muted}>
+                Which meals?
+              </T>
+              <Row gap={8} style={{ flexWrap: 'wrap' }}>
+                {(['breakfast', 'lunch', 'dinner'] as const).map((m) => (
+                  <Chip
+                    key={m}
+                    label={m === 'breakfast' ? 'Breakfast' : m === 'lunch' ? 'Lunch' : 'Dinner'}
+                    on={prefs.meds.slots.includes(m)}
+                    onPress={() => {
+                      const slots = prefs.meds.slots.includes(m) ? prefs.meds.slots.filter((x) => x !== m) : [...prefs.meds.slots, m];
+                      if (slots.length) store.setMeds({ slots });
+                    }}
+                  />
+                ))}
+              </Row>
+              {prefs.ramadan ? (
+                <T size={14} color={C.muted}>
+                  In Ramadan, morning medicine moves to suhoor and evening medicine to iftar.
+                </T>
+              ) : null}
+            </>
+          ) : null}
+          {medsRefused ? (
+            <T size={14} color="#8A2942">
+              {Platform.OS === 'web' ? 'The weekly boxes work here. Nudges need the phone app.' : 'Notifications are off for Amader, so the nudge is off. The weekly boxes still work.'}
+            </T>
+          ) : null}
         </View>
 
         <Eyebrow>Your main grain</Eyebrow>

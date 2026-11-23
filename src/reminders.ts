@@ -14,7 +14,20 @@ export interface ReminderPlan {
   iftarHour: number;
   /** Meals already shared today, so their reminders are skipped. */
   doneToday: Slot[];
+  /** Meals the person takes medicine with, if they turned that on. */
+  meds?: MedSlot[];
+  /** Medicine already marked taken today. */
+  medsDone?: MedSlot[];
 }
+
+/** The compartments of a weekly pill organizer that go with meals. */
+export type MedSlot = 'breakfast' | 'lunch' | 'dinner';
+
+const MEDS: Record<MedSlot, string[]> = {
+  breakfast: ['Breakfast time. Medicine with it? Tap when it is done.', 'Good morning! Your morning medicine goes with breakfast.'],
+  lunch: ['Lunch time. Medicine with lunch? Tap when it is done.'],
+  dinner: ['Dinner time. Medicine with dinner? Tap when it is done.', 'Evening medicine goes with dinner tonight.'],
+};
 
 const AFTER: Record<string, string[]> = {
   breakfast: ['Good morning! What was breakfast?', 'Show the family your breakfast. One photo is enough.'],
@@ -43,7 +56,8 @@ export async function syncReminders(plan: ReminderPlan): Promise<boolean> {
   try {
     const N = await import('expo-notifications');
     await N.cancelAllScheduledNotificationsAsync();
-    if (!plan.on && !plan.nudges) return true;
+    const meds = plan.meds ?? [];
+    if (!plan.on && !plan.nudges && !meds.length) return true;
 
     const current = await N.getPermissionsAsync();
     const granted = current.granted || (await N.requestPermissionsAsync()).granted;
@@ -68,10 +82,10 @@ export async function syncReminders(plan: ReminderPlan): Promise<boolean> {
         ];
 
     const now = new Date();
-    const schedule = async (when: Date, body: string) => {
+    const schedule = async (when: Date, body: string, title = 'Did you eat?') => {
       if (when <= now) return;
       await N.scheduleNotificationAsync({
-        content: { title: 'Did you eat?', body, data: { url: 'amader://add' } },
+        content: { title, body, data: { url: 'amader://add' } },
         trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: when, channelId: 'did-you-eat' },
       });
     };
@@ -84,6 +98,15 @@ export async function syncReminders(plan: ReminderPlan): Promise<boolean> {
           const lines = AFTER[slot] ?? AFTER.dinner;
           await schedule(at(hours), lines[(day + Math.floor(hours)) % lines.length]);
         }
+      }
+      // Medicine goes with the meal, so the nudge comes at the meal time itself, before "Did you eat?".
+      // In Ramadan, morning medicine moves to suhoor and evening medicine to iftar.
+      for (const slot of meds) {
+        if (day === 0 && plan.medsDone?.includes(slot)) continue;
+        const hours = plan.ramadan ? (slot === 'breakfast' ? plan.suhoorHour : slot === 'dinner' ? plan.iftarHour : null) : plan.times[slot];
+        if (hours === null) continue;
+        const lines = MEDS[slot];
+        await schedule(at(hours), lines[day % lines.length], 'Medicine with your meal');
       }
       if (plan.nudges && !plan.ramadan) {
         // Somewhere between 3:00 and 5:30 PM, different every day, so it feels like a friend checking in.
