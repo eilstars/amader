@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { C } from '../theme';
-import { Btn, Chip, Puti, RoundButton, Row, T, Toggle, field } from '../ui';
+import { Row, T, Toggle, field } from '../ui';
+import { BigButton, Icon, Mado, Pill, RoundIcon } from '../design';
 
 const CALLED = ['Mom', 'Dad', 'Ammi', 'Abbu', 'Grandma', 'Grandpa', 'Nani', 'Mama'];
 
@@ -51,7 +51,7 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
             {CALLED.map((n) => {
               const on = parentName === n || also.includes(n);
               return (
-                <Chip
+                <Pill
                   key={n}
                   label={n}
                   on={on}
@@ -84,7 +84,7 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
           <Pressable onPress={() => setAdult(!adult)} accessibilityRole="checkbox" accessibilityState={{ checked: adult }} style={{ marginTop: 4 }}>
             <Row gap={10}>
               <View style={{ width: 30, height: 30, borderRadius: 8, borderWidth: 1.5, borderColor: adult ? C.leaf : C.line, backgroundColor: adult ? C.leaf : C.white, alignItems: 'center', justifyContent: 'center' }}>
-                {adult ? <Ionicons name="checkmark" size={18} color={C.white} /> : null}
+                {adult ? <Icon name="check" size={18} color={C.white} /> : null}
               </View>
               <T>I'm 18 or older</T>
             </Row>
@@ -98,10 +98,10 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
   const last = step === screens.length - 1;
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.mint }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.rice }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={{ padding: 20, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24, gap: 16, flexGrow: 1 }} keyboardShouldPersistTaps="handled">
         <Row style={{ justifyContent: 'space-between' }}>
-          <RoundButton icon="chevron-back" label="Back" onPress={() => (step === 0 ? onBack() : setStep(step - 1))} />
+          <RoundIcon name="back" label="Back" onPress={() => (step === 0 ? onBack() : setStep(step - 1))} />
           <Row gap={6}>
             {screens.map((_, n) => (
               <View key={n} style={{ width: n === step ? 26 : 8, height: 8, borderRadius: 4, backgroundColor: n <= step ? C.leaf : '#BFDCCB' }} />
@@ -113,7 +113,7 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
           <T w="bold" size={27} style={{ flex: 1, lineHeight: 33 }}>
             {screen.title}
           </T>
-          <Puti mood={step === 2 ? 'happy' : 'hello'} width={84} />
+          <Mado mood="hello" width={84} />
         </Row>
         <T size={17} color={C.muted}>
           {screen.lead}
@@ -125,7 +125,7 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
             {error}
           </T>
         ) : null}
-        <Btn label={last ? (busy ? 'Setting the table...' : 'Set the table') : 'Next'} disabled={!screen.ok} onPress={() => (last ? go() : setStep(step + 1))} />
+        <BigButton label={last ? (busy ? 'Setting the table...' : 'Set the table') : 'Next'} disabled={!screen.ok} onPress={() => (last ? go() : setStep(step + 1))} />
       </ScrollView>
     </KeyboardAvoidingView>
   );

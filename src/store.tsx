@@ -23,7 +23,12 @@ export interface Prefs {
   /** Let Amader keep my photos and answers to improve recognition. Null until asked. */
   improveOn: boolean | null;
   times: MealTimes;
+  /** Fasting mode is on (any tradition). The name is kept from when it was Ramadan only. */
   ramadan: boolean;
+  /** Which fast: Ramadan, Lent, Navratri, Yom Kippur, Ekadashi, or the person's own days. */
+  fastKind: string;
+  /** Fasting only on these weekdays (Monday = 0). Null or empty means every day of the season. */
+  fastDays: number[] | null;
   suhoorHour: number;
   iftarHour: number;
   /** Onboarding finished on this phone. */
@@ -57,7 +62,7 @@ export interface Prefs {
   breakUntil: string | null;
   /** Quest celebrations already shown on this phone, as "week:quest". */
   celebrated: string[];
-  /** The costume Puti wears on this phone. Null means the newest one. */
+  /** The costume Mado wears on this phone. Null means the newest one. */
   wear: string | null;
   /** Family plates already played in Guess the plate. */
   guessed: string[];
@@ -69,6 +74,8 @@ const DEFAULT_PREFS: Prefs = {
   improveOn: null,
   times: DEFAULT_TIMES,
   ramadan: false,
+  fastKind: 'Ramadan',
+  fastDays: null,
   suhoorHour: 4,
   iftarHour: 18,
   onboarded: false,
@@ -98,7 +105,8 @@ function planFor(p: Prefs, doneToday: Meal['slot'][], today: Date) {
     on: p.reminderOn && !resting,
     nudges: p.nudgesOn && !resting,
     times: p.times,
-    ramadan: p.ramadan,
+    // Reminders move to fasting times for a whole season. On chosen weekdays only, the usual times stay.
+    ramadan: p.ramadan && !(p.fastDays && p.fastDays.length),
     suhoorHour: p.suhoorHour,
     iftarHour: p.iftarHour,
     doneToday,
@@ -174,7 +182,7 @@ interface Store {
   /** Turning this off also takes back what was already shared. Resolves false if that failed. */
   setImproveOn(on: boolean): Promise<boolean>;
   /** Turns reminders on or off. Resolves false if the phone refused. */
-  setReminders(change: Partial<Pick<Prefs, 'reminderOn' | 'nudgesOn' | 'times' | 'ramadan' | 'suhoorHour' | 'iftarHour'>>): Promise<boolean>;
+  setReminders(change: Partial<Pick<Prefs, 'reminderOn' | 'nudgesOn' | 'times' | 'ramadan' | 'fastKind' | 'fastDays' | 'suhoorHour' | 'iftarHour'>>): Promise<boolean>;
   /** Set by a widget, reminder or link that should open the camera or log a quick meal. */
   pendingAction: PendingAction | null;
   setPendingAction(action: PendingAction | null): void;
@@ -204,7 +212,7 @@ interface Store {
   /** Pick this week's quest for the whole family. */
   setQuest(id: string): void;
   tickQuest(on: boolean): void;
-  /** The quest is done: Puti gets the costume and this phone stops celebrating. */
+  /** The quest is done: Mado gets the costume and this phone stops celebrating. */
   claimCostume(): void;
   /** Showing the simple, one-screen view. */
   simple: boolean;

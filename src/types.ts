@@ -141,7 +141,7 @@ export interface Family {
   goalHandfuls: number;
   /** This week's family quest, if someone picked one. Otherwise the app picks by week. */
   quest?: string | null;
-  /** Puti's costumes the family has earned by finishing quests, oldest first. */
+  /** Mado's costumes the family has earned by finishing quests, oldest first. */
   costumes?: string[];
 }
 

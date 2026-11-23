@@ -5,7 +5,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { C } from '../theme';
 import { LEARN_NOTE, LESSONS, Lesson } from '../learn';
-import { Btn, Puti, RoundButton, Row, T } from '../ui';
+import { Btn, MadoPic, RoundButton, Row, T } from '../ui';
 
 
 /**
@@ -169,7 +169,7 @@ export function Card({
       {answered ? (
         <View style={{ gap: 12 }}>
           <Row gap={12}>
-            <Puti mood={right ? 'happy' : 'hello'} width={64} />
+            <MadoPic mood={right ? 'happy' : 'hello'} width={64} />
             <View style={{ flex: 1 }}>
               <T w="bold" size={19} color={C.deep}>
                 {right ? 'You knew it!' : 'Most people guess that too.'}

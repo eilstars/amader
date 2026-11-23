@@ -1,37 +1,46 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, Pressable, View } from 'react-native';
-import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../store';
 import { C } from '../theme';
-import { amountText, slotAt } from '../words';
+import { amountText, fastingToday, slotAt } from '../words';
 import { PageHead, T } from '../ui';
+import { Icon, IconName, RoundIcon, S, Sheet } from '../design';
 import { WidgetCard } from './Widget';
-import OurTable from './OurTable';
-import Recap from './Recap';
 import AddMeal from './AddMeal';
 import Me from './Me';
 import Teach from './Teach';
 import Checkup from './Checkup';
-import Profile from './Profile';
 import Learn from './Learn';
 import Recipes from './Recipes';
-import Quests, { Celebration, FamilyBar } from './Quest';
-import SimpleHome from './SimpleHome';
+import Home from './Home';
+import ParentHome, { UNLOCK } from './SimpleHome';
+import MealSheet from './MealSheet';
+import QuestRiver, { Celebration } from './QuestRiver';
+import Us, { PastWeeks, Person, WeekRecap } from './Us';
+import MedsPage from './MedsPage';
 
-type Sheet = 'add' | 'me' | 'checkup' | 'teach' | 'widget' | 'cards' | { profile: string } | null;
-type Tab = 'table' | 'recap' | 'recipes' | 'quests';
+type Over = 'add' | 'me' | 'checkup' | 'teach' | 'widget' | 'cards' | 'quest' | 'past' | 'meds' | 'recipes' | { person: string } | { week: number } | null;
+type Tab = 'table' | 'us';
 
+/**
+ * The app once a family is set: two tabs (Table and Us) with "My plate" in the middle.
+ * The person the family looks after gets one simple screen instead. Plates open as pop-ups.
+ */
 export default function Main({ openCamera }: { openCamera: boolean }) {
   const insets = useSafeAreaInsets();
+  const store = useStore();
   const [tab, setTab] = useState<Tab>('table');
   // A parent who just joined lands straight on "Did you eat?".
-  const [sheet, setSheet] = useState<Sheet>(openCamera ? 'add' : null);
-  const store = useStore();
-  const person = (id: string) => setSheet({ profile: id });
+  const [over, setOver] = useState<Over>(openCamera ? 'add' : null);
+  const [mealId, setMealId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   // The meal a widget just logged, so a slip of the thumb can be undone.
   const [quickId, setQuickId] = useState<string | null>(null);
+  const person = (id: string) => {
+    setMealId(null);
+    setOver({ person: id });
+  };
 
   // A widget or reminder asked for the camera, or logged a meal in one tap.
   const action = store.pendingAction;
@@ -39,12 +48,12 @@ export default function Main({ openCamera }: { openCamera: boolean }) {
     if (!action) return;
     store.setPendingAction(null);
     if (action.kind === 'add') {
-      setSheet('add');
+      setOver('add');
       return;
     }
     setTab('table');
     store
-      .addMeal({ slot: slotAt(new Date(), store.prefs.times, store.prefs.ramadan), photo: null, portions: { grains: action.handfuls, protein: 0, veg: 0 }, chosenBy: 'tap' })
+      .addMeal({ slot: slotAt(new Date(), store.prefs.times, fastingToday(store.prefs)), photo: null, portions: { grains: action.handfuls, protein: 0, veg: 0 }, chosenBy: 'tap' })
       .then((meal) => {
         setQuickId(meal.id);
         setToast(`Logged ${amountText(action.handfuls, store.goalFood)}. Your family can see it.`);
@@ -63,34 +72,37 @@ export default function Main({ openCamera }: { openCamera: boolean }) {
   }, [toast]);
 
   const simple = store.simple;
-  // The family counter sits on top of every tab except Quests, which is the counter opened up.
-  const showBar = !simple && tab !== 'quests' && store.questLive && !!store.quest;
+  const canComment = !simple || store.daysShared >= UNLOCK.comments;
+  const close = () => setOver(null);
 
   return (
     <View style={{ flex: 1, backgroundColor: C.rice }}>
-      {showBar ? <FamilyBar onOpen={() => setTab('quests')} /> : null}
-      <SafeAreaInsetsContext.Provider value={showBar ? { ...insets, top: 0 } : insets}>
       <View style={{ flex: 1 }}>
-        {simple ? <SimpleHome onAdd={() => setSheet('add')} onMe={() => setSheet('me')} onPerson={person} /> : null}
-        {!simple && tab === 'table' ? <OurTable onAdd={() => setSheet('add')} onMe={() => setSheet('me')} onPerson={person} onQuests={() => setTab('quests')} /> : null}
-        {!simple && tab === 'recap' ? <Recap onCheckup={() => setSheet('checkup')} onPerson={person} /> : null}
-        {!simple && tab === 'recipes' ? <Recipes /> : null}
-        {!simple && tab === 'quests' ? <Quests onCards={() => setSheet('cards')} onTeach={() => setSheet('teach')} /> : null}
+        {simple ? (
+          <ParentHome onAdd={() => setOver('add')} onMe={() => setOver('me')} onMeal={setMealId} onPerson={person} onQuest={() => setOver('quest')} onMeds={() => setOver('meds')} />
+        ) : tab === 'table' ? (
+          <Home onAdd={() => setOver('add')} onMeal={setMealId} onPerson={person} onQuest={() => setOver('quest')} onRecap={() => setOver({ week: new Date().getDay() === 1 ? 1 : 0 })} />
+        ) : (
+          <Us onMe={() => setOver('me')} onPerson={person} onPast={() => setOver('past')} onRecap={() => setOver({ week: 0 })} onRecipes={() => setOver('recipes')} />
+        )}
       </View>
-      </SafeAreaInsetsContext.Provider>
 
       {simple ? null : (
         <View
           style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
             flexDirection: 'row',
             alignItems: 'flex-end',
             justifyContent: 'space-around',
             backgroundColor: C.white,
             paddingTop: 10,
-            paddingBottom: Math.max(insets.bottom, 14),
-            paddingHorizontal: 8,
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
+            paddingBottom: Math.max(insets.bottom, 18),
+            paddingHorizontal: 20,
+            borderTopLeftRadius: 28,
+            borderTopRightRadius: 28,
             shadowColor: C.ink,
             shadowOpacity: 0.06,
             shadowRadius: 12,
@@ -98,37 +110,25 @@ export default function Main({ openCamera }: { openCamera: boolean }) {
             elevation: 12,
           }}
         >
-          <TabButton icon="restaurant" label="Our Table" on={tab === 'table'} onPress={() => setTab('table')} />
-          <TabButton icon="calendar" label="Progress" on={tab === 'recap'} onPress={() => setTab('recap')} />
+          <TabButton icon="table" label="Table" on={tab === 'table'} onPress={() => setTab('table')} />
           <Pressable
-            onPress={() => setSheet('add')}
+            onPress={() => setOver('add')}
             accessibilityRole="button"
-            accessibilityLabel="Share a meal"
-            style={{
-              width: 66,
-              height: 66,
-              borderRadius: 33,
-              backgroundColor: C.leaf,
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginTop: -30,
-              shadowColor: C.leaf,
-              shadowOpacity: 0.35,
-              shadowRadius: 10,
-              shadowOffset: { width: 0, height: 8 },
-              elevation: 6,
-            }}
+            accessibilityLabel="Share my plate"
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, height: 58, paddingHorizontal: 24, borderRadius: 29, backgroundColor: C.leaf, marginTop: -28, shadowColor: C.leaf, shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 8 }, elevation: 6 }}
           >
-            <Ionicons name="add" size={36} color={C.white} />
+            <Icon name="camera" size={24} color={C.white} />
+            <T w="bold" size={S.body} color={C.white}>
+              My plate
+            </T>
           </Pressable>
-          <TabButton icon="book" label="Recipes" on={tab === 'recipes'} onPress={() => setTab('recipes')} />
-          <TabButton icon="trophy" label="Quests" on={tab === 'quests'} onPress={() => setTab('quests')} />
+          <TabButton icon="people" label="Us" on={tab === 'us'} onPress={() => setTab('us')} />
         </View>
       )}
 
       {toast ? (
-        <View style={{ position: 'absolute', left: 20, right: 20, bottom: insets.bottom + (simple ? 24 : 110), backgroundColor: C.deep, borderRadius: 16, padding: 14 }}>
-          <T w="semibold" color={C.white} center size={14}>
+        <View style={{ position: 'absolute', left: 20, right: 20, bottom: insets.bottom + (simple ? 110 : 110), backgroundColor: C.deep, borderRadius: 16, padding: 14 }}>
+          <T w="bold" color={C.white} center size={S.small}>
             {toast}
           </T>
           {quickId ? (
@@ -141,10 +141,10 @@ export default function Main({ openCamera }: { openCamera: boolean }) {
                 store
                   .removeMeal(id)
                   .then(() => setToast('Removed.'))
-                  .catch(() => setToast("We couldn't remove it. You can remove it from Our Table."));
+                  .catch(() => setToast("We couldn't remove it. Open the plate to remove it."));
               }}
             >
-              <T w="bold" color={C.white} center size={14} style={{ textDecorationLine: 'underline', marginTop: 6 }}>
+              <T w="bold" color={C.white} center size={S.small} style={{ textDecorationLine: 'underline', marginTop: 6 }}>
                 Undo
               </T>
             </Pressable>
@@ -152,53 +152,65 @@ export default function Main({ openCamera }: { openCamera: boolean }) {
         </View>
       ) : null}
 
-      <Modal visible={sheet !== null} animationType="slide" onRequestClose={() => setSheet(null)} presentationStyle="fullScreen">
-        <View style={{ flex: 1, backgroundColor: sheet === 'add' ? C.night : C.rice, alignItems: 'center' }}>
+      <Sheet visible={mealId !== null && over === null} onClose={() => setMealId(null)}>
+        {mealId ? <MealSheet mealId={mealId} onPerson={person} canComment={canComment} /> : null}
+      </Sheet>
+
+      <Modal visible={over !== null} animationType="slide" onRequestClose={close} presentationStyle="fullScreen">
+        <View style={{ flex: 1, backgroundColor: C.rice, alignItems: 'center' }}>
           <View style={{ flex: 1, width: '100%', maxWidth: 480 }}>
-            {sheet === 'add' ? <AddMeal onClose={() => setSheet(null)} /> : null}
-            {sheet === 'me' ? (
-              <Me
-                onClose={() => setSheet(null)}
-                onCheckup={() => setSheet('checkup')}
-                onTeach={() => setSheet('teach')}
-                onPerson={person}
-                onWidget={() => setSheet('widget')}
-              />
-            ) : null}
-            {sheet === 'widget' ? (
+            {over === 'add' ? <AddMeal onClose={close} /> : null}
+            {over === 'me' ? <Me onClose={close} onCheckup={() => setOver('checkup')} onTeach={() => setOver('teach')} onPerson={person} onWidget={() => setOver('widget')} /> : null}
+            {over === 'widget' ? (
               <View style={{ flex: 1 }}>
-                <PageHead title="Home screen widget" onBack={() => setSheet('me')} />
+                <PageHead title="Home screen widget" onBack={() => setOver('me')} />
                 <View style={{ padding: 16 }}>
                   <WidgetCard
                     onClose={() => {
                       store.setPrefs({ widgetSeen: true });
-                      setSheet(null);
+                      close();
                     }}
                   />
                 </View>
               </View>
             ) : null}
-            {typeof sheet === 'object' && sheet ? <Profile memberId={sheet.profile} onClose={() => setSheet(null)} /> : null}
-            {sheet === 'teach' ? <Teach onClose={() => setSheet(null)} /> : null}
-            {sheet === 'cards' ? <Learn onTeach={() => setSheet('teach')} onClose={() => setSheet(null)} /> : null}
-            {sheet === 'checkup' ? <Checkup onClose={() => setSheet(null)} /> : null}
+            {over === 'teach' ? <Teach onClose={close} /> : null}
+            {over === 'cards' ? <Learn onTeach={() => setOver('teach')} onClose={() => setOver('quest')} /> : null}
+            {over === 'checkup' ? <Checkup onClose={close} /> : null}
+            {over === 'quest' ? <QuestRiver onBack={close} onAdd={() => setOver('add')} onCards={() => setOver('cards')} /> : null}
+            {over === 'past' ? <PastWeeks onBack={close} onWeek={(n) => setOver({ week: n })} /> : null}
+            {over === 'meds' ? <MedsPage onBack={close} onSettings={() => setOver('me')} /> : null}
+            {over === 'recipes' ? (
+              <View style={{ flex: 1 }}>
+                <Recipes />
+                <View style={{ position: 'absolute', right: 16, top: insets.top + 12 }}>
+                  <RoundIcon name="close" onPress={close} label="Close" />
+                </View>
+              </View>
+            ) : null}
+            {over && typeof over === 'object' && 'week' in over ? <WeekRecap offset={over.week} onBack={close} onQuest={() => setOver('quest')} /> : null}
+            {over && typeof over === 'object' && 'person' in over ? <Person memberId={over.person} onBack={close} onMeal={setMealId} /> : null}
           </View>
         </View>
+        {/* Plates opened from a person's page pop up over it. */}
+        <Sheet visible={mealId !== null && over !== null} onClose={() => setMealId(null)}>
+          {mealId ? <MealSheet mealId={mealId} canComment={canComment} /> : null}
+        </Sheet>
       </Modal>
-      {sheet === null ? <Celebration /> : null}
+      {over === null ? <Celebration /> : null}
     </View>
   );
 }
 
-function TabButton({ icon, label, on, onPress }: { icon: 'restaurant' | 'calendar' | 'book' | 'trophy'; label: string; on: boolean; onPress: () => void }) {
+function TabButton({ icon, label, on, onPress }: { icon: IconName; label: string; on: boolean; onPress: () => void }) {
+  const col = on ? C.deep : C.muted;
   return (
-    <Pressable onPress={onPress} accessibilityRole="tab" accessibilityState={{ selected: on }} style={{ alignItems: 'center', flex: 1, gap: 2, paddingVertical: 2 }}>
-      <View style={{ width: 52, height: 30, borderRadius: 15, backgroundColor: on ? C.mint : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
-        <Ionicons name={on ? icon : (`${icon}-outline` as const)} size={22} color={on ? C.deep : C.muted} />
-      </View>
-      <T w={on ? 'semibold' : 'medium'} size={13} color={on ? C.deep : C.muted}>
+    <Pressable onPress={onPress} accessibilityRole="tab" accessibilityState={{ selected: on }} style={{ alignItems: 'center', width: 72, gap: 2 }}>
+      <Icon name={icon} size={26} color={col} />
+      <T w="bold" size={S.small} color={col}>
         {label}
       </T>
+      <View style={{ width: 18, height: 3, borderRadius: 2, backgroundColor: on ? C.leaf : 'transparent' }} />
     </Pressable>
   );
 }

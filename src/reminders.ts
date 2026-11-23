@@ -33,14 +33,14 @@ const AFTER: Record<string, string[]> = {
   breakfast: ['Good morning! What was breakfast?', 'Show the family your breakfast. One photo is enough.'],
   lunch: ['Did you eat lunch?', 'The table is waiting. What did you have for lunch?'],
   dinner: ['Did you eat? Share your dinner plate.', 'Someone would love to see your dinner tonight.'],
-  suhoor: ['Suhoor done? Share it so the family knows you are set for the day.'],
-  iftar: ['Iftar mubarak! Share your iftar plate with the family.'],
+  suhoor: ['Ate before your fast? Share it so the family knows you are set for the day.'],
+  iftar: ['Time to break your fast. Share your plate with the family.'],
 };
 
 const SURPRISE = [
   'Having a snack? Share it, snacks count too.',
   'Tea or coffee time? Tell the family what you are having.',
-  'Quick check from Puti: did you eat yet?',
+  'Quick check from Mado: did you eat yet?',
   'Your family is at the table. Pop in and send a heart.',
 ];
 

@@ -3,23 +3,22 @@ import { ActivityIndicator, Image, Pressable, ScrollView, TextInput, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { Hand, findHand } from '../hand';
-import { DairyArt, FruitArt, GrainArt, PlateCard, ProteinArt, VegArt } from '../food';
 import { WidgetCard } from './Widget';
-import { TickButton } from './Quest';
 import { UNLOCK } from './SimpleHome';
+import { Stepper } from './MealSheet';
 import { plateLine } from '../quests';
-import { PutiDressed, wornCostume } from '../costumes';
+import { wornCostume } from '../costumes';
 import { medKey, useStore } from '../store';
 import { MedSlot } from '../reminders';
 import { C, F } from '../theme';
 import { ChosenBy, Guess, Meal, Photo, Slot, Voice } from '../types';
-import { Avatar, Btn, Chip, DayRing, Eyebrow, GOAL_FOODS, HandCount, Puti, Row, T } from '../ui';
+import { GOAL_FOODS, T } from '../ui';
 import { VoiceRecorder } from '../voice';
-import { badgesFor, isBalanced, pointsFor, streakGoal, streakOf, streakReward } from '../game';
+import { badgesFor, isBalanced } from '../game';
 import HandMeasure from './HandMeasure';
-import { DAY_LETTERS, sameDay, slotAt, slotName, weekDays } from '../words';
+import { BigButton, Chip, Confetti, Face, Faces, FoodPlate, Icon, K, Mado, Pill, RoundIcon, S, card } from '../design';
+import { fastingToday, slotAt, slotName } from '../words';
 
 type Step = 'photo' | 'details' | 'saved';
 
@@ -27,7 +26,7 @@ type Step = 'photo' | 'details' | 'saved';
 export default function AddMeal({ onClose }: { onClose: () => void }) {
   const store = useStore();
   const insets = useSafeAreaInsets();
-  const ramadan = store.prefs.ramadan;
+  const ramadan = fastingToday(store.prefs);
   const [step, setStep] = useState<Step>('photo');
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [slot, setSlot] = useState<Slot>(slotAt(new Date(), store.prefs.times, ramadan));
@@ -49,6 +48,8 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
     store.prefs.sameHome && slotAt(new Date(), store.prefs.times, ramadan) !== 'snack' ? others.filter((m) => m.joined).map((m) => m.id) : [],
   );
   const [more, setMore] = useState(false);
+  const [fixing, setFixing] = useState(false);
+  const [dishText, setDishText] = useState('');
   const [widgetLater, setWidgetLater] = useState(false);
   const [withOthers, setWithOthers] = useState('');
   const [text, setText] = useState('');
@@ -156,9 +157,9 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
         slot: fastingDay ? 'fasting' : slot,
         photo: fastingDay ? null : photo,
         portions: fastingDay ? null : { grains, protein, veg, fruit, dairy },
-        guess: photo ? guess : null,
+        guess: photo && guess ? { ...guess, dish: dishText.trim() || guess.dish } : null,
         chosenBy,
-        note: text,
+        note: [dishText.trim() && !guess ? dishText.trim() : '', text.trim()].filter(Boolean).join('. '),
         voice,
         withIds,
         withOthers,
@@ -175,75 +176,73 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
     }
   }
 
-  const close = (
-    <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' }}>
-      <Ionicons name="close" size={24} color={C.white} />
-    </Pressable>
-  );
+  const others3 = others.filter((m) => m.joined);
+  const toggleWith = (id: string) => setWithIds((list) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]));
+  const count = (set: (n: number) => void) => (n: number) => {
+    touched.current = true;
+    set(n);
+  };
 
   if (step === 'photo') {
     return (
-      <View style={{ flex: 1, backgroundColor: C.night, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 20, paddingHorizontal: 22 }}>
-        <Row style={{ justifyContent: 'space-between' }}>
-          {close}
-        </Row>
-
-        <Row style={{ justifyContent: 'space-between', marginTop: 16 }}>
+      <View style={{ flex: 1, backgroundColor: C.rice, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 20, paddingHorizontal: 20 }}>
+        <RoundIcon name="close" onPress={onClose} label="Close" bg={C.mint} />
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginTop: 12 }}>
           <View style={{ flex: 1 }}>
-            <T w="bold" size={36} color={C.white}>
+            <T w="bold" size={36} style={{ lineHeight: 42 }}>
               Did you eat?
             </T>
-            <T color="#C9D8CF" size={18}>
+            <T w="medium" size={S.body} color={C.muted}>
               Snap your plate. Snacks count too.
             </T>
           </View>
-          <Puti mood="hello" width={92} />
-        </Row>
+          <Mado width={88} />
+        </View>
 
         <Pressable
           onPress={() => pick(true)}
           disabled={busy}
           accessibilityRole="button"
           accessibilityLabel="Take a photo of your plate"
-          style={{ flex: 1, marginVertical: 18, borderRadius: 28, backgroundColor: '#1F3A2D', alignItems: 'center', justifyContent: 'center', gap: 14 }}
+          style={{ flex: 1, marginVertical: 18, borderRadius: 32, backgroundColor: C.mint, alignItems: 'center', justifyContent: 'center', gap: 14 }}
         >
-          <View style={{ width: 210, height: 210, borderRadius: 105, borderWidth: 2, borderColor: 'rgba(255,255,255,0.6)', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            {busy ? <ActivityIndicator color={C.white} /> : <Ionicons name="camera" size={48} color={C.white} />}
-            <T w="semibold" size={19} color={C.white}>
+          <View style={{ width: 220, height: 220, borderRadius: 110, backgroundColor: C.white, borderWidth: 10, borderColor: C.steel, alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            {busy ? <ActivityIndicator color={C.leaf} /> : <Icon name="camera" size={56} color={C.leaf} />}
+            <T w="bold" size={S.body} color={C.deep}>
               Tap to take a photo
             </T>
           </View>
-          <T size={14} color="#C9D8CF" center style={{ paddingHorizontal: 30 }}>
+          <T w="medium" size={S.small} color={C.deep} center style={{ paddingHorizontal: 30 }}>
             Tip: put your hand flat next to the plate and Amader can measure the portion for you.
           </T>
         </Pressable>
 
         {note ? (
-          <T center color="#F4B6C2" size={15} style={{ marginBottom: 12 }}>
+          <T center color="#8A2942" size={S.small} style={{ marginBottom: 12 }}>
             {note}
           </T>
         ) : null}
 
-        <Row gap={10}>
-          <Btn kind="dark" icon="images-outline" label="Choose photo" onPress={() => pick(false)} disabled={busy} style={{ flex: 1, alignSelf: 'auto', paddingHorizontal: 8 }} />
-          <Btn
-            kind="dark"
-            icon="create-outline"
-            label="Say or type it"
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <BigButton kind="line" icon="image" label="Choose photo" size={S.body} height={56} onPress={() => pick(false)} disabled={busy} style={{ flex: 1 }} />
+          <BigButton
+            kind="line"
+            icon="pencil"
+            label="No photo"
+            size={S.body}
+            height={56}
             onPress={() => {
               setPhoto(null);
               setGuess(null);
               setHand(null);
-              setMore(true);
+              setFixing(true);
               setStep('details');
             }}
             disabled={busy}
-            style={{ flex: 1, alignSelf: 'auto', paddingHorizontal: 8 }}
+            style={{ flex: 1 }}
           />
-        </Row>
-        {ramadan ? (
-          <Btn kind="dark" icon="moon-outline" label="I'm fasting today" onPress={() => save(true)} disabled={busy} style={{ marginTop: 10 }} />
-        ) : null}
+        </View>
+        {ramadan ? <BigButton kind="mint" icon="moon" label="I'm fasting today" size={S.body} height={56} onPress={() => save(true)} disabled={busy} style={{ marginTop: 10 }} /> : null}
       </View>
     );
   }
@@ -268,266 +267,297 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
         </ScrollView>
       );
     }
+    const portions = { grains, protein, veg, fruit, dairy, grain: grainName };
+    const askGuess = !!photo && store.cloud && !store.session?.demo && store.prefs.guessOn === null;
     return (
-      <ScrollView style={{ flex: 1, backgroundColor: C.rice }} contentContainerStyle={{ paddingTop: insets.top + 10, paddingBottom: insets.bottom + 24, paddingHorizontal: 18, gap: 16 }} keyboardShouldPersistTaps="handled">
-        <Row>
-          <Pressable onPress={() => setStep('photo')} accessibilityRole="button" accessibilityLabel="Back" style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: C.white, alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="chevron-back" size={22} color={C.ink} />
-          </Pressable>
-          <T w="bold" size={24} style={{ flex: 1 }}>
-            Your plate
-          </T>
-        </Row>
-
-        {/* The plate itself: the photo, or a drawing that changes as the portions change. */}
-        <Row gap={14} style={{ alignItems: 'center' }}>
-          {photo ? (
-            <Image source={{ uri: photo.uri }} style={{ width: 132, height: 132, borderRadius: 66, borderWidth: 7, borderColor: C.steel, backgroundColor: C.soft }} />
-          ) : (
-            <PlateCard size={132} grains={grains} protein={protein} veg={veg} fruit={fruit} dairy={dairy} grain={grainName} party={party} />
-          )}
-          <View style={{ flex: 1, gap: 6 }}>
+      <View style={{ flex: 1, backgroundColor: C.rice }}>
+        <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 110 }} keyboardShouldPersistTaps="handled">
+          <View style={{ backgroundColor: C.mint, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, paddingTop: insets.top + 12, paddingBottom: 18, paddingHorizontal: 20, gap: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <RoundIcon name="back" onPress={() => setStep('photo')} label="Back" />
+              <T w="bold" size={S.title} style={{ flex: 1 }}>
+                Your plate
+              </T>
+              <Pill
+                label={party ? 'Party plate' : 'Party?'}
+                icon="sparkle"
+                on={party}
+                onPress={() => {
+                  const next = !party;
+                  setParty(next);
+                  if (photo && (store.prefs.guessOn === true || store.session?.demo)) look(photo, false, next);
+                }}
+              />
+            </View>
+            <View style={{ alignItems: 'center' }}>
+              <FoodPlate size={180} photo={photo?.uri} portions={portions} />
+            </View>
             {photo && (guessing || guess) ? (
-              <View style={{ backgroundColor: C.mint, borderRadius: 16, padding: 10 }}>
-                <T w="semibold" size={15} color={C.deep}>
-                  {guessing ? 'Puti is looking...' : `${guess?.sample ? 'Sample guess: ' : 'Looks like '}${guess?.dish || 'a lovely plate'}`}
+              <View style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.white, borderRadius: 999, paddingLeft: 8, paddingRight: 8, paddingVertical: 4, maxWidth: '100%' }}>
+                <Mado width={40} />
+                <T w="bold" size={S.small} style={{ flexShrink: 1 }}>
+                  {guessing ? 'Mado is looking...' : `${guess?.sample ? 'Sample guess: ' : ''}${dishText || guess?.dish || 'A lovely plate'}?`}
                 </T>
-                {guess?.items?.length ? (
-                  <T size={13} color={C.muted}>
-                    {guess.items.join(', ')}
-                  </T>
-                ) : !guessing ? (
-                  <T size={13} color={C.muted}>
-                    {guess?.sample ? 'Real photo reading turns on once the app is connected.' : 'Amounts below are a guess. Change them if they are off.'}
-                  </T>
+                {!guessing && !fixing ? (
+                  <Pressable onPress={() => setFixing(true)} accessibilityRole="button" hitSlop={6} style={{ backgroundColor: C.mint, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
+                    <T w="bold" size={S.small} color={C.deep}>
+                      Not quite
+                    </T>
+                  </Pressable>
                 ) : null}
               </View>
-            ) : (
-              <T size={15} color={C.muted}>
-                {photo ? 'Count what was on the plate with your hands.' : 'No photo? No problem. Count it with your hands, or just say it below.'}
-              </T>
-            )}
-            <Chip
-              label={party ? 'Party plate' : 'Party or buffet?'}
-              icon="sparkles-outline"
-              on={party}
-              onPress={() => {
-                const next = !party;
-                setParty(next);
-                if (photo && (store.prefs.guessOn === true || store.session?.demo)) look(photo, false, next);
-              }}
-            />
+            ) : null}
           </View>
-        </Row>
 
-        {photo && store.cloud && !store.session?.demo && store.prefs.guessOn === null ? (
-          <View style={{ backgroundColor: C.mint, borderRadius: 16, padding: 14, gap: 10 }}>
-            <T w="semibold" color={C.deep}>
-              Want Puti to guess what's on your plate?
-            </T>
-            <T size={14} color={C.muted}>
-              Your photo is sent to an AI service (Claude, made by Anthropic) that reads it. Your family sees your photos either way. Change this any time in settings.
-            </T>
-            <Row gap={10}>
-              <Btn kind="ghost" label="No thanks" onPress={() => store.setGuessOn(false)} style={{ flex: 1, alignSelf: 'auto', backgroundColor: C.white, minHeight: 48 }} />
-              <Btn
-                label="Yes, guess"
-                onPress={() => {
-                  store.setGuessOn(true);
-                  look(photo, true);
-                }}
-                style={{ flex: 1, alignSelf: 'auto', minHeight: 48 }}
-              />
-            </Row>
-          </View>
-        ) : null}
+          <View style={{ padding: 20, gap: 16 }}>
+            {askGuess ? (
+              <View style={[card, { gap: 10 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <Mado width={40} />
+                  <T w="bold" size={S.body} style={{ flex: 1 }}>
+                    Can Mado guess your plate?
+                  </T>
+                </View>
+                <T w="medium" size={S.small} color={C.muted}>
+                  Your photo is sent to an AI service (Claude, made by Anthropic) that reads it. Your family sees your photos either way. Change this any time in Settings.
+                </T>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <BigButton label="No thanks" kind="line" height={48} size={S.body} onPress={() => store.setGuessOn(false)} style={{ flex: 1 }} />
+                  <BigButton
+                    label="Yes"
+                    height={48}
+                    size={S.body}
+                    onPress={() => {
+                      store.setGuessOn(true);
+                      look(photo!, true);
+                    }}
+                    style={{ flex: 1 }}
+                  />
+                </View>
+              </View>
+            ) : null}
 
-        <View style={{ gap: 8 }}>
-          <Eyebrow>Which meal?</Eyebrow>
-          <Row gap={8} style={{ flexWrap: 'wrap' }}>
-            {slots.map((x) => (
-              <Chip key={x} label={slotName(x)} on={slot === x} onPress={() => setSlot(x)} />
-            ))}
-          </Row>
-        </View>
+            {fixing ? (
+              <View style={{ gap: 12 }}>
+                <T w="bold" size={S.title}>
+                  What's on your plate?
+                </T>
+                <TextInput
+                  value={dishText}
+                  onChangeText={setDishText}
+                  placeholder="Dal, rice and sabzi"
+                  placeholderTextColor="#8A988F"
+                  maxLength={80}
+                  accessibilityLabel="What is on the plate"
+                  style={{ height: 52, borderRadius: 18, borderWidth: 1.5, borderColor: K.line2, backgroundColor: C.white, paddingHorizontal: 16, fontFamily: F.medium, fontSize: 17, color: C.ink }}
+                />
+                <View style={{ gap: 6 }}>
+                  <T w="bold" size={S.small} color={C.muted}>
+                    Grain
+                  </T>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {GOAL_FOODS.map((g) => (
+                      <Pill key={g} label={g} on={grainName === g} onPress={() => setGrainName(g)} food={g === 'Rice' ? 'rice' : g === 'Bread' ? 'bread' : g === 'Roti' || g === 'Naan' || g === 'Tortilla' ? 'roti' : undefined} />
+                    ))}
+                  </View>
+                </View>
+                <View style={{ gap: 6 }}>
+                  <T w="bold" size={S.small} color={C.muted}>
+                    Also on the plate
+                  </T>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    <Pill label="Fruit" food="fruit" on={fruit > 0} onPress={() => count(setFruit)(fruit > 0 ? 0 : 1)} />
+                    <Pill label="Dairy" food="dairy" on={dairy > 0} onPress={() => count(setDairy)(dairy > 0 ? 0 : 1)} />
+                  </View>
+                </View>
+              </View>
+            ) : null}
 
-        <View style={{ gap: 8 }}>
-          <Eyebrow>{snack ? 'Food groups (optional for snacks)' : 'Food groups, counted with your hands'}</Eyebrow>
-          <HandCount
-            label={grainName}
-            unit={['fist', 'fists']}
-            art={<GrainArt kind={grainName} size={40} />}
-            value={grains}
-            onChange={(n) => {
-              touched.current = true;
-              setByHand(false);
-              setGrains(n);
-            }}
-          />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingHorizontal: 2 }}>
-            {GOAL_FOODS.map((g) => (
-              <Chip key={g} label={g} on={grainName === g} onPress={() => setGrainName(g)} />
-            ))}
-          </ScrollView>
-          {photo && hand ? (
-            <Btn kind="ghost" icon="hand-left-outline" label={byHand ? 'Measured with your hand' : 'Measure with my hand'} onPress={() => setMeasuring(true)} />
-          ) : photo && looking ? (
-            <T size={14} color={C.muted}>
-              Looking for your hand in the photo...
-            </T>
-          ) : null}
-          <HandCount label="Protein" unit={['palm', 'palms']} art={<ProteinArt size={40} />} value={protein} onChange={(n) => { touched.current = true; setProtein(n); }} />
-          <HandCount label="Vegetables" unit={['handful', 'handfuls']} art={<VegArt size={40} />} value={veg} onChange={(n) => { touched.current = true; setVeg(n); }} />
-          <HandCount label="Fruit" unit={['piece', 'pieces']} art={<FruitArt size={40} />} value={fruit} onChange={(n) => { touched.current = true; setFruit(n); }} />
-          <HandCount label="Dairy" unit={['cup', 'cups']} art={<DairyArt size={40} />} value={dairy} onChange={(n) => { touched.current = true; setDairy(n); }} />
-          {!snack ? (
-            <Row gap={8} style={{ paddingHorizontal: 4 }}>
-              <Ionicons name={balanced ? 'checkmark-circle' : 'bulb-outline'} size={20} color={C.leaf} />
-              <T size={15} color={C.deep} style={{ flex: 1 }}>
-                {balanced ? 'Balanced plate!' : veg < Math.max(1, grains) ? 'One more handful of vegetables makes it balanced.' : 'A palm of protein makes it balanced.'}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <T w="bold" size={S.title}>
+                Count with your hand
               </T>
-            </Row>
-          ) : null}
-        </View>
-
-        {medSlot ? (
-          <Pressable
-            onPress={() => setMedTaken(!medTaken)}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: medTaken }}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: medTaken ? C.mint : C.white, borderRadius: 18, padding: 12, borderWidth: 1.5, borderColor: medTaken ? C.leaf : '#E6EBE6' }}
-          >
-            <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: medTaken ? C.leaf : C.white, borderWidth: 2, borderColor: C.leaf, alignItems: 'center', justifyContent: 'center' }}>
-              {medTaken ? <Ionicons name="checkmark" size={20} color={C.white} /> : null}
             </View>
-            <T w="semibold" size={17} style={{ flex: 1 }}>
-              I took my medicine with this meal
-            </T>
-            <Ionicons name="medical" size={20} color={C.leaf} />
-          </Pressable>
-        ) : null}
-
-        {others.length ? (
-          <View style={{ gap: 8 }}>
-            <Eyebrow>Who ate with you?</Eyebrow>
-            <Row gap={8} style={{ flexWrap: 'wrap' }}>
-              {others.map((m) => (
-                <Chip key={m.id} label={m.name} on={withIds.includes(m.id)} onPress={() => setWithIds((list) => (list.includes(m.id) ? list.filter((x) => x !== m.id) : [...list, m.id]))} />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              {slots.map((x) => (
+                <Pill key={x} label={slotName(x)} on={slot === x} onPress={() => setSlot(x)} />
               ))}
-            </Row>
+            </ScrollView>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <Stepper icon="fist" value={grains} unit={`${grains === 1 ? 'fist' : 'fists'} ${grainName.toLowerCase()}`} onChange={(n) => (setByHand(false), count(setGrains)(n))} />
+              <Stepper icon="palm" value={protein} unit={protein === 1 ? 'palm protein' : 'palms protein'} onChange={count(setProtein)} />
+              <Stepper icon="handful" value={veg} unit={veg === 1 ? 'handful veg' : 'handfuls veg'} onChange={count(setVeg)} />
+            </View>
+            {fruit > 0 || dairy > 0 ? (
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {fruit > 0 ? <Stepper icon="apple" value={fruit} unit={fruit === 1 ? 'piece fruit' : 'pieces fruit'} onChange={count(setFruit)} /> : null}
+                {dairy > 0 ? <Stepper icon="cup" value={dairy} unit={dairy === 1 ? 'cup dairy' : 'cups dairy'} onChange={count(setDairy)} /> : null}
+              </View>
+            ) : !fixing ? (
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Pill label="Fruit" icon="plus" on={false} onPress={() => count(setFruit)(1)} />
+                <Pill label="Dairy" icon="plus" on={false} onPress={() => count(setDairy)(1)} />
+              </View>
+            ) : null}
+            {!snack && !fasting ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.mint, borderRadius: 18, padding: 12 }}>
+                <Icon name={balanced ? 'check' : 'handful'} size={22} color={C.leaf} />
+                <T w="medium" size={S.small} color={C.deep} style={{ flex: 1 }}>
+                  {balanced ? 'Balanced plate!' : veg < Math.max(1, grains) ? 'One more handful of veg makes it balanced.' : 'A palm of protein makes it balanced.'}
+                </T>
+              </View>
+            ) : null}
+            {photo && hand ? (
+              <BigButton kind="mint" icon="palm" label={byHand ? 'Measured with your hand' : 'Measure with my hand'} height={52} size={S.body} onPress={() => setMeasuring(true)} />
+            ) : photo && looking ? (
+              <T w="medium" size={S.small} color={C.muted}>
+                Looking for your hand in the photo...
+              </T>
+            ) : null}
+
+            {medSlot ? (
+              <Pressable
+                onPress={() => setMedTaken(!medTaken)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: medTaken }}
+                style={[card, { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 }, medTaken && { backgroundColor: C.mint }]}
+              >
+                <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: medTaken ? C.leaf : C.white, borderWidth: 2, borderColor: C.leaf, alignItems: 'center', justifyContent: 'center' }}>
+                  {medTaken ? <Icon name="check" size={18} color={C.white} /> : null}
+                </View>
+                <T w="bold" size={S.body} style={{ flex: 1 }}>
+                  I took my medicine with this meal
+                </T>
+                <Icon name="pill" size={22} color={C.leaf} />
+              </Pressable>
+            ) : null}
+
+            {others3.length ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, borderTopColor: K.line2, paddingTop: 14 }}>
+                <T w="bold" size={S.body} style={{ flex: 1 }}>
+                  Ate with
+                </T>
+                {others3.map((m) => {
+                  const on = withIds.includes(m.id);
+                  return (
+                    <Pressable key={m.id} onPress={() => toggleWith(m.id)} accessibilityRole="checkbox" accessibilityState={{ checked: on }} accessibilityLabel={`Ate with ${m.name}`} style={{ borderRadius: 24, borderWidth: 3, borderColor: on ? C.leaf : 'transparent', opacity: on ? 1 : 0.55 }}>
+                      <Face member={m} size={36} />
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
             {withIds.length && photo ? (
-              <T size={14} color={C.muted}>
-                They'll see this photo and can tap "I ate this too" with their own portion. No second photo needed.
+              <T w="medium" size={S.small} color={C.muted}>
+                They'll see this photo and can tap "I ate this too" with their own portion.
+              </T>
+            ) : null}
+
+            <TextInput
+              value={text}
+              onChangeText={setText}
+              placeholder={photo ? 'A note for the family: who cooked it?' : 'A note for the family'}
+              placeholderTextColor="#8A988F"
+              maxLength={280}
+              multiline
+              accessibilityLabel="Note for the family"
+              style={{ minHeight: 52, borderRadius: 18, borderWidth: 1.5, borderColor: K.line2, backgroundColor: C.white, paddingHorizontal: 16, paddingVertical: 14, fontFamily: F.medium, fontSize: 17, color: C.ink, textAlignVertical: 'top' }}
+            />
+            {more ? (
+              <>
+                <VoiceRecorder value={voice} onChange={setVoice} />
+                <TextInput
+                  value={withOthers}
+                  onChangeText={setWithOthers}
+                  placeholder="Anyone else at the table? (friends, Auntie)"
+                  placeholderTextColor="#8A988F"
+                  maxLength={80}
+                  style={{ height: 52, borderRadius: 18, borderWidth: 1.5, borderColor: K.line2, backgroundColor: C.white, paddingHorizontal: 16, fontFamily: F.medium, fontSize: 17, color: C.ink }}
+                />
+              </>
+            ) : (
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Pill label="Voice note" icon="mic" on={false} onPress={() => setMore(true)} />
+                <Pill label="Someone else" icon="plus" on={false} onPress={() => setMore(true)} />
+              </View>
+            )}
+            {note ? (
+              <T center color="#8A2942" size={S.small}>
+                {note}
               </T>
             ) : null}
           </View>
-        ) : null}
-
-        <View style={{ gap: 8 }}>
-          <Eyebrow>Note for the family</Eyebrow>
-          <TextInput
-            value={text}
-            onChangeText={setText}
-            placeholder={photo ? 'Who cooked it? How was it?' : 'What did you eat?'}
-            placeholderTextColor="#8A988F"
-            maxLength={280}
-            multiline
-            style={{ minHeight: 56, borderRadius: 14, borderWidth: 1.5, borderColor: C.line, backgroundColor: C.white, paddingHorizontal: 14, paddingVertical: 12, fontFamily: F.regular, fontSize: 17, color: C.ink, textAlignVertical: 'top' }}
-          />
-          {more ? (
-            <>
-              <VoiceRecorder value={voice} onChange={setVoice} />
-              <TextInput
-                value={withOthers}
-                onChangeText={setWithOthers}
-                placeholder="Anyone else at the table? (friends, Auntie)"
-                placeholderTextColor="#8A988F"
-                maxLength={80}
-                style={{ minHeight: 52, borderRadius: 14, borderWidth: 1.5, borderColor: C.line, backgroundColor: C.white, paddingHorizontal: 14, fontFamily: F.regular, fontSize: 17, color: C.ink }}
-              />
-            </>
-          ) : (
-            <Pressable onPress={() => setMore(true)} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 }}>
-              <Ionicons name="mic-outline" size={22} color={C.leaf} />
-              <T w="semibold" color={C.deep}>
-                Add a voice message
-              </T>
-            </Pressable>
-          )}
+        </ScrollView>
+        <View style={{ position: 'absolute', left: 20, right: 20, bottom: insets.bottom + 16 }}>
+          <BigButton label={busy ? 'Sharing...' : 'Put it on the table'} disabled={busy} onPress={() => save()} />
         </View>
-
-        {note ? (
-          <T center color="#8A2942" size={15}>
-            {note}
-          </T>
-        ) : null}
-        <Btn label={busy ? 'Sharing...' : `Share ${slotName(slot).toLowerCase()} with family`} icon="send" disabled={busy} onPress={() => save()} />
-      </ScrollView>
+      </View>
     );
   }
 
-  // Saved: the reward has to arrive now, because the health payoff is slow.
+  // Saved: the reward arrives now, because the health payoff is slow. One moment: the plate lands on the table.
   const meId = me?.id ?? '';
-  const streak = streakOf(store.meals, meId);
-  const goal = streakGoal(streak);
   const badgesNow = badgesFor(meId, store.meals, store.cheers, store.recipes.filter((r) => r.addedBy === meId).length);
   const fresh = badgesNow.filter((b) => !badgesBefore.includes(b.id));
-  const week = weekDays();
-  const mine = store.meals.filter((m) => m.memberId === meId);
+  const q = store.quest;
+  const showQuest = saved && q && store.questLive && (!store.simple || store.daysShared >= UNLOCK.quest);
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: C.rice }} contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom + 20 }}>
-      <View style={{ backgroundColor: C.mint, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, paddingTop: insets.top + 24, paddingBottom: 24, alignItems: 'center', gap: 8, paddingHorizontal: 22 }}>
-        <PutiDressed costume={wornCostume(store.family?.costumes, store.prefs.wear)} mood="happy" width={150} />
-        <T w="bold" size={28} center>
-          {saved?.slot === 'fasting' ? 'Fasting day shared' : `Lovely plate, ${me?.name ?? ''}!`}
-        </T>
-        <Row gap={8} style={{ flexWrap: 'wrap', justifyContent: 'center' }}>
-          <View style={{ backgroundColor: C.white, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Ionicons name="flame" size={18} color={C.heart} />
-            <T w="semibold" size={16}>
-              {streak} {streak === 1 ? 'day' : 'days'} in a row
-            </T>
+    <View style={{ flex: 1, backgroundColor: C.mint }}>
+      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 30, paddingBottom: insets.bottom + 110, paddingHorizontal: 20, alignItems: 'center', gap: 14 }}>
+        <Confetti points={[[8, 120, 20], [86, 140, -30], [16, 300, 50], [84, 330, 10], [26, 70, -60], [70, 70, 35]]} />
+        {saved && isBalanced(saved) ? <Chip text="Balanced plate" bg={C.leaf} color={C.white} /> : saved?.slot === 'fasting' ? <Chip text="Fasting day" icon="moon" /> : null}
+        <View style={{ width: 230, height: 250 }}>
+          <View style={{ position: 'absolute', left: 5, top: 0, width: 220, height: 220, borderRadius: 110, backgroundColor: K.table, borderWidth: 9, borderColor: K.tableRim, alignItems: 'center', justifyContent: 'center' }}>
+            {saved ? <FoodPlate meal={saved} size={170} /> : null}
           </View>
-          {saved && isBalanced(saved) ? (
-            <View style={{ backgroundColor: C.white, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name="leaf" size={18} color={C.leaf} />
-              <T w="semibold" size={16}>
-                Balanced plate
-              </T>
-            </View>
-          ) : null}
-        </Row>
-      </View>
-
-      <View style={{ padding: 20, gap: 14, flex: 1 }}>
-        {saved && store.quest && store.questLive && (!store.simple || store.daysShared >= UNLOCK.quest) ? (
-          <View style={{ backgroundColor: C.white, borderRadius: 20, padding: 14, gap: 10, borderWidth: 2, borderColor: C.leaf }}>
-            <Row gap={10}>
-              <Ionicons name={store.quest.quest.icon as keyof typeof Ionicons.glyphMap} size={24} color={C.leaf} />
-              <T w="semibold" size={17} style={{ flex: 1 }}>
-                {store.tickedToday ? `Ticked for ${store.quest.quest.name} today. Thank you!` : plateLine(store.quest.quest, saved)}
-              </T>
-            </Row>
-            <View style={{ height: 10, borderRadius: 5, backgroundColor: C.soft, overflow: 'hidden' }}>
-              <View style={{ width: `${Math.min(100, (store.quest.done / store.quest.goal) * 100)}%`, height: 10, borderRadius: 5, backgroundColor: C.leaf }} />
-            </View>
-            <T size={14} color={C.muted}>
-              {store.quest.finished ? `${store.quest.quest.name}: done! ${store.quest.done} together this week` : `${store.quest.quest.name}: ${store.quest.done} of ${store.quest.goal} for the family`}
+          <View style={{ position: 'absolute', right: -40, bottom: -6 }}>
+            <Mado mood="happy" width={150} flip costume={wornCostume(store.family?.costumes, store.prefs.wear)} />
+          </View>
+        </View>
+        <T w="bold" size={36} center style={{ lineHeight: 40 }}>
+          {saved?.slot === 'fasting' ? 'Fasting day shared' : 'On the table!'}
+        </T>
+        {others.length ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Faces members={others.slice(0, 4)} size={28} ring={C.mint} />
+            <T w="medium" size={S.body} color={C.muted}>
+              Your family can see it
             </T>
-            {store.quest.quest.how === 'tick' && saved.slot !== 'fasting' ? <TickButton /> : null}
           </View>
         ) : null}
+
+        {showQuest && q ? (
+          <View style={[card, { alignSelf: 'stretch', gap: 10 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: C.mint, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name={q.quest.how === 'tick' ? 'walk' : 'check'} size={24} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <T w="bold" size={S.body} style={{ lineHeight: 21 }}>
+                  {q.quest.how === 'tick' ? (store.tickedToday ? 'Ticked today. Thank you!' : `${q.quest.goal}?`) : plateLine(q.quest, saved!)}
+                </T>
+                <T w="medium" size={S.small} color={C.muted}>
+                  {q.quest.name}: {q.done} of {q.goal} for the family
+                </T>
+              </View>
+              {q.quest.how === 'tick' && saved?.slot !== 'fasting' ? (
+                <BigButton label={store.tickedToday ? 'Undo' : 'Yes'} kind="mint" height={44} size={S.small} onPress={() => store.tickQuest(!store.tickedToday)} />
+              ) : null}
+            </View>
+          </View>
+        ) : null}
+
         {fresh.map((b) => (
-          <View key={b.id} style={{ backgroundColor: C.deep, borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-            <View style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: C.leaf, alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons name={b.icon as keyof typeof Ionicons.glyphMap} size={28} color={C.white} />
+          <View key={b.id} style={[card, { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
+            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: C.mint, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="medal" size={24} />
             </View>
             <View style={{ flex: 1 }}>
-              <T w="bold" size={18} color={C.white}>
+              <T w="bold" size={S.body}>
                 New badge: {b.title}
               </T>
-              <T size={14} color="#C9D8CF">
-                {b.how}. Your family can see it.
+              <T w="medium" size={S.small} color={C.muted}>
+                {b.how}
               </T>
             </View>
           </View>
@@ -535,22 +565,14 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
 
         {/* Now and then, not every meal: the second plate, then every sixth, until it's added. */}
         {!store.prefs.widgetSeen && !widgetLater && (store.myMealCount === 2 || store.myMealCount % 6 === 0) ? (
-          <WidgetCard onClose={() => store.setPrefs({ widgetSeen: true })} onLater={() => setWidgetLater(true)} />
+          <View style={{ alignSelf: 'stretch' }}>
+            <WidgetCard onClose={() => store.setPrefs({ widgetSeen: true })} onLater={() => setWidgetLater(true)} />
+          </View>
         ) : null}
-
-        {others.length ? (
-          <Row gap={8} style={{ alignItems: 'center' }}>
-            {others.slice(0, 4).map((m) => (
-              <Avatar key={m.id} member={m} size={34} />
-            ))}
-            <T size={15} color={C.muted} style={{ flex: 1 }}>
-              {others.map((m) => m.name).join(', ')} can see it now.
-            </T>
-          </Row>
-        ) : null}
-        <View style={{ flex: 1 }} />
-        <Btn label="See Our Table" onPress={onClose} />
+      </ScrollView>
+      <View style={{ position: 'absolute', left: 20, right: 20, bottom: insets.bottom + 16 }}>
+        <BigButton label="Done" onPress={onClose} />
       </View>
-    </ScrollView>
+    </View>
   );
 }

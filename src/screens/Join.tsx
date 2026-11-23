@@ -4,7 +4,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../store';
 import { C } from '../theme';
 import { Role } from '../types';
-import { Btn, Chip, Puti, RoundButton, Row, Soft, T, field } from '../ui';
+import { Row, Soft, T, field } from '../ui';
+import { BigButton, Mado, Pill, RoundIcon } from '../design';
 import { CODE_LENGTH, cleanCode, spacedCode } from '../words';
 
 /** The whole setup for the person being looked after: a code, a name that is usually already filled in, one button. */
@@ -67,19 +68,19 @@ export default function Join({ onBack, onJoined }: { onBack: () => void; onJoine
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.mint }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.rice }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={{ padding: 24, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24, gap: 18 }} keyboardShouldPersistTaps="handled">
-        <RoundButton icon="chevron-back" label="Back" onPress={onBack} />
+        <RoundIcon name="back" label="Back" onPress={onBack} />
         <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <View style={{ flex: 1, gap: 6 }}>
             <T w="bold" size={28}>
-              {name.trim() ? `Welcome, ${name.trim()}` : 'Come, sit'}
+              {from ? `${from} set a seat for you` : name.trim() ? `Welcome, ${name.trim()}` : 'Come, sit'}
             </T>
             <T color={C.muted} size={16}>
-              {from ? `${from} set the table for you. ` : ''}Share what you eat with one photo. Your family shares theirs too.
+              Share what you eat with one photo. Your family shares theirs too.
             </T>
           </View>
-          <Puti mood="happy" width={84} />
+          <Mado mood="happy" width={84} />
         </Row>
 
         <View style={{ gap: 6 }}>
@@ -110,7 +111,7 @@ export default function Join({ onBack, onJoined }: { onBack: () => void; onJoine
           {waiting.length > 1 ? (
             <Row gap={8} style={{ flexWrap: 'wrap' }}>
               {waiting.map((w) => (
-                <Chip key={w} label={`I'm ${w}`} on={name === w && role === 'parent'} onPress={() => (setName(w), setRole('parent'))} />
+                <Pill key={w} label={`I'm ${w}`} on={name === w && role === 'parent'} onPress={() => (setName(w), setRole('parent'))} />
               ))}
             </Row>
           ) : null}
@@ -122,8 +123,8 @@ export default function Join({ onBack, onJoined }: { onBack: () => void; onJoine
             Which fits you?
           </T>
           <Row gap={8} style={{ flexWrap: 'wrap' }}>
-            <Chip icon="heart" label="My family looks after me" on={role === 'parent'} onPress={() => setRole('parent')} />
-            <Chip icon="people" label="I'm a caregiver" on={role === 'child'} onPress={() => setRole('child')} />
+            <Pill icon="heart" label="My family looks after me" on={role === 'parent'} onPress={() => setRole('parent')} />
+            <Pill icon="people" label="I'm a caregiver" on={role === 'child'} onPress={() => setRole('child')} />
           </Row>
         </View>
 
@@ -138,7 +139,7 @@ export default function Join({ onBack, onJoined }: { onBack: () => void; onJoine
             {error}
           </T>
         ) : null}
-        <Btn label={busy ? 'Pulling up a chair...' : "Let's eat"} disabled={!canGo} onPress={go} />
+        <BigButton label={busy ? 'Pulling up a chair...' : 'Agree and join'} disabled={!canGo} onPress={go} />
         <T center color={C.muted} size={12}>
           By continuing you confirm you're 18 or older. Amader isn't a medical device and doesn't give medical advice.
         </T>

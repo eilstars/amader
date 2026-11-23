@@ -149,10 +149,10 @@ export function Plate({ size, photo, handfuls, empty }: PlateProps) {
   );
 }
 
-export function Puti({ mood = 'hello', width = 96 }: { mood?: 'hello' | 'happy' | 'sleep'; width?: number }) {
+export function MadoPic({ mood = 'hello', width = 96 }: { mood?: 'hello' | 'happy' | 'sleep'; width?: number }) {
   const source =
-    mood === 'happy' ? require('../assets/brand/puti-happy.png') : mood === 'sleep' ? require('../assets/brand/puti-sleep.png') : require('../assets/brand/puti-hello.png');
-  return <Image source={source} style={{ width, height: (width * 780) / 1250 }} resizeMode="contain" accessibilityLabel="Puti the fish" />;
+    mood === 'happy' ? require('../assets/brand/mado-happy.png') : mood === 'sleep' ? require('../assets/brand/mado-sleep.png') : require('../assets/brand/mado-hello.png');
+  return <Image source={source} style={{ width, height: (width * 780) / 1250 }} resizeMode="contain" accessibilityLabel="Mado the fish" />;
 }
 
 export function Row({ children, gap = 12, style }: { children: React.ReactNode; gap?: number; style?: StyleProp<ViewStyle> }) {
@@ -536,11 +536,11 @@ export function Toggle({ title, help, on, onChange }: { title: string; help?: st
   );
 }
 
-/** A small speech bubble from Puti. Used for tips and ideas, never for warnings. */
-export function PutiSays({ title, children, mood = 'happy', pink }: { title?: string; children: React.ReactNode; mood?: 'hello' | 'happy' | 'sleep'; pink?: boolean }) {
+/** A small speech bubble from Mado. Used for tips and ideas, never for warnings. */
+export function MadoSays({ title, children, mood = 'happy', pink }: { title?: string; children: React.ReactNode; mood?: 'hello' | 'happy' | 'sleep'; pink?: boolean }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 6 }}>
-      <Puti mood={mood} width={64} />
+      <MadoPic mood={mood} width={64} />
       <View style={{ flex: 1, backgroundColor: pink ? C.pinkSoft : C.white, borderRadius: 18, borderBottomLeftRadius: 4, padding: 12, borderWidth: 1, borderColor: pink ? '#F6D3DA' : '#E3EAE4' }}>
         {title ? <T w="semibold">{title}</T> : null}
         {typeof children === 'string' ? (

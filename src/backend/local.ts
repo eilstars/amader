@@ -251,6 +251,8 @@ export const localBackend: Backend & { seedDemo(): Promise<Session>; clear(): Pr
       if (back % 2 === 0 && back > 0) meals.push(meal(abbu, back, 13, 'lunch', back + 1, { hearts: [ammi.id] }));
       if (back !== 3 && back !== 9 && back > 0) meals.push(meal(nadia, back, 12, 'lunch', back + 4, { hearts: [ammi.id] }));
       if (back % 3 !== 0 && back > 0) meals.push(meal(tanvir, back, 19, 'dinner', back + 2, { hearts: back % 4 === 0 ? [ammi.id] : [] }));
+      // Today's table is never empty in the sample: Ammi has shared breakfast an hour ago.
+      if (back === 0 && now.getHours() >= 6) meals.push(meal(ammi, 0, Math.min(9, now.getHours() - 1), 'breakfast', 7, { hearts: [nadia.id] }));
       if (back === 4) meals.push(meal(ammi, back, 16, 'snack', 0, { dish: 'Chai and two biscuits', handfuls: 0, protein: 0, veg: 0, parts: null, note: 'With Shila Auntie', withOthers: 'Shila Auntie' }));
       if (back === 6) meals.push(meal(tanvir, back, 21, 'dinner', 1, { dish: 'Wedding dawat', party: true, handfuls: 3, protein: 2, veg: 0, note: "Rafi bhai's walima" }));
     }

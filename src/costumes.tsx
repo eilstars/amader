@@ -3,10 +3,10 @@ import { View } from 'react-native';
 import Svg, { Circle, Ellipse, G, Path, Rect } from 'react-native-svg';
 import { CostumeId, QUESTS } from './quests';
 import { C } from './theme';
-import { Puti } from './ui';
+import { MadoPic } from './ui';
 
 /**
- * Puti's costumes, earned by finishing a family quest. Drawn on top of the Puti picture,
+ * Mado's costumes, earned by finishing a family quest. Drawn on top of the Mado picture,
  * on the same 360 by 225 grid as the picture, so they sit on the head at any size.
  * Flat shapes in the brand greens, with one warm marigold for the garland.
  */
@@ -78,7 +78,7 @@ function Garland() {
   );
 }
 
-/** Each costume, and where it sits on Puti: on the slope of the head, tilted to match it. */
+/** Each costume, and where it sits on Mado: on the slope of the head, tilted to match it. */
 const ART: Record<CostumeId, { draw: () => React.ReactElement; at: string; shelf: string }> = {
   chef: { draw: ChefHat, at: 'translate(52 64) rotate(-30) scale(1.3)', shelf: '-44 -58 88 64' },
   crown: { draw: LeafCrown, at: 'translate(52 64) rotate(-32) scale(1.3)', shelf: '-40 -40 80 46' },
@@ -95,16 +95,16 @@ export function costumeName(id: string): string {
   return QUESTS.find((q) => q.costume === id)?.costumeName ?? id;
 }
 
-/** Puti wearing a costume, or plain Puti when there is none. */
-export function PutiDressed({ costume, mood = 'hello', width = 96 }: { costume?: string | null; mood?: 'hello' | 'happy' | 'sleep'; width?: number }) {
+/** Mado wearing a costume, or plain Mado when there is none. */
+export function MadoDressed({ costume, mood = 'hello', width = 96 }: { costume?: string | null; mood?: 'hello' | 'happy' | 'sleep'; width?: number }) {
   const height = (width * 225) / 360;
   // Hats stick out above the head, so leave room for them.
   const top = isCostume(costume) && costume !== 'garland' ? height * 0.12 : 0;
   const art = isCostume(costume) ? ART[costume] : null;
   return (
-    <View style={{ width, height: height + top }} accessibilityLabel={art ? `Puti the fish wearing a ${costumeName(costume as string).toLowerCase()}` : 'Puti the fish'}>
+    <View style={{ width, height: height + top }} accessibilityLabel={art ? `Mado the fish wearing a ${costumeName(costume as string).toLowerCase()}` : 'Mado the fish'}>
       <View style={{ position: 'absolute', top }}>
-        <Puti mood={mood} width={width} />
+        <MadoPic mood={mood} width={width} />
       </View>
       {art ? (
         <Svg width={width} height={height + top} viewBox={`0 ${(-top * 360) / width} 360 ${225 + (top * 360) / width}`} style={{ position: 'absolute', top: 0, left: 0 }} pointerEvents="none">
@@ -125,7 +125,7 @@ export function CostumeArt({ id, size = 56 }: { id: CostumeId; size?: number }) 
   );
 }
 
-/** The costume Puti wears: the one picked on this phone, or the newest the family earned. */
+/** The costume Mado wears: the one picked on this phone, or the newest the family earned. */
 export function wornCostume(costumes: string[] | undefined, wear: string | null): string | null {
   const list = costumes ?? [];
   if (wear === 'none') return null;

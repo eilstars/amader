@@ -6,8 +6,11 @@ import { useStore } from '../store';
 import { C, F } from '../theme';
 import { sendOnWhatsApp } from '../nudge';
 import { shareText } from '../share';
-import { Avatar, Btn, Chip, Eyebrow, GOAL_FOODS, PageHead, Row, T, TimeRow, Toggle } from '../ui';
-import { roleName, spacedCode } from '../words';
+import { Btn, Chip, Eyebrow, GOAL_FOODS, PageHead, Row, T, TimeRow, Toggle } from '../ui';
+import { Face, Pill } from '../design';
+import { FAST_KINDS, dayName, roleName, spacedCode } from '../words';
+
+const WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: { onClose: () => void; onCheckup: () => void; onTeach: () => void; onPerson: (id: string) => void; onWidget: () => void }) {
   const store = useStore();
@@ -40,7 +43,7 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: insets.bottom + 24, gap: 12 }}>
         <Pressable onPress={() => onPerson(me.id)} accessibilityRole="button" accessibilityLabel="See my progress">
           <View style={[section, { flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
-            <Avatar member={me} size={56} />
+            <Face member={me} size={56} ring={C.white} />
             <View style={{ flex: 1 }}>
               <T w="bold" size={22}>
                 {me.name}
@@ -70,7 +73,7 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
           {family.members.map((m) => (
             <Row key={m.id} style={{ paddingVertical: 4 }}>
               <Pressable onPress={() => onPerson(m.id)} accessibilityRole="button" style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <Avatar member={m} size={40} />
+                <Face member={m} size={40} ring={C.white} />
                 <View style={{ flex: 1 }}>
                   <T w="semibold">{m.id === me.id ? `${m.name} (you)` : m.name}</T>
                   <T size={14} color={C.muted}>
@@ -160,11 +163,61 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
           <TimeRow icon="moon-outline" label="Dinner" hour={prefs.times.dinner} min={17} max={23} onChange={(h) => remind({ times: { ...prefs.times, dinner: h } })} />
           <View style={{ height: 1, backgroundColor: '#EDF0EA', marginVertical: 4 }} />
           <Toggle title="We live together" help="One photo can cover a meal you eat together." on={prefs.sameHome} onChange={(on) => store.setPrefs({ sameHome: on })} />
-          <Toggle title="Ramadan mode" help="Suhoor and iftar. Fasting days keep your streak." on={prefs.ramadan} onChange={(on) => remind({ ramadan: on })} />
+        </View>
+
+        <Eyebrow>Fasting</Eyebrow>
+        <View style={section}>
+          <Toggle
+            title="I'm fasting"
+            help="Before dawn and break fast instead of the usual meals. Fasting days keep the family streak going."
+            on={prefs.ramadan}
+            onChange={(on) => remind({ ramadan: on })}
+          />
           {prefs.ramadan ? (
             <>
-              <TimeRow icon="cloudy-night-outline" label="Suhoor" hour={prefs.suhoorHour} min={2} max={6} onChange={(h) => remind({ suhoorHour: h })} />
-              <TimeRow icon="moon" label="Iftar" hour={prefs.iftarHour} min={16} max={21} onChange={(h) => remind({ iftarHour: h })} />
+              <T size={14} color={C.muted}>
+                What kind of fast?
+              </T>
+              <Row gap={8} style={{ flexWrap: 'wrap' }}>
+                {FAST_KINDS.map((k) => (
+                  <Pill
+                    key={k}
+                    label={k}
+                    on={prefs.fastKind === k}
+                    onPress={() => {
+                      store.setPrefs({ fastKind: k });
+                      // "My own days" fasts on chosen weekdays; the rest fast every day of the season.
+                      if (k === 'My own days') remind({ fastKind: k, fastDays: prefs.fastDays?.length ? prefs.fastDays : [0] });
+                      else remind({ fastKind: k, fastDays: null });
+                    }}
+                  />
+                ))}
+              </Row>
+              {prefs.fastKind === 'My own days' ? (
+                <>
+                  <T size={14} color={C.muted}>
+                    Which days?
+                  </T>
+                  <Row gap={6} style={{ flexWrap: 'wrap' }}>
+                    {WEEK.map((d, i) => {
+                      const on = (prefs.fastDays ?? []).includes(i);
+                      return (
+                        <Pill
+                          key={d}
+                          label={d}
+                          on={on}
+                          onPress={() => {
+                            const days = on ? (prefs.fastDays ?? []).filter((x) => x !== i) : [...(prefs.fastDays ?? []), i].sort();
+                            if (days.length) remind({ fastDays: days });
+                          }}
+                        />
+                      );
+                    })}
+                  </Row>
+                </>
+              ) : null}
+              <TimeRow icon="cloudy-night-outline" label="Before dawn" hour={prefs.suhoorHour} min={2} max={6} onChange={(h) => remind({ suhoorHour: h })} />
+              <TimeRow icon="moon" label="Break fast" hour={prefs.iftarHour} min={16} max={21} onChange={(h) => remind({ iftarHour: h })} />
             </>
           ) : null}
         </View>
@@ -190,6 +243,20 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
             </T>
           ) : null}
           <Btn kind="ghost" icon="apps-outline" label="Add the home screen widget" onPress={onWidget} style={{ marginTop: 6 }} />
+          <View style={{ height: 1, backgroundColor: '#EDF0EA', marginVertical: 4 }} />
+          <T w="semibold">{store.onBreak ? `Resting until ${prefs.breakUntil ? dayName(new Date(prefs.breakUntil)) : 'later'}` : 'Take a break'}</T>
+          <T size={14} color={C.muted}>
+            No meal reminders while you rest. Medicine reminders still come. The family streak waits for you.
+          </T>
+          {store.onBreak ? (
+            <Btn kind="ghost" label="End the break" onPress={() => store.takeBreak(null)} />
+          ) : (
+            <Row gap={8} style={{ flexWrap: 'wrap' }}>
+              {[3, 7, 14].map((d) => (
+                <Pill key={d} label={d === 7 ? 'A week' : d === 14 ? 'Two weeks' : '3 days'} on={false} onPress={() => store.takeBreak(d)} />
+              ))}
+            </Row>
+          )}
         </View>
 
         <Eyebrow>Medicine with meals</Eyebrow>
@@ -207,7 +274,7 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
               </T>
               <Row gap={8} style={{ flexWrap: 'wrap' }}>
                 {(['breakfast', 'lunch', 'dinner'] as const).map((m) => (
-                  <Chip
+                  <Pill
                     key={m}
                     label={m === 'breakfast' ? 'Breakfast' : m === 'lunch' ? 'Lunch' : 'Dinner'}
                     on={prefs.meds.slots.includes(m)}
@@ -220,7 +287,7 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
               </Row>
               {prefs.ramadan ? (
                 <T size={14} color={C.muted}>
-                  In Ramadan, morning medicine moves to suhoor and evening medicine to iftar.
+                  On fasting days, morning medicine moves to before dawn and evening medicine to break fast.
                 </T>
               ) : null}
             </>
@@ -239,7 +306,7 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
           </T>
           <Row gap={8} style={{ flexWrap: 'wrap', marginTop: 4 }}>
             {GOAL_FOODS.map((f) => (
-              <Chip key={f} label={f} on={store.goalFood === f} onPress={() => store.setGoal(f, store.goalHandfuls)} />
+              <Pill key={f} label={f} on={store.goalFood === f} onPress={() => store.setGoal(f, store.goalHandfuls)} />
             ))}
           </Row>
         </View>
@@ -247,7 +314,7 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
         <Eyebrow>Photos</Eyebrow>
         <View style={section}>
           <Toggle
-            title="Puti guesses what's on my plate"
+            title="Mado guesses what's on my plate"
             help="Your meal photo is sent to an AI service (Claude, made by Anthropic) that names the dish and guesses the portions. No person at Amader looks at it. Off means photos only go to your family."
             on={prefs.guessOn === true}
             onChange={(on) => store.setGuessOn(on)}

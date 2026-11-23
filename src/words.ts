@@ -33,13 +33,25 @@ export function slotAt(date: Date, times: MealTimes = DEFAULT_TIMES, ramadan = f
   return gap <= 2.5 ? best : 'snack';
 }
 
+/**
+ * Fasting days, for any faith or none: a season (Ramadan, Lent, Navratri) or the person's own weekdays.
+ * On a fasting day the meals become "Before dawn" and "Break fast".
+ */
+export const FAST_KINDS = ['Ramadan', 'Lent', 'Navratri', 'Yom Kippur', 'Ekadashi', 'My own days'];
+export function fastingToday(p: { ramadan: boolean; fastDays?: number[] | null }, date = new Date()): boolean {
+  if (!p.ramadan) return false;
+  if (!p.fastDays || !p.fastDays.length) return true;
+  // fastDays are Monday = 0 ... Sunday = 6, like the week strip.
+  return p.fastDays.includes((date.getDay() + 6) % 7);
+}
+
 export const SLOT_NAMES: Record<Slot, string> = {
   breakfast: 'Breakfast',
   lunch: 'Lunch',
   dinner: 'Dinner',
   snack: 'Snack',
-  suhoor: 'Suhoor',
-  iftar: 'Iftar',
+  suhoor: 'Before dawn',
+  iftar: 'Break fast',
   fasting: 'Fasting today',
 };
 

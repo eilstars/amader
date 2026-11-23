@@ -3,7 +3,7 @@ import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { C } from '../theme';
-import { Btn, Puti, Row, T } from '../ui';
+import { Btn, MadoPic, Row, T } from '../ui';
 
 const SIZE = 280;
 const PLATE = 6; // a full dinner plate holds about six handfuls
@@ -127,7 +127,7 @@ export default function Teach({ onClose }: { onClose: () => void }) {
       </View>
 
       <View style={{ backgroundColor: done ? C.mint : C.white, borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <Puti mood={done ? 'happy' : 'hello'} width={56} />
+        <MadoPic mood={done ? 'happy' : 'hello'} width={56} />
         <T style={{ flex: 1 }} w={done ? 'semibold' : 'regular'} color={done ? C.deep : C.ink} size={15}>
           {line}
         </T>

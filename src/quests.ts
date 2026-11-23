@@ -4,7 +4,7 @@ import { weekDays } from './words';
 /**
  * Family quests: one theme a week that the whole family works on together, like a team quest.
  * Doing counts, not reading: a quest is filled by plates that fit it, or by a tick for something
- * a photo can't show. The lessons are the "why" behind each one. Finishing earns Puti a costume.
+ * a photo can't show. The lessons are the "why" behind each one. Finishing earns Mado a costume.
  *
  * Every quest adds something rather than cutting something out, because plans to eat more of a
  * good thing work about twice as well as plans to cut a bad one.
@@ -149,7 +149,7 @@ export function questProgress(family: Family, meals: Meal[], ticks: Tick[], now 
 }
 
 /**
- * Puti's line right after a plate is shared: about this plate and this week's quest.
+ * Mado's line right after a plate is shared: about this plate and this week's quest.
  * Never a judgement, always what counted or one small idea for next time.
  */
 export function plateLine(quest: Quest, meal: Meal): string {

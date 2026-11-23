@@ -1,169 +1,208 @@
 import React, { useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { useStore } from '../store';
+import { CostumeArt, wornCostume } from '../costumes';
+import { BigButton, Face, FoodPlate, Icon, K, Mado, River, RoundIcon, RoundTable, S, Seat, card } from '../design';
+import { MedSlot } from '../reminders';
+import { medKey, useStore } from '../store';
 import { C } from '../theme';
-import { PutiDressed, wornCostume } from '../costumes';
-import { Avatar, Btn, Eyebrow, Row, T } from '../ui';
-import { dayName, greeting, sameDay } from '../words';
-import MealCard from './MealCard';
-import MedsCard from './Meds';
-import { NewsCard } from './OurTable';
-import { QuestCard } from './Quest';
+import { Member } from '../types';
+import { T } from '../ui';
+import { dayName, fastingToday, greeting, hourText, sameDay } from '../words';
+import { todaysPlate } from './Home';
 
 /** Days of sharing before comments, then the family quest, show up in the simple view. */
 export const UNLOCK = { comments: 4, quest: 7 };
 
+const MED_WORD: Record<MedSlot, string> = { breakfast: 'breakfast', lunch: 'lunch', dinner: 'dinner' };
+
+/** The medicine compartment that's due next today, or null when all are done. */
+export function nextMed(prefs: ReturnType<typeof useStore>['prefs'], now = new Date()): MedSlot | null {
+  if (!prefs.meds.on) return null;
+  const left = (['breakfast', 'lunch', 'dinner'] as MedSlot[]).filter((s) => prefs.meds.slots.includes(s) && !prefs.meds.taken.includes(medKey(now, s)));
+  if (!left.length) return null;
+  const h = now.getHours();
+  const due = left.filter((s) => (prefs.times[s] ?? 0) - 1 <= h);
+  return due[due.length - 1] ?? left[0];
+}
+
 /**
- * The simple view, for the person the family looks after. One screen: a big button to share a plate,
- * the family's plates below it, hearts one tap away. No tabs, no points to read. New things appear
- * as the person settles in, and "See everything" is always there for anyone who wants more.
+ * Home for the person the family looks after. One screen, big type: did you eat, the table, one big button.
+ * New things appear as the person settles in. A break and a fasting day change the top of the screen.
  */
-export default function SimpleHome({ onAdd, onMe, onPerson }: { onAdd: () => void; onMe: () => void; onPerson: (id: string) => void }) {
+export default function ParentHome({ onAdd, onMe, onMeal, onPerson, onQuest, onMeds }: { onAdd: () => void; onMe: () => void; onMeal: (id: string) => void; onPerson: (id: string) => void; onQuest: () => void; onMeds: () => void }) {
   const store = useStore();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const [refreshing, setRefreshing] = useState(false);
-  const [breakAsk, setBreakAsk] = useState(false);
   const { family, me, meals, cheers, prefs } = store;
   if (!family || !me) return null;
 
   const today = new Date();
-  const yesterday = new Date(Date.now() - 86_400_000);
-  const iShared = meals.some((m) => m.memberId === me.id && sameDay(new Date(m.date), today));
-  const recent = meals.filter((m) => sameDay(new Date(m.date), today) || sameDay(new Date(m.date), yesterday)).slice(0, 12);
+  const mine = todaysPlate(meals, me.id);
+  const fasting = fastingToday(prefs);
+  const costume = wornCostume(family.costumes, prefs.wear);
   const note = cheers.find((c) => c.toId === me.id && !c.mealId && today.getTime() - new Date(c.date).getTime() < 4 * 86_400_000);
   const from = note ? store.member(note.fromId) : undefined;
-  const canComment = store.daysShared >= UNLOCK.comments;
-  const questOpen = store.questLive && store.daysShared >= UNLOCK.quest;
+  const med = nextMed(prefs);
+  const questOpen = store.questLive && !!store.quest && store.daysShared >= UNLOCK.quest;
   const breakEnds = prefs.breakUntil ? new Date(prefs.breakUntil) : null;
+  const w = Math.min(width, 480) - 40;
 
-  return (
-    <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          tintColor={C.leaf}
-          onRefresh={async () => {
-            setRefreshing(true);
-            await store.refresh().catch(() => undefined);
-            setRefreshing(false);
-          }}
-        />
-      }
-    >
-      <View style={{ backgroundColor: C.mint, paddingTop: insets.top + 14, paddingHorizontal: 18, paddingBottom: 20, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, gap: 14 }}>
-        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <View style={{ flex: 1 }}>
-            <T w="medium" size={17} color={C.deep}>
-              {greeting()},
-            </T>
-            <T w="bold" size={32} style={{ lineHeight: 38 }}>
-              {me.name}
-            </T>
-          </View>
-          <Pressable onPress={onMe} accessibilityRole="button" accessibilityLabel="Settings" style={{ minWidth: 52, height: 52, borderRadius: 26, backgroundColor: C.white, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, flexDirection: 'row', gap: 6 }}>
-            <Ionicons name="settings-outline" size={22} color={C.deep} />
-          </Pressable>
-        </Row>
-        <Row gap={12}>
-          <PutiDressed costume={wornCostume(family.costumes, prefs.wear)} mood={iShared ? 'happy' : 'hello'} width={104} />
-          <T w="bold" size={24} style={{ flex: 1, lineHeight: 30 }}>
-            {store.onBreak ? 'Rest well. Your family is here.' : iShared ? 'Thank you for sharing!' : 'Did you eat?'}
-          </T>
-        </Row>
-        <Pressable
-          onPress={onAdd}
-          accessibilityRole="button"
-          accessibilityLabel="Show my plate"
-          style={({ pressed }) => ({
-            minHeight: 76,
-            borderRadius: 24,
-            backgroundColor: C.leaf,
-            opacity: pressed ? 0.85 : 1,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 12,
-            shadowColor: C.leaf,
-            shadowOpacity: 0.3,
-            shadowRadius: 10,
-            shadowOffset: { width: 0, height: 6 },
-            elevation: 4,
-          })}
-        >
-          <Ionicons name="camera" size={32} color={C.white} />
-          <T w="bold" size={22} color={C.white}>
-            {iShared ? 'Show another plate' : 'Show my plate'}
+  const others = family.members.filter((m) => m.id !== me.id);
+  const seat = (m: Member): Seat => {
+    const meal = todaysPlate(meals, m.id);
+    if (m.id === me.id) {
+      if (meal) return { member: m, meal, label: 'You', glow: true, onPress: () => onMeal(meal.id) };
+      return { member: m, label: 'You', empty: store.onBreak ? <T w="bold" size={S.small} color={C.muted}>resting</T> : <Icon name={fasting ? 'moon' : 'camera'} size={30} color={C.leaf} />, dim: store.onBreak, onPress: onAdd };
+    }
+    if (meal) return { member: m, meal, heart: meal.hearts.includes(me.id), onPress: () => onMeal(meal.id), onFace: () => onPerson(m.id) };
+    return { member: m, dim: true, onFace: () => onPerson(m.id) };
+  };
+
+  const header = store.onBreak ? (
+    <View style={{ alignItems: 'center' }}>
+      <Mado mood="sleep" width={150} costume={costume} />
+      <T w="bold" size={32} center style={{ lineHeight: 36, marginTop: 8 }}>
+        Resting until {breakEnds ? dayName(breakEnds) : 'later'}
+      </T>
+      <T size={S.body} color={C.deep} center>
+        No meal reminders. Medicine reminders still come.
+      </T>
+    </View>
+  ) : fasting ? (
+    <View style={{ gap: 12 }}>
+      <View>
+        <T w="bold" size={S.small} color={C.deep}>
+          Fasting today, {me.name}
+        </T>
+        <T w="bold" size={32} style={{ lineHeight: 36 }}>
+          Break your fast at {hourText(prefs.iftarHour)}
+        </T>
+      </View>
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        {(['suhoor', 'iftar'] as const).map((slot) => {
+          const shared = meals.find((m) => m.memberId === me.id && m.slot === slot && sameDay(new Date(m.date), today));
+          return (
+            <Pressable key={slot} onPress={shared ? () => onMeal(shared.id) : onAdd} accessibilityRole="button" style={{ flex: 1, backgroundColor: C.white, borderRadius: 20, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: shared ? 0 : 2.5, borderColor: C.leaf }}>
+              {shared ? <FoodPlate meal={shared} size={44} /> : <Icon name="moon" size={28} color={C.leaf} />}
+              <View style={{ flex: 1 }}>
+                <T w="bold" size={S.body} style={{ lineHeight: 20 }}>
+                  {slot === 'suhoor' ? 'Before dawn' : 'Break fast'}
+                </T>
+                <T w="bold" size={S.small} color={shared ? C.leaf : C.muted}>
+                  {shared ? 'Shared' : hourText(slot === 'suhoor' ? prefs.suhoorHour : prefs.iftarHour)}
+                </T>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+      <T w="medium" size={S.small} color={C.deep}>
+        Fasting days keep the family streak going.
+      </T>
+    </View>
+  ) : (
+    <View style={{ gap: 4 }}>
+      <T w="bold" size={S.small} color={C.deep}>
+        {greeting()}, {me.name}
+      </T>
+      <T w="bold" size={36} style={{ lineHeight: 42 }}>
+        {mine ? 'Thank you for sharing!' : 'Did you eat?'}
+      </T>
+      {questOpen && store.quest ? (
+        <Pressable onPress={onQuest} accessibilityRole="button" accessibilityLabel={`${store.quest.quest.name}. Open the quest`}>
+          <River done={store.quest.done} goal={store.quest.goal} width={w} goalArt={<CostumeArt id={store.quest.quest.costume} size={34} />} />
+          <T w="bold" size={S.small} color={C.deep}>
+            {store.quest.quest.name}: {store.quest.finished ? 'done! Mado won.' : store.quest.done * 2 >= store.quest.goal ? 'Mado is halfway there.' : `${store.quest.done} of ${store.quest.goal} together.`}
           </T>
         </Pressable>
-      </View>
+      ) : (
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+          <Mado width={88} mood={mine ? 'happy' : 'hello'} costume={costume} />
+        </View>
+      )}
+    </View>
+  );
 
-      <View style={{ padding: 16, gap: 14 }}>
-        {breakEnds && store.onBreak ? (
-          <View style={{ backgroundColor: C.white, borderRadius: 20, padding: 14, gap: 10, borderWidth: 1, borderColor: '#E6EBE6' }}>
-            <T size={16}>Meal reminders are quiet until {dayName(breakEnds)}. Medicine reminders still come.</T>
-            <Btn kind="ghost" label="I'm back" icon="sunny" onPress={() => store.takeBreak(null)} />
+  return (
+    <View style={{ flex: 1 }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: insets.bottom + 140 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            tintColor={C.leaf}
+            onRefresh={async () => {
+              setRefreshing(true);
+              await store.refresh().catch(() => undefined);
+              setRefreshing(false);
+            }}
+          />
+        }
+      >
+        <View style={{ backgroundColor: C.mint, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, paddingTop: insets.top + 14, paddingHorizontal: 20, paddingBottom: 18 }}>
+          <View style={{ position: 'absolute', right: 20, top: insets.top + 14, zIndex: 2 }}>
+            <RoundIcon name="gear" onPress={onMe} label="Settings" size={48} />
           </View>
-        ) : null}
+          <View style={{ paddingRight: store.onBreak ? 0 : 56 }}>{header}</View>
+        </View>
 
-        {store.news ? <NewsCard /> : null}
+        <View style={{ marginTop: 20 }}>
+          <RoundTable size={Math.min(width - 40, 320)} seats={[...others, me].map(seat)} />
+        </View>
 
-        {note && from ? (
-          <View style={{ backgroundColor: C.pinkSoft, borderRadius: 20, padding: 14, flexDirection: 'row', gap: 12, alignItems: 'center' }}>
-            <Avatar member={from} size={44} />
-            <View style={{ flex: 1 }}>
-              <T size={18}>{note.text}</T>
-              <T size={14} color={C.muted}>
-                {from.name}
+        <View style={{ paddingHorizontal: 20, gap: 12, marginTop: 16 }}>
+          {note && from ? (
+            <View style={{ backgroundColor: C.pinkSoft, borderRadius: 20, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Face member={from} size={32} ring={C.pinkSoft} />
+              <T size={18} style={{ flex: 1 }}>
+                "{note.text}"
               </T>
             </View>
-            <Ionicons name="heart" size={22} color={C.heart} />
-          </View>
-        ) : null}
-
-        <MedsCard />
-
-        {questOpen ? <QuestCard /> : null}
-
-        <Eyebrow>Your family's plates</Eyebrow>
-        {recent.length ? (
-          recent.map((meal) => <MealCard key={meal.id} meal={meal} onPerson={onPerson} canComment={canComment} />)
-        ) : (
-          <T size={17} color={C.muted}>
-            No plates yet today. Yours can be the first.
-          </T>
-        )}
-
-        <View style={{ gap: 10, marginTop: 8 }}>
-          {!store.onBreak ? (
-            breakAsk ? (
-              <View style={{ backgroundColor: C.white, borderRadius: 20, padding: 14, gap: 10, borderWidth: 1, borderColor: '#E6EBE6' }}>
-                <T w="semibold" size={17}>
-                  Take a break from meal reminders?
-                </T>
-                <T size={15} color={C.muted}>
-                  Your family still sees your plates when you share. Medicine reminders keep coming.
-                </T>
-                <Row gap={8}>
-                  <Btn kind="ghost" label="3 days" onPress={() => store.takeBreak(3).then(() => setBreakAsk(false))} style={{ flex: 1 }} />
-                  <Btn kind="ghost" label="1 week" onPress={() => store.takeBreak(7).then(() => setBreakAsk(false))} style={{ flex: 1 }} />
-                </Row>
-                <Pressable onPress={() => setBreakAsk(false)} accessibilityRole="button" hitSlop={8}>
-                  <T w="semibold" center color={C.deep}>
-                    Not now
-                  </T>
-                </Pressable>
-              </View>
-            ) : (
-              <Btn kind="line" icon="moon-outline" label="Take a break" onPress={() => setBreakAsk(true)} />
-            )
           ) : null}
-          <Btn kind="line" icon="apps-outline" label="See everything" onPress={() => store.setPrefs({ simple: false })} />
+
+          {prefs.meds.on && prefs.meds.slots.length ? (
+            <Pressable onPress={onMeds} accessibilityRole="button" accessibilityLabel="My medicine week" style={[card, { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 }]}>
+              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: C.mint, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="pill" size={24} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <T w="bold" size={S.body} style={{ lineHeight: 21 }}>
+                  {med ? `Medicine with ${MED_WORD[med]}` : 'Medicine done today'}
+                </T>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Icon name="lock" size={14} color={C.muted} />
+                  <T w="medium" size={S.small} color={C.muted}>
+                    Only you see this
+                  </T>
+                </View>
+              </View>
+              {med ? <BigButton label="Taken" icon="check" kind="mint" height={48} size={S.body} onPress={() => store.toggleMed(new Date(), med)} /> : <Icon name="check" size={24} color={C.leaf} />}
+            </Pressable>
+          ) : null}
         </View>
+      </ScrollView>
+
+      <View style={{ position: 'absolute', left: 20, right: 20, bottom: insets.bottom + 16, gap: 8 }}>
+        {store.onBreak ? (
+          <>
+            <BigButton label="Share a plate anyway" icon="camera" kind="line" onPress={onAdd} />
+            <Pressable onPress={() => store.takeBreak(null)} accessibilityRole="button" hitSlop={8}>
+              <T w="bold" size={S.small} color={C.deep} center>
+                End the break
+              </T>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <BigButton label={mine ? 'Show another plate' : 'Show my plate'} icon="camera" onPress={onAdd} height={78} size={24} style={{ shadowColor: C.leaf, shadowOpacity: 0.28, shadowRadius: 12, shadowOffset: { width: 0, height: 8 }, elevation: 4 }} />
+            <T w="medium" size={S.small} color={C.muted} center style={{ backgroundColor: K.rice }}>
+              Tap a plate to send a heart
+            </T>
+          </>
+        )}
       </View>
-    </ScrollView>
+    </View>
   );
 }

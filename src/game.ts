@@ -213,7 +213,7 @@ export function plateAverage(meals: Meal[]): { grains: number; protein: number; 
  */
 export function nextIdea(avg: { grains: number; protein: number; veg: number; counted: number }, grain = 'rice'): { title: string; body: string } {
   const g = grain.toLowerCase();
-  if (avg.counted === 0) return { title: 'Start with one plate', body: 'Share one meal and Puti will find one small idea for next week.' };
+  if (avg.counted === 0) return { title: 'Start with one plate', body: 'Share one meal and Mado will find one small idea for next week.' };
   if (avg.veg < avg.grains) {
     return {
       title: `Try vegetables first, then ${g}`,

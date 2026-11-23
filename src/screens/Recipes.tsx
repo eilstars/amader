@@ -7,7 +7,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { C } from '../theme';
 import { Photo, Recipe, Voice } from '../types';
-import { Btn, Chip, PageHead, Puti, Row, T, field } from '../ui';
+import { Btn, Chip, PageHead, MadoPic, Row, T, field } from '../ui';
 import { VoicePlayer, VoiceRecorder } from '../voice';
 import { dateText } from '../words';
 
@@ -43,7 +43,7 @@ export default function Recipes() {
       <View style={{ padding: 16, gap: 12 }}>
         {store.recipes.length === 0 ? (
           <View style={{ alignItems: 'center', gap: 8, paddingVertical: 24 }}>
-            <Puti mood="sleep" width={110} />
+            <MadoPic mood="sleep" width={110} />
             <T w="semibold" center>
               No recipes yet
             </T>
