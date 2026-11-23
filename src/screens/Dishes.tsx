@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { FoodDot, FoodKind, Icon, K, S, card } from '../design';
 import { COMMON, DishKind, KINDS, KIND_ORDER, PlateItem, amountText, kindOf } from '../dishes';
+import { searchFoods } from '../foods';
 import { C, F } from '../theme';
 import { T } from '../ui';
 
@@ -90,12 +91,13 @@ export function DishList({ items, onChange, recent = [] }: { items: PlateItem[];
   const [text, setText] = useState('');
   const here = new Set(items.map((i) => i.name.toLowerCase()));
   const picks = [...new Set([...recent, ...COMMON])].filter((n) => !here.has(n.toLowerCase())).slice(0, 12);
-  const add = (raw: string) => {
+  const found = text.trim().length >= 2 ? searchFoods(text, 6) : [];
+  const add = (raw: string, food?: string) => {
     const name = raw.trim().replace(/\s+/g, ' ');
     if (!name || items.length >= 12) return;
-    const nice = name.charAt(0).toUpperCase() + name.slice(1);
+    const nice = (name.charAt(0).toUpperCase() + name.slice(1)).slice(0, 40);
     const kind: DishKind = kindOf(nice);
-    onChange([...items, { name: nice.slice(0, 40), kind, amount: kind === 'base' ? 2 : 1 }]);
+    onChange([...items, { name: nice, kind, amount: kind === 'base' ? 2 : 1, ...(food ? { food } : {}) }]);
     setText('');
   };
   return (
@@ -119,9 +121,22 @@ export function DishList({ items, onChange, recent = [] }: { items: PlateItem[];
           <Icon name="plus" size={22} color={C.white} />
         </Pressable>
       </View>
+      {found.length ? (
+        <View style={[card, { padding: 4 }]}>
+          {found.map((n, i) => (
+            <Pressable key={n} onPress={() => add(n, n)} accessibilityRole="button" accessibilityLabel={`Add ${n}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, paddingVertical: 9, borderTopWidth: i ? 1 : 0, borderTopColor: '#EDF0EA' }}>
+              <FoodDot kind={dotFor({ name: n, kind: kindOf(n) })} size={26} />
+              <T w="medium" size={S.body} style={{ flex: 1 }} numberOfLines={1}>
+                {n}
+              </T>
+              <Icon name="plus" size={18} color={C.leaf} />
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }} keyboardShouldPersistTaps="handled">
         {picks.map((n) => (
-          <Pressable key={n} onPress={() => add(n)} accessibilityRole="button" accessibilityLabel={`Add ${n}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 6, paddingRight: 12, height: 38, borderRadius: 19, backgroundColor: C.white, borderWidth: 1.5, borderColor: K.line2 }}>
+          <Pressable key={n} onPress={() => add(n, n)} accessibilityRole="button" accessibilityLabel={`Add ${n}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 6, paddingRight: 12, height: 38, borderRadius: 19, backgroundColor: C.white, borderWidth: 1.5, borderColor: K.line2 }}>
             <FoodDot kind={dotFor({ name: n, kind: kindOf(n) })} size={24} />
             <T w="bold" size={S.small} color={C.deep}>
               {n}

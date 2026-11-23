@@ -2,6 +2,7 @@ import { Meal, Member } from './types';
 import { isBalanced, plateAverage } from './game';
 import { dateText, handsText, plateLine, slotName, startOfDay, timeText } from './words';
 import { amountText } from './dishes';
+import { FOOD_SOURCE, Nutrients, estimate } from './foods';
 
 const esc = (text: string) => text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 
@@ -20,6 +21,7 @@ export interface SummaryInput {
 /**
  * The doctor summary: a plain log of what one person ate, as a printable page.
  * No readings, no scores, no advice. Portions are hand measures, which the page says.
+ * The rough nutrition estimate lives only here, for the doctor; the app never shows numbers to the family.
  */
 export function summaryHtml({ me, meals, since, now, grain, checkup }: SummaryInput): string {
   const real = meals.filter((m) => m.slot !== 'fasting');
@@ -72,6 +74,41 @@ export function summaryHtml({ me, meals, since, now, grain, checkup }: SummaryIn
   };
   const calendar = `<table class="cal"><tr>${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((x) => `<th>${x}</th>`).join('')}</tr>${weeks.map((w) => `<tr>${w.map(cell).join('')}</tr>`).join('')}</table>`;
 
+  // A rough nutrition estimate from the food database, per day. Only here, for the doctor; never shown in the app.
+  const byDay = new Map<string, { date: Date; n: Nutrients; known: number; count: number }>();
+  for (const m of real) {
+    if (!m.items?.length) continue;
+    const key = new Date(m.date).toDateString();
+    const e = estimate(m.items);
+    const day = byDay.get(key) ?? { date: startOfDay(new Date(m.date)), n: { kcal: 0, carbs: 0, fiber: 0, sugar: 0, protein: 0, fat: 0, sodium: 0 }, known: 0, count: 0 };
+    (Object.keys(day.n) as (keyof Nutrients)[]).forEach((k) => (day.n[k] += e.total[k]));
+    day.known += e.known;
+    day.count += e.count;
+    byDay.set(key, day);
+  }
+  const estDays = [...byDay.values()].sort((a, b) => b.date.getTime() - a.date.getTime());
+  const estKnown = estDays.reduce((a, d) => a + d.known, 0);
+  const estCount = estDays.reduce((a, d) => a + d.count, 0);
+  const mean = (k: keyof Nutrients) => estDays.reduce((a, d) => a + d.n[k], 0) / Math.max(1, estDays.length);
+  const r10 = (n: number) => String(Math.round(n / 10) * 10);
+  const r1 = (n: number) => String(Math.round(n));
+  const estimateHtml = estDays.length
+    ? `<h2>Rough nutrition estimate</h2>
+<table><tr><td>Days with dishes logged</td><td class="v">${estDays.length}</td></tr>
+<tr><td>Calories a day, about</td><td class="v">${r10(mean('kcal'))} kcal</td></tr>
+<tr><td>Carbohydrates a day, about</td><td class="v">${r1(mean('carbs'))} g</td></tr>
+<tr><td>Of which sugars, about</td><td class="v">${r1(mean('sugar'))} g</td></tr>
+<tr><td>Fiber a day, about</td><td class="v">${r1(mean('fiber'))} g</td></tr>
+<tr><td>Protein a day, about</td><td class="v">${r1(mean('protein'))} g</td></tr>
+<tr><td>Fat a day, about</td><td class="v">${r1(mean('fat'))} g</td></tr>
+<tr><td>Sodium a day, about</td><td class="v">${r10(mean('sodium'))} mg</td></tr></table>
+<table class="log" style="margin-top:8pt"><tr><td><b>Day</b></td><td class="v">kcal</td><td class="v">Carbs</td><td class="v">Sugars</td><td class="v">Fiber</td><td class="v">Protein</td></tr>${estDays
+        .slice(0, 14)
+        .map((d) => `<tr><td>${dateText(d.date)}</td><td class="v">${r10(d.n.kcal)}</td><td class="v">${r1(d.n.carbs)} g</td><td class="v">${r1(d.n.sugar)} g</td><td class="v">${r1(d.n.fiber)} g</td><td class="v">${r1(d.n.protein)} g</td></tr>`)
+        .join('')}</table>
+<p class="muted">Estimated from the dishes logged, using ${FOOD_SOURCE} and the hand measures the person chose. ${estKnown} of ${estCount} dishes matched a database food; home recipes vary a lot. Only meals that were logged are counted, so a day may be missing food. These are rough estimates to start a conversation, not measurements.</p>`
+    : '';
+
   const photos = real.filter((m) => printable(m.photo)).slice(0, 12);
   const log = meals.slice(0, 60);
 
@@ -110,6 +147,8 @@ export function summaryHtml({ me, meals, since, now, grain, checkup }: SummaryIn
 ${calendar}
 <p class="muted">B breakfast, L lunch, D dinner, S snack. Dishes as the person named them.</p>
 
+${estimateHtml}
+
 ${top.length ? `<h2>Dishes eaten most</h2><table>${top.map(([n, c]) => `<tr><td>${esc(n)}</td><td class="v">${c} ${c === 1 ? 'time' : 'times'}</td></tr>`).join('')}</table>` : ''}
 
 ${photos.length ? `<h2>Recent plates</h2><div class="grid">${photos.map((m) => `<div class="ph"><img src="${esc(m.photo as string)}" alt=""><b>${dateText(new Date(m.date))}</b>, ${esc(slotName(m.slot).toLowerCase())}${m.dish ? `<br>${esc(m.dish)}` : ''}</div>`).join('')}</div>` : ''}
@@ -123,6 +162,6 @@ ${photos.length ? `<h2>Recent plates</h2><div class="grid">${photos.map((m) => `
     .join('')}</table>
 ${meals.length > log.length ? `<p class="muted">Showing the newest ${log.length} of ${meals.length} entries.</p>` : ''}
 
-<div class="note">A simple log of meals shared in the Amader app by ${esc(me.name)}. Portions are rough hand measures, not weighed amounts. It is not a medical record and has no readings or advice.</div>
+<div class="note">A simple log of meals shared in the Amader app by ${esc(me.name)}. Portions are rough hand measures, not weighed amounts. Nutrition figures are rough estimates. It is not a medical record and has no readings or advice.</div>
 </body></html>`;
 }

@@ -584,7 +584,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           party: !!input.party,
           grain: input.grain?.trim() || null,
           sameAs: input.sameAs ?? null,
-          items: input.items?.length ? input.items.slice(0, 12).map((i) => ({ name: i.name.trim().slice(0, 40), kind: i.kind, amount: Math.max(0, Math.min(6, i.amount)) })) : null,
+          items: input.items?.length ? input.items.slice(0, 12).map((i) => ({ name: i.name.trim().slice(0, 40), kind: i.kind, amount: Math.max(0, Math.min(6, i.amount)), ...(i.food ? { food: i.food.slice(0, 60) } : {}) })) : null,
         };
         const saved = await backendFor(session).addMeal(session.code, draft, input.photo, input.voice ?? null);
         setMeals((list) => newestFirst([saved, ...list.filter((m) => m.id !== saved.id)]));

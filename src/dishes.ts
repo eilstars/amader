@@ -13,6 +13,8 @@ export interface PlateItem {
   kind: DishKind;
   /** In the kind's own measure: fists, bowls, handfuls, pieces or cups. 0.5 steps allowed. */
   amount: number;
+  /** The food database entry it was picked from, when it was (see foods.ts). */
+  food?: string;
 }
 
 /** What each kind is called on screen, and how it is counted. */
