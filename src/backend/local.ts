@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Backend, Cheer, Family, Meal, Member, Photo, Recipe, Session, Voice } from '../types';
+import { Backend, Cheer, Family, Meal, Member, Photo, Recipe, Session, Tick, Voice } from '../types';
 import { CODE_LENGTH, newId } from '../words';
 
 const FAMILY = 'amader.family';
@@ -7,6 +7,7 @@ const MEALS = 'amader.meals';
 const PHOTO = 'amader.photo.';
 const CHEERS = 'amader.cheers';
 const RECIPES = 'amader.recipes';
+const TICKS = 'amader.ticks';
 /** Phone storage is small, so only the newest photos are kept in this mode. */
 const KEEP_PHOTOS = 30;
 
@@ -71,13 +72,32 @@ export const localBackend: Backend & { seedDemo(): Promise<Session>; clear(): Pr
     let meals = (await read<Meal[]>(MEALS)) ?? [];
     const cheers = (await read<Cheer[]>(CHEERS)) ?? [];
     const recipes = (await read<Recipe[]>(RECIPES)) ?? [];
+    const ticks = (await read<Tick[]>(TICKS)) ?? [];
     const withPhotos = meals.filter((m) => m.photo === 'stored');
     if (withPhotos.length) {
       const pairs = await AsyncStorage.multiGet(withPhotos.map((m) => PHOTO + m.id));
       const byId = new Map(pairs.map(([key, value]) => [key.slice(PHOTO.length), value]));
       meals = meals.map((m) => (m.photo === 'stored' ? { ...m, photo: byId.get(m.id) ?? null } : m));
     }
-    return { family, meals, cheers, recipes };
+    return { family, meals, cheers, recipes, ticks };
+  },
+
+  async setQuest(_code, quest) {
+    const family = await read<Family>(FAMILY);
+    if (!family) return;
+    await write(FAMILY, { ...family, quest });
+  },
+
+  async addCostume(_code, costume) {
+    const family = await read<Family>(FAMILY);
+    if (!family || family.costumes?.includes(costume)) return;
+    await write(FAMILY, { ...family, costumes: [...(family.costumes ?? []), costume] });
+  },
+
+  async setTick(_code, tick, on) {
+    const ticks = ((await read<Tick[]>(TICKS)) ?? []).filter((t) => !(t.memberId === tick.memberId && t.day === tick.day && t.kind === tick.kind));
+    if (on) ticks.push(tick);
+    await write(TICKS, ticks);
   },
 
   async addMeal(_code, meal, photo: Photo | null, voice: Voice | null) {
@@ -184,7 +204,7 @@ export const localBackend: Backend & { seedDemo(): Promise<Session>; clear(): Pr
 
   async clear() {
     const keys = await AsyncStorage.getAllKeys();
-    await AsyncStorage.multiRemove(keys.filter((k) => k === FAMILY || k === MEALS || k === CHEERS || k === RECIPES || k.startsWith(PHOTO)));
+    await AsyncStorage.multiRemove(keys.filter((k) => k === FAMILY || k === MEALS || k === CHEERS || k === RECIPES || k === TICKS || k.startsWith(PHOTO)));
   },
 
   /** A made-up family with three weeks of meals, notes and a recipe, for showing the app. */
@@ -194,7 +214,7 @@ export const localBackend: Backend & { seedDemo(): Promise<Session>; clear(): Pr
     const nadia: Member = { id: newId(), name: 'Nadia', role: 'child', tint: 1, joined: true };
     const tanvir: Member = { id: newId(), name: 'Tanvir', role: 'child', tint: 2, joined: true };
     const abbu: Member = { id: newId(), name: 'Abbu', role: 'parent', tint: 3, joined: true };
-    const family: Family = { code: 'SAMPLE24', members: [ammi, abbu, nadia, tanvir], goalFood: 'Rice', goalHandfuls: 2 };
+    const family: Family = { code: 'SAMPLE24', members: [ammi, abbu, nadia, tanvir], goalFood: 'Rice', goalHandfuls: 2, quest: 'walk', costumes: ['garland'] };
     const meals: Meal[] = [];
     const now = new Date();
     const at = (back: number, hour: number, minute: number) =>
@@ -266,6 +286,18 @@ export const localBackend: Backend & { seedDemo(): Promise<Session>; clear(): Pr
     await write(MEALS, meals);
     await write(CHEERS, cheers);
     await write(RECIPES, recipes);
+    // Walk Week is under way: Ammi walked after dinner every day so far, Abbu and Tanvir some days.
+    const ticks: Tick[] = [];
+    for (let back = 0; back < 7; back++) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - back);
+      if (back > 0 && d.getDay() === 0) break;
+      const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      ticks.push({ memberId: ammi.id, day, kind: 'walk' });
+      if (back % 2 === 0) ticks.push({ memberId: abbu.id, day, kind: 'walk' });
+      if (back === 1) ticks.push({ memberId: tanvir.id, day, kind: 'walk' });
+      if (d.getDay() === 1) break;
+    }
+    await write(TICKS, ticks);
     return { code: family.code, meId: nadia.id, demo: true };
   },
 };

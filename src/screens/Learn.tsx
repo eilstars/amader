@@ -5,7 +5,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { C } from '../theme';
 import { LEARN_NOTE, LESSONS, LEVELS, Lesson } from '../learn';
-import { Btn, Puti, Row, T } from '../ui';
+import { Btn, Puti, RoundButton, Row, T } from '../ui';
 
 const RIGHT = 10;
 const TRIED = 4;
@@ -17,7 +17,7 @@ const REPLAY = 2;
  * Learn as a game: your reason at the top, then one card at a time. Guess, see what is at stake
  * for the people you love, pick one small thing to try. Points, combos and levels along the way.
  */
-export default function Learn({ onTeach }: { onTeach: () => void }) {
+export default function Learn({ onTeach, onClose }: { onTeach: () => void; onClose?: () => void }) {
   const store = useStore();
   const insets = useSafeAreaInsets();
   const { prefs } = store;
@@ -39,8 +39,9 @@ export default function Learn({ onTeach }: { onTeach: () => void }) {
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }}>
       <View style={{ backgroundColor: C.mint, paddingTop: insets.top + 14, paddingHorizontal: 18, paddingBottom: 16, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, gap: 10 }}>
         <Row style={{ justifyContent: 'space-between' }}>
-          <T w="bold" size={28} style={{ lineHeight: 34 }}>
-            Learn
+          {onClose ? <RoundButton icon="chevron-back" label="Back" onPress={onClose} /> : null}
+          <T w="bold" size={28} style={{ lineHeight: 34, flex: 1 }}>
+            Cards
           </T>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.white, borderRadius: 999, paddingHorizontal: 12, height: 40 }}>
             <Ionicons name="star" size={18} color={C.leaf} />
@@ -105,7 +106,7 @@ export default function Learn({ onTeach }: { onTeach: () => void }) {
   );
 }
 
-function Card({
+export function Card({
   lesson,
   number,
   of,
@@ -115,6 +116,7 @@ function Card({
   onAnswer,
   onPledge,
   onNext,
+  hideNext,
 }: {
   lesson: Lesson;
   number: number;
@@ -125,6 +127,8 @@ function Card({
   onAnswer: (right: boolean) => number;
   onPledge: () => void;
   onNext: () => void;
+  /** For a fixed set of cards shown one under another, with no "next". */
+  hideNext?: boolean;
 }) {
   const [picked, setPicked] = useState<number | null>(null);
   const [won, setWon] = useState(0);
@@ -236,7 +240,7 @@ function Card({
               />
             )}
           </View>
-          <Btn kind="ghost" label="Next card" icon="arrow-forward" onPress={onNext} />
+          {hideNext ? null : <Btn kind="ghost" label="Next card" icon="arrow-forward" onPress={onNext} />}
         </View>
       ) : null}
     </View>

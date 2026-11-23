@@ -12,6 +12,7 @@ import { Avatar, Btn, Chip, Puti, PutiSays, Row, T, WeekStrip } from '../ui';
 import { dayCounts, dayHeading, greeting, inWeek, sameDay, spacedCode, startOfDay, weekDays, weekLabel } from '../words';
 import MealCard from './MealCard';
 import MedsCard from './Meds';
+import { QuestCard } from './Quest';
 
 type Filter = { kind: 'all' } | { kind: 'person'; id: string } | { kind: 'together' };
 
@@ -19,7 +20,7 @@ type Filter = { kind: 'all' } | { kind: 'person'; id: string } | { kind: 'togeth
  * The family table. Kept light on purpose: who has eaten today, one thing to do, and the week's plates.
  * Everything else lives one tap away, on a person's page or in Recap.
  */
-export default function OurTable({ onAdd, onMe, onPerson }: { onAdd: () => void; onMe: () => void; onPerson: (id: string) => void }) {
+export default function OurTable({ onAdd, onMe, onPerson, onQuests }: { onAdd: () => void; onMe: () => void; onPerson: (id: string) => void; onQuests?: () => void }) {
   const store = useStore();
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
@@ -139,6 +140,8 @@ export default function OurTable({ onAdd, onMe, onPerson }: { onAdd: () => void;
 
         <MedsCard />
 
+        <QuestCard onOpen={onQuests} />
+
         {note && from ? (
           <Pressable onPress={() => onPerson(me.id)} accessibilityRole="button">
             <View style={{ backgroundColor: C.pinkSoft, borderRadius: 18, padding: 12, flexDirection: 'row', gap: 10, alignItems: 'center' }}>
@@ -255,7 +258,7 @@ function Seat({ member, you, count, streak, onPress }: { member: Member; you: bo
 }
 
 /** "Ammi just shared a snack": a heart is one tap away. Shown while the app is open. */
-function NewsCard() {
+export function NewsCard() {
   const store = useStore();
   const news = store.news;
   if (!news) return null;

@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Backend, Cheer, Family, Guess, Meal, Member, Parts, Recipe, Role, Slot, Voice } from '../types';
+import { Backend, Cheer, Family, Guess, Meal, Member, Parts, Recipe, Role, Slot, Tick, Voice } from '../types';
 import { unitWord } from '../words';
 
 const BUCKET = 'meal-photos';
@@ -179,14 +179,15 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
 
     async load(code) {
       await signedIn();
-      const fam = await db.from('families').select('code, goal_food, goal_handfuls, folder').eq('code', code).maybeSingle();
+      const fam = await db.from('families').select('code, goal_food, goal_handfuls, folder, quest, costumes').eq('code', code).maybeSingle();
       fail(fam.error);
       if (!fam.data) return null;
       folders.set(code, fam.data.folder as string);
       const mem = await db.from('members').select('id, name, role, tint, joined, created_at').eq('family_code', code).order('created_at');
       fail(mem.error);
       const since = new Date(Date.now() - 120 * 86_400_000).toISOString();
-      const [mealRows, cheerRows, recipeRows] = await Promise.all([
+      const tickSince = new Date(Date.now() - 21 * 86_400_000).toISOString().slice(0, 10);
+      const [mealRows, cheerRows, recipeRows, tickRows] = await Promise.all([
         db
           .from('meals')
           .select('id, member_id, eaten_at, slot, photo_url, handfuls, protein, veg, fruit, dairy, dish, parts, note, voice_url, with_ids, with_others, party, grain, same_as, hearts(member_id)')
@@ -195,12 +196,15 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
           .order('eaten_at', { ascending: false }),
         db.from('cheers').select('id, from_id, to_id, meal_id, text, created_at').eq('family_code', code).gte('created_at', since).order('created_at', { ascending: false }),
         db.from('recipes').select('id, added_by, title, from_whom, ingredients, steps, story, photo_url, voice_url, created_at').eq('family_code', code).order('created_at', { ascending: false }),
+        db.from('ticks').select('member_id, day, kind').eq('family_code', code).gte('day', tickSince),
       ]);
+      fail(tickRows.error);
+      const ticks: Tick[] = ((tickRows.data ?? []) as { member_id: string; day: string; kind: string }[]).map((t) => ({ memberId: t.member_id, day: t.day, kind: t.kind }));
       fail(mealRows.error);
       fail(cheerRows.error);
       fail(recipeRows.error);
       const members: Member[] = ((mem.data ?? []) as MemberRow[]).map((m) => ({ id: m.id, name: m.name, role: m.role, tint: m.tint, joined: m.joined }));
-      const family: Family = { code: fam.data.code, members, goalFood: fam.data.goal_food, goalHandfuls: fam.data.goal_handfuls };
+      const family: Family = { code: fam.data.code, members, goalFood: fam.data.goal_food, goalHandfuls: fam.data.goal_handfuls, quest: (fam.data.quest as string | null) ?? null, costumes: (fam.data.costumes as string[] | null) ?? [] };
       const rows = (mealRows.data ?? []) as unknown as MealRow[];
       const recipeList = (recipeRows.data ?? []) as RecipeRow[];
       await Promise.all([
@@ -242,7 +246,34 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
         voice: linkOf(r.voice_url, VOICE),
         date: r.created_at,
       }));
-      return { family, meals, cheers, recipes };
+      return { family, meals, cheers, recipes, ticks };
+    },
+
+    async setQuest(code, quest) {
+      await signedIn();
+      const { error } = await db.from('families').update({ quest }).eq('code', code);
+      fail(error);
+    },
+
+    async addCostume(code, costume) {
+      await signedIn();
+      const { data, error } = await db.from('families').select('costumes').eq('code', code).maybeSingle();
+      fail(error);
+      const have = ((data?.costumes as string[] | null) ?? []);
+      if (have.includes(costume)) return;
+      const up = await db.from('families').update({ costumes: [...have, costume] }).eq('code', code);
+      fail(up.error);
+    },
+
+    async setTick(code, tick, on) {
+      await signedIn();
+      if (on) {
+        const { error } = await db.from('ticks').insert({ family_code: code, member_id: tick.memberId, day: tick.day, kind: tick.kind });
+        if (error && error.code !== '23505') fail(error);
+      } else {
+        const { error } = await db.from('ticks').delete().eq('member_id', tick.memberId).eq('day', tick.day).eq('kind', tick.kind);
+        fail(error);
+      }
     },
 
     async addMeal(code, meal, photo, voice) {

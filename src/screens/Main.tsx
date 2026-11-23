@@ -16,9 +16,11 @@ import Checkup from './Checkup';
 import Profile from './Profile';
 import Learn from './Learn';
 import Recipes from './Recipes';
+import Quests, { Celebration } from './Quest';
+import SimpleHome from './SimpleHome';
 
-type Sheet = 'add' | 'me' | 'checkup' | 'teach' | 'widget' | { profile: string } | null;
-type Tab = 'table' | 'recap' | 'recipes' | 'learn';
+type Sheet = 'add' | 'me' | 'checkup' | 'teach' | 'widget' | 'cards' | { profile: string } | null;
+type Tab = 'table' | 'recap' | 'recipes' | 'quests';
 
 export default function Main({ openCamera }: { openCamera: boolean }) {
   const insets = useSafeAreaInsets();
@@ -60,62 +62,67 @@ export default function Main({ openCamera }: { openCamera: boolean }) {
     return () => clearTimeout(timer);
   }, [toast]);
 
+  const simple = store.simple;
+
   return (
     <View style={{ flex: 1, backgroundColor: C.rice }}>
       <View style={{ flex: 1 }}>
-        {tab === 'table' ? <OurTable onAdd={() => setSheet('add')} onMe={() => setSheet('me')} onPerson={person} /> : null}
-        {tab === 'recap' ? <Recap onCheckup={() => setSheet('checkup')} onPerson={person} /> : null}
-        {tab === 'recipes' ? <Recipes /> : null}
-        {tab === 'learn' ? <Learn onTeach={() => setSheet('teach')} /> : null}
+        {simple ? <SimpleHome onAdd={() => setSheet('add')} onMe={() => setSheet('me')} onPerson={person} /> : null}
+        {!simple && tab === 'table' ? <OurTable onAdd={() => setSheet('add')} onMe={() => setSheet('me')} onPerson={person} onQuests={() => setTab('quests')} /> : null}
+        {!simple && tab === 'recap' ? <Recap onCheckup={() => setSheet('checkup')} onPerson={person} /> : null}
+        {!simple && tab === 'recipes' ? <Recipes /> : null}
+        {!simple && tab === 'quests' ? <Quests onCards={() => setSheet('cards')} onTeach={() => setSheet('teach')} /> : null}
       </View>
 
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'flex-end',
-          justifyContent: 'space-around',
-          backgroundColor: C.white,
-          paddingTop: 10,
-          paddingBottom: Math.max(insets.bottom, 14),
-          paddingHorizontal: 8,
-          borderTopLeftRadius: 24,
-          borderTopRightRadius: 24,
-          shadowColor: C.ink,
-          shadowOpacity: 0.06,
-          shadowRadius: 12,
-          shadowOffset: { width: 0, height: -6 },
-          elevation: 12,
-        }}
-      >
-        <TabButton icon="restaurant" label="Our Table" on={tab === 'table'} onPress={() => setTab('table')} />
-        <TabButton icon="calendar" label="Progress" on={tab === 'recap'} onPress={() => setTab('recap')} />
-        <Pressable
-          onPress={() => setSheet('add')}
-          accessibilityRole="button"
-          accessibilityLabel="Share a meal"
+      {simple ? null : (
+        <View
           style={{
-            width: 66,
-            height: 66,
-            borderRadius: 33,
-            backgroundColor: C.leaf,
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginTop: -30,
-            shadowColor: C.leaf,
-            shadowOpacity: 0.35,
-            shadowRadius: 10,
-            shadowOffset: { width: 0, height: 8 },
-            elevation: 6,
+            flexDirection: 'row',
+            alignItems: 'flex-end',
+            justifyContent: 'space-around',
+            backgroundColor: C.white,
+            paddingTop: 10,
+            paddingBottom: Math.max(insets.bottom, 14),
+            paddingHorizontal: 8,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            shadowColor: C.ink,
+            shadowOpacity: 0.06,
+            shadowRadius: 12,
+            shadowOffset: { width: 0, height: -6 },
+            elevation: 12,
           }}
         >
-          <Ionicons name="add" size={36} color={C.white} />
-        </Pressable>
-        <TabButton icon="book" label="Recipes" on={tab === 'recipes'} onPress={() => setTab('recipes')} />
-        <TabButton icon="bulb" label="Learn" on={tab === 'learn'} onPress={() => setTab('learn')} />
-      </View>
+          <TabButton icon="restaurant" label="Our Table" on={tab === 'table'} onPress={() => setTab('table')} />
+          <TabButton icon="calendar" label="Progress" on={tab === 'recap'} onPress={() => setTab('recap')} />
+          <Pressable
+            onPress={() => setSheet('add')}
+            accessibilityRole="button"
+            accessibilityLabel="Share a meal"
+            style={{
+              width: 66,
+              height: 66,
+              borderRadius: 33,
+              backgroundColor: C.leaf,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginTop: -30,
+              shadowColor: C.leaf,
+              shadowOpacity: 0.35,
+              shadowRadius: 10,
+              shadowOffset: { width: 0, height: 8 },
+              elevation: 6,
+            }}
+          >
+            <Ionicons name="add" size={36} color={C.white} />
+          </Pressable>
+          <TabButton icon="book" label="Recipes" on={tab === 'recipes'} onPress={() => setTab('recipes')} />
+          <TabButton icon="trophy" label="Quests" on={tab === 'quests'} onPress={() => setTab('quests')} />
+        </View>
+      )}
 
       {toast ? (
-        <View style={{ position: 'absolute', left: 20, right: 20, bottom: insets.bottom + 110, backgroundColor: C.deep, borderRadius: 16, padding: 14 }}>
+        <View style={{ position: 'absolute', left: 20, right: 20, bottom: insets.bottom + (simple ? 24 : 110), backgroundColor: C.deep, borderRadius: 16, padding: 14 }}>
           <T w="semibold" color={C.white} center size={14}>
             {toast}
           </T>
@@ -168,15 +175,17 @@ export default function Main({ openCamera }: { openCamera: boolean }) {
             ) : null}
             {typeof sheet === 'object' && sheet ? <Profile memberId={sheet.profile} onClose={() => setSheet(null)} /> : null}
             {sheet === 'teach' ? <Teach onClose={() => setSheet(null)} /> : null}
+            {sheet === 'cards' ? <Learn onTeach={() => setSheet('teach')} onClose={() => setSheet(null)} /> : null}
             {sheet === 'checkup' ? <Checkup onClose={() => setSheet(null)} /> : null}
           </View>
         </View>
       </Modal>
+      {sheet === null ? <Celebration /> : null}
     </View>
   );
 }
 
-function TabButton({ icon, label, on, onPress }: { icon: 'restaurant' | 'calendar' | 'book' | 'bulb'; label: string; on: boolean; onPress: () => void }) {
+function TabButton({ icon, label, on, onPress }: { icon: 'restaurant' | 'calendar' | 'book' | 'trophy'; label: string; on: boolean; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} accessibilityRole="tab" accessibilityState={{ selected: on }} style={{ alignItems: 'center', flex: 1, gap: 2, paddingVertical: 2 }}>
       <View style={{ width: 52, height: 30, borderRadius: 15, backgroundColor: on ? C.mint : 'transparent', alignItems: 'center', justifyContent: 'center' }}>

@@ -2,7 +2,8 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { cloudBackend, localBackend, webUrl } from './backend';
-import { Backend, Cheer, Family, Guess, Meal, Member, NewMeal, NewRecipe, Photo, Recipe, Role, Session } from './types';
+import { Backend, Cheer, Family, Guess, Meal, Member, NewMeal, NewRecipe, Photo, Recipe, Role, Session, Tick } from './types';
+import { QuestProgress, dayKey, questById, questProgress, weekKey } from './quests';
 import { MedSlot, pushAddress, syncReminders } from './reminders';
 import { refreshWidgets } from './widgets';
 import { widgetData } from './widget-data';
@@ -47,6 +48,19 @@ export interface Prefs {
    * and no medicine names or doses are asked for.
    */
   meds: { on: boolean; slots: MedSlot[]; taken: string[] };
+  /**
+   * The simple view: one screen, one big button, the family below. Null means "pick for me":
+   * on for the person being looked after, off for the person looking after them.
+   */
+  simple: boolean | null;
+  /** "Take a break": meal reminders stay quiet until this time. Medicine nudges keep going. */
+  breakUntil: string | null;
+  /** Quest celebrations already shown on this phone, as "week:quest". */
+  celebrated: string[];
+  /** The costume Puti wears on this phone. Null means the newest one. */
+  wear: string | null;
+  /** Family plates already played in Guess the plate. */
+  guessed: string[];
 }
 const DEFAULT_PREFS: Prefs = {
   guessOn: null,
@@ -66,7 +80,31 @@ const DEFAULT_PREFS: Prefs = {
   pledges: [],
   familyAlerts: true,
   meds: { on: false, slots: [], taken: [] },
+  simple: null,
+  breakUntil: null,
+  celebrated: [],
+  wear: null,
+  guessed: [],
 };
+
+function onBreak(p: Prefs, now = new Date()): boolean {
+  return !!p.breakUntil && new Date(p.breakUntil).getTime() > now.getTime();
+}
+
+/** What the phone should remind about. A break quiets meal reminders but never the medicine. */
+function planFor(p: Prefs, doneToday: Meal['slot'][], today: Date) {
+  const resting = onBreak(p, today);
+  return {
+    on: p.reminderOn && !resting,
+    nudges: p.nudgesOn && !resting,
+    times: p.times,
+    ramadan: p.ramadan,
+    suhoorHour: p.suhoorHour,
+    iftarHour: p.iftarHour,
+    doneToday,
+    ...medsPlan(p, today),
+  };
+}
 
 /** The key for one organizer compartment: a local date and a meal. */
 export function medKey(day: Date, slot: MedSlot): string {
@@ -155,6 +193,24 @@ interface Store {
    */
   deleteEverything(options?: { onlyThisPhone?: boolean }): Promise<void>;
   refresh(): Promise<void>;
+  /** Real-life ticks from the last few weeks, for quests a photo can't show. */
+  ticks: Tick[];
+  /** This week's family quest and how far along it is. */
+  quest: QuestProgress | null;
+  /** I already ticked today's quest. */
+  tickedToday: boolean;
+  /** Pick this week's quest for the whole family. */
+  setQuest(id: string): void;
+  tickQuest(on: boolean): void;
+  /** The quest is done: Puti gets the costume and this phone stops celebrating. */
+  claimCostume(): void;
+  /** Showing the simple, one-screen view. */
+  simple: boolean;
+  /** Different days I have shared a plate on. Things unlock as this grows. */
+  daysShared: number;
+  onBreak: boolean;
+  /** Days of quiet from meal reminders, or null to come back. */
+  takeBreak(days: number | null): Promise<void>;
 }
 
 export type PendingAction = { kind: 'add' } | { kind: 'quick'; handfuls: number };
@@ -179,6 +235,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [meals, setMeals] = useState<Meal[]>([]);
   const [cheers, setCheers] = useState<Cheer[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [ticks, setTicks] = useState<Tick[]>([]);
   const [pendingCode, setPendingCode] = useState<string | null>(null);
   const [checkupDate, setCheckup] = useState<string | null>(null);
   const [prefs, setPrefsState] = useState<Prefs>(DEFAULT_PREFS);
@@ -206,6 +263,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setMeals(newestFirst(data.meals));
     setCheers([...data.cheers].sort((a, b) => (a.date < b.date ? 1 : -1)));
     setRecipes([...data.recipes].sort((a, b) => (a.date < b.date ? 1 : -1)));
+    setTicks(data.ticks ?? []);
   }, []);
 
   const start = useCallback(
@@ -272,16 +330,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // The table is re-read every 15 seconds. Only touch reminders and widgets when something they show has changed,
     // otherwise the phone would re-plan a week of reminders and redraw the widget four times a minute.
     const widget = widgetData({ family, meals, meId: session.meId }, today);
-    const plan = {
-      on: prefs.reminderOn,
-      nudges: prefs.nudgesOn,
-      times: prefs.times,
-      ramadan: prefs.ramadan,
-      suhoorHour: prefs.suhoorHour,
-      iftarHour: prefs.iftarHour,
-      doneToday,
-      ...medsPlan(prefs, today),
-    };
+    const plan = planFor(prefs, doneToday, today);
     const remindKey = JSON.stringify([plan, today.toDateString()]);
     const widgetKey = JSON.stringify(widget);
     if (remindKey !== lastSync.current.remind) {
@@ -314,6 +363,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const inviteFor = (name: string | undefined) =>
       family ? `${name ?? 'Hi'}, did you eat? I set up Amader for us. ${webUrl ? 'Tap the link' : 'Open the app'} and enter our family code ${family.code}, then send me a photo of your plate. I'll send mine too.${link}` : '';
     const inviteMessage = inviteFor(parent?.name);
+    const quest = family ? questProgress(family, meals, ticks) : null;
+    const todayKey = dayKey(new Date());
+    const tickedToday = !!quest && quest.quest.how === 'tick' && ticks.some((t) => t.memberId === session?.meId && t.day === todayKey && t.kind === quest.quest.id);
+    const daysShared = new Set(meals.filter((m) => m.memberId === session?.meId).map((m) => dayKey(new Date(m.date)))).size;
 
     return {
       ready,
@@ -405,16 +458,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const next = { ...prefsRef.current, meds };
         const today = new Date();
         const doneToday = meals.filter((m) => m.memberId === session?.meId && sameDay(new Date(m.date), today)).map((m) => m.slot);
-        const ok = await syncReminders({
-          on: next.reminderOn,
-          nudges: next.nudgesOn,
-          times: next.times,
-          ramadan: next.ramadan,
-          suhoorHour: next.suhoorHour,
-          iftarHour: next.iftarHour,
-          doneToday,
-          ...medsPlan(next, today),
-        });
+        const ok = await syncReminders(planFor(next, doneToday, today));
         // The organizer still works without notifications, so it stays on; only the nudge is missing.
         savePrefs({ meds });
         return ok;
@@ -469,16 +513,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const next = { ...prefsRef.current, ...change };
         const today = new Date();
         const doneToday = meals.filter((m) => m.memberId === session?.meId && sameDay(new Date(m.date), today)).map((m) => m.slot);
-        const ok = await syncReminders({
-          on: next.reminderOn,
-          nudges: next.nudgesOn,
-          times: next.times,
-          ramadan: next.ramadan,
-          suhoorHour: next.suhoorHour,
-          iftarHour: next.iftarHour,
-          doneToday,
-          ...medsPlan(next, today),
-        });
+        const ok = await syncReminders(planFor(next, doneToday, today));
         // If the phone said no, keep the times but show the reminders as off.
         savePrefs(ok ? change : { ...change, reminderOn: false, nudgesOn: false });
         return ok;
@@ -634,14 +669,50 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setMeals([]);
         setCheers([]);
         setRecipes([]);
+        setTicks([]);
         setCheckup(null);
       },
 
       async refresh() {
         await pull(session);
       },
+
+      ticks,
+      quest,
+      tickedToday,
+      setQuest(id) {
+        if (!session || !family || !questById(id)) return;
+        setFamily({ ...family, quest: id });
+        backendFor(session).setQuest(session.code, id).catch(() => pull(session));
+      },
+      tickQuest(on) {
+        if (!session || !quest || quest.quest.how !== 'tick') return;
+        const tick: Tick = { memberId: session.meId, day: todayKey, kind: quest.quest.id };
+        setTicks((list) => [...list.filter((t) => !(t.memberId === tick.memberId && t.day === tick.day && t.kind === tick.kind)), ...(on ? [tick] : [])]);
+        backendFor(session).setTick(session.code, tick, on).catch(() => pull(session));
+      },
+      claimCostume() {
+        if (!session || !family || !quest?.finished) return;
+        const key = `${weekKey()}:${quest.quest.id}`;
+        savePrefs({ celebrated: [...prefsRef.current.celebrated.filter((k) => k !== key), key].slice(-60) });
+        const costume = quest.quest.costume;
+        if (family.costumes?.includes(costume)) return;
+        setFamily({ ...family, costumes: [...(family.costumes ?? []), costume] });
+        backendFor(session).addCostume(session.code, costume).catch(() => pull(session));
+      },
+      simple: prefs.simple ?? me?.role === 'parent',
+      daysShared,
+      onBreak: onBreak(prefs),
+      async takeBreak(days) {
+        const breakUntil = days ? new Date(Date.now() + days * 86_400_000).toISOString() : null;
+        const next = { ...prefsRef.current, breakUntil };
+        const today = new Date();
+        const doneToday = meals.filter((m) => m.memberId === session?.meId && sameDay(new Date(m.date), today)).map((m) => m.slot);
+        savePrefs({ breakUntil });
+        await syncReminders(planFor(next, doneToday, today));
+      },
     };
-  }, [ready, session, family, meals, cheers, recipes, pendingCode, checkupDate, prefs, pendingAction, news, pull, start]);
+  }, [ready, session, family, meals, cheers, recipes, ticks, pendingCode, checkupDate, prefs, pendingAction, news, pull, start]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

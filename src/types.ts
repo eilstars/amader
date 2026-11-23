@@ -139,6 +139,18 @@ export interface Family {
   goalFood: string;
   /** Fists of grains that feel right for one meal. */
   goalHandfuls: number;
+  /** This week's family quest, if someone picked one. Otherwise the app picks by week. */
+  quest?: string | null;
+  /** Puti's costumes the family has earned by finishing quests, oldest first. */
+  costumes?: string[];
+}
+
+/** A real-life quest tick a photo can't show, like "we walked after dinner". */
+export interface Tick {
+  memberId: string;
+  /** Local date, YYYY-MM-DD. */
+  day: string;
+  kind: string;
 }
 
 export interface Session {
@@ -190,7 +202,11 @@ export interface Backend {
   savePushToken(code: string, meId: string, token: string | null): Promise<void>;
   /** Asks the server to tell the rest of the family about a meal or a comment. Never throws. */
   notifyFamily(code: string, event: { kind: 'meal'; mealId: string } | { kind: 'comment'; cheerId: string }): Promise<void>;
-  load(code: string): Promise<{ family: Family; meals: Meal[]; cheers: Cheer[]; recipes: Recipe[] } | null>;
+  load(code: string): Promise<{ family: Family; meals: Meal[]; cheers: Cheer[]; recipes: Recipe[]; ticks: Tick[] } | null>;
+  setQuest(code: string, quest: string | null): Promise<void>;
+  /** Adds a costume the family just earned. Safe to call twice. */
+  addCostume(code: string, costume: string): Promise<void>;
+  setTick(code: string, tick: Tick, on: boolean): Promise<void>;
   addMeal(code: string, meal: Meal, photo: Photo | null, voice: Voice | null): Promise<Meal>;
   /** Looks at a photo and guesses what is on the plate. Null when it cannot tell or is not available. */
   recognize(photo: Photo, goalFood: string, party?: boolean): Promise<Guess | null>;

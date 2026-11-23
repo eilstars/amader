@@ -56,6 +56,15 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
           </View>
         </Pressable>
 
+        <View style={section}>
+          <Toggle
+            title="Simple view"
+            help="One screen with one big button and the family's plates. Good for anyone who wants the app quiet."
+            on={store.simple}
+            onChange={(on) => store.setPrefs({ simple: on })}
+          />
+        </View>
+
         <Eyebrow>Our family</Eyebrow>
         <View style={section}>
           {family.members.map((m) => (

@@ -7,6 +7,10 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Hand, findHand } from '../hand';
 import { DairyArt, FruitArt, GrainArt, PlateCard, ProteinArt, VegArt } from '../food';
 import { WidgetCard } from './Widget';
+import { TickButton } from './Quest';
+import { UNLOCK } from './SimpleHome';
+import { plateLine } from '../quests';
+import { PutiDressed, wornCostume } from '../costumes';
 import { medKey, useStore } from '../store';
 import { MedSlot } from '../reminders';
 import { C, F } from '../theme';
@@ -486,7 +490,7 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
     <ScrollView style={{ flex: 1, backgroundColor: C.rice }} contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom + 20 }}>
       <View style={{ backgroundColor: C.mint, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, paddingTop: insets.top + 24, paddingBottom: 24, alignItems: 'center', gap: 8, paddingHorizontal: 22 }}>
         <Row gap={14}>
-          <Puti mood="happy" width={96} />
+          <PutiDressed costume={wornCostume(store.family?.costumes, store.prefs.wear)} mood="happy" width={96} />
           <View style={{ width: 118, height: 118, borderRadius: 59, backgroundColor: C.white, borderWidth: 8, borderColor: C.leaf, alignItems: 'center', justifyContent: 'center' }}>
             <T w="bold" size={34} color={C.deep} style={{ lineHeight: 38 }}>
               +{earned}
@@ -518,6 +522,23 @@ export default function AddMeal({ onClose }: { onClose: () => void }) {
       </View>
 
       <View style={{ padding: 20, gap: 14, flex: 1 }}>
+        {saved && store.quest && (!store.simple || store.daysShared >= UNLOCK.quest) ? (
+          <View style={{ backgroundColor: C.white, borderRadius: 20, padding: 14, gap: 10, borderWidth: 2, borderColor: C.leaf }}>
+            <Row gap={10}>
+              <Ionicons name={store.quest.quest.icon as keyof typeof Ionicons.glyphMap} size={24} color={C.leaf} />
+              <T w="semibold" size={17} style={{ flex: 1 }}>
+                {store.tickedToday ? `Ticked for ${store.quest.quest.name} today. Thank you!` : plateLine(store.quest.quest, saved)}
+              </T>
+            </Row>
+            <View style={{ height: 10, borderRadius: 5, backgroundColor: C.soft, overflow: 'hidden' }}>
+              <View style={{ width: `${Math.min(100, (store.quest.done / store.quest.goal) * 100)}%`, height: 10, borderRadius: 5, backgroundColor: C.leaf }} />
+            </View>
+            <T size={14} color={C.muted}>
+              {store.quest.finished ? `${store.quest.quest.name}: done! ${store.quest.done} together this week` : `${store.quest.quest.name}: ${store.quest.done} of ${store.quest.goal} for the family`}
+            </T>
+            {store.quest.quest.how === 'tick' && saved.slot !== 'fasting' ? <TickButton /> : null}
+          </View>
+        ) : null}
         {fresh.map((b) => (
           <View key={b.id} style={{ backgroundColor: C.deep, borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
             <View style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: C.leaf, alignItems: 'center', justifyContent: 'center' }}>

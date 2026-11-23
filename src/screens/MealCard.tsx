@@ -14,7 +14,8 @@ import { daysBetween, plateLine, slotName, timeText } from '../words';
  * One shared meal, compact so a week fits on a screen. Tap the picture to see it big.
  * Every meal gets a picture: the photo, or a thali drawn from the portions.
  */
-export default function MealCard({ meal, onPerson }: { meal: Meal; onPerson?: (id: string) => void }) {
+/** `canComment` is off in the simple view until someone has shared for a few days: hearts first, words later. */
+export default function MealCard({ meal, onPerson, canComment = true }: { meal: Meal; onPerson?: (id: string) => void; canComment?: boolean }) {
   const store = useStore();
   const who = store.member(meal.memberId);
   const meId = store.session?.meId;
@@ -215,7 +216,7 @@ export default function MealCard({ meal, onPerson }: { meal: Meal; onPerson?: (i
         </View>
       ) : null}
       <Row style={{ justifyContent: 'space-between' }}>
-        {!writing ? (
+        {!writing && canComment ? (
           <Pressable onPress={() => setWriting(true)} accessibilityRole="button" hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 2 }}>
             <Ionicons name="chatbubble-outline" size={18} color={C.leaf} />
             <T w="semibold" size={14} color={C.deep}>

@@ -73,6 +73,21 @@ alter table public.meals add column if not exists fruit int check (fruit between
 alter table public.meals add column if not exists dairy int check (dairy between 0 and 4);
 -- When the meal was shared (eaten_at can be earlier). Used to send "Mom shared lunch" only once, right away.
 alter table public.meals add column if not exists created_at timestamptz not null default now();
+-- Family quests: this week's theme (null means the app picks by week) and Puti's costumes the family has earned.
+alter table public.families add column if not exists quest text check (quest is null or char_length(quest) <= 24);
+alter table public.families add column if not exists costumes text[] not null default '{}' check (cardinality(costumes) <= 40);
+
+-- Real-life quest ticks that a photo can't show, like "we walked after dinner". One per person, day and kind.
+create table if not exists public.ticks (
+  family_code text not null references public.families (code) on delete cascade,
+  member_id uuid not null references public.members (id) on delete cascade,
+  day date not null,
+  kind text not null check (char_length(kind) <= 24),
+  created_at timestamptz not null default now(),
+  primary key (member_id, day, kind)
+);
+create index if not exists ticks_family_day on public.ticks (family_code, day desc);
+
 -- Where to send "Mom shared lunch". Only the server reads it: no one in the family can select it.
 alter table public.members add column if not exists push_token text check (push_token is null or char_length(push_token) <= 200);
 
@@ -274,6 +289,22 @@ create policy "meals: add my own" on public.meals
 
 drop policy if exists "meals: delete my own" on public.meals;
 create policy "meals: delete my own" on public.meals
+  for delete to authenticated using (member_id in (select public.my_member_ids()));
+
+alter table public.ticks enable row level security;
+drop policy if exists "ticks: family can read" on public.ticks;
+create policy "ticks: family can read" on public.ticks
+  for select to authenticated using (family_code in (select public.my_family_codes()));
+drop policy if exists "ticks: tick my own" on public.ticks;
+create policy "ticks: tick my own" on public.ticks
+  for insert to authenticated
+  with check (
+    member_id in (select public.my_member_ids())
+    and family_code in (select m.family_code from public.members m where m.id = member_id)
+    and day between current_date - 7 and current_date + 1
+  );
+drop policy if exists "ticks: untick my own" on public.ticks;
+create policy "ticks: untick my own" on public.ticks
   for delete to authenticated using (member_id in (select public.my_member_ids()));
 
 drop policy if exists "hearts: family can read" on public.hearts;
@@ -490,7 +521,8 @@ create policy "photos: remove my own" on storage.objects
 -- so a rule left out by mistake later cannot open a table.
 revoke all on all tables in schema public from anon, authenticated;
 grant select on public.families to authenticated;
-grant update (goal_food, goal_handfuls) on public.families to authenticated;
+grant update (goal_food, goal_handfuls, quest, costumes) on public.families to authenticated;
+grant select, insert, delete on public.ticks to authenticated;
 -- Not user_id: family members never need each other's sign-in ids.
 grant select (id, family_code, name, role, tint, joined, created_at) on public.members to authenticated;
 grant select, insert, delete on public.meals to authenticated;
