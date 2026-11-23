@@ -4,10 +4,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../store';
 import { C } from '../theme';
 import { Row, T, field } from '../ui';
-import { BigButton, Dropdown, Icon, Mado, Pill, RoundIcon, S, card } from '../design';
+import { BigButton, Dropdown, Icon, Mado, RoundIcon, S, card } from '../design';
+import { HomeDays } from './HomeDays';
 
 const RELATIONS = ['Mother', 'Father', 'Grandmother', 'Grandfather', 'Aunt', 'Uncle', 'Mother-in-law', 'Father-in-law', 'Other'];
-type Home = 'yes' | 'weekends' | 'no';
 type Person = { name: string; relation: string | null };
 
 /**
@@ -21,7 +21,7 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
   const [step, setStep] = useState(0);
   const [people, setPeople] = useState<Person[]>([{ name: '', relation: null }]);
   const [myName, setMyName] = useState('');
-  const [home, setHome] = useState<Home | null>(null);
+  const [homeDays, setHomeDays] = useState<number[]>([]);
   const [adult, setAdult] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,8 +35,9 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
     setError(null);
     try {
       store.setPrefs({
-        sameHome: home === 'yes',
-        homeWeekends: home === 'weekends',
+        homeDays,
+        sameHome: homeDays.length === 7,
+        homeWeekends: false,
         relations: Object.fromEntries(named.map((p) => [p.name.trim(), p.relation ?? 'Other'])),
       });
       const [first, ...rest] = named;
@@ -102,16 +103,9 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
           <TextInput value={myName} onChangeText={setMyName} placeholder="Your name" placeholderTextColor="#9AA79F" style={field} autoCapitalize="words" maxLength={24} autoFocus />
           <View style={[card, { padding: 14, gap: 10 }]}>
             <T w="bold" size={S.body}>
-              Do you live with {them}?
+              Which days are you home with {them}?
             </T>
-            <T size={S.small} color={C.muted}>
-              On days you're home, one photo can cover a meal you eat together.
-            </T>
-            <Row gap={8} style={{ flexWrap: 'wrap' }}>
-              <Pill label="Yes" on={home === 'yes'} onPress={() => setHome('yes')} />
-              <Pill label="Weekends" on={home === 'weekends'} onPress={() => setHome('weekends')} />
-              <Pill label="No" on={home === 'no'} onPress={() => setHome('no')} />
-            </Row>
+            <HomeDays value={homeDays} onChange={setHomeDays} />
           </View>
           <Pressable onPress={() => setAdult(!adult)} accessibilityRole="checkbox" accessibilityState={{ checked: adult }}>
             <Row gap={10}>
@@ -123,7 +117,7 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
           </Pressable>
         </View>
       ),
-      ok: myName.trim().length > 0 && home !== null && adult && !busy,
+      ok: myName.trim().length > 0 && adult && !busy,
     },
   ];
   const screen = screens[step];

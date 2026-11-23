@@ -43,6 +43,8 @@ export interface Prefs {
   sameHome: boolean;
   /** Lives with them only at weekends, like a student who goes home on Saturday and Sunday. */
   homeWeekends: boolean;
+  /** The weekdays they are home together (Monday = 0). Any mix: weekends, Fridays, every other day. */
+  homeDays: number[];
   /** What each person looked after is to me (Mother, Father...), by their name. Kept on this phone. */
   relations: Record<string, string>;
   /** What this person wants to stay healthy for, in their own words or a tapped choice. */
@@ -88,6 +90,7 @@ const DEFAULT_PREFS: Prefs = {
   learnLog: [],
   sameHome: false,
   homeWeekends: false,
+  homeDays: [],
   relations: {},
   why: null,
   pledges: [],
@@ -101,9 +104,11 @@ const DEFAULT_PREFS: Prefs = {
 };
 
 /** Today is a day this person eats at home with the people they look after. */
-export function homeToday(p: Pick<Prefs, 'sameHome' | 'homeWeekends'>, now = new Date()): boolean {
-  if (p.sameHome) return true;
+export function homeToday(p: Pick<Prefs, 'sameHome' | 'homeWeekends' | 'homeDays'>, now = new Date()): boolean {
   const d = now.getDay();
+  const mon0 = (d + 6) % 7;
+  if (p.homeDays?.length) return p.homeDays.includes(mon0);
+  if (p.sameHome) return true;
   return !!p.homeWeekends && (d === 0 || d === 6);
 }
 

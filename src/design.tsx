@@ -371,7 +371,7 @@ export function Switch({ on, onChange, label }: { on: boolean; onChange: (on: bo
 
 export function Chip({ text, icon, color = C.deep, bg = C.white }: { text: string; icon?: IconName; color?: string; bg?: string }) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: bg, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, alignSelf: 'flex-start' }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: bg, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 }}>
       {icon ? <Icon name={icon} size={16} color={C.leaf} /> : null}
       <T w="bold" size={S.small} color={color}>
         {text}

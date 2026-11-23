@@ -16,7 +16,43 @@ import { T } from '../ui';
 import { sameDay, startOfDay, weekDays } from '../words';
 
 const DAY = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const XS = [0.66, 0.4, 0.2, 0.42, 0.7, 0.42, 0.58];
+
+// The river path from the mockup, in a 390 x 600 box, as cubic pieces (the S curves written out).
+const RIVER = 'M276 -20 C 330 60, 300 100, 195 130 C 90 160, 60 200, 100 260 C 140 320, 330 330, 280 420 C 230 510, 150 470, 120 560';
+const SEGS: [number, number][][] = [
+  [[276, -20], [330, 60], [300, 100], [195, 130]],
+  [[195, 130], [90, 160], [60, 200], [100, 260]],
+  [[100, 260], [140, 320], [330, 330], [280, 420]],
+  [[280, 420], [230, 510], [150, 470], [120, 560]],
+];
+let geometry: { at: (f: number) => [number, number]; length: number } | null = null;
+/** Points along the river by share of its length, so the day stones sit evenly on the water. */
+function riverGeometry() {
+  if (geometry) return geometry;
+  const samples: [number, number][] = [];
+  for (const [p0, p1, p2, p3] of SEGS) {
+    for (let i = 0; i < 60; i++) {
+      const t = i / 60;
+      const u = 1 - t;
+      samples.push([
+        u * u * u * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * p3[0],
+        u * u * u * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t * t * t * p3[1],
+      ]);
+    }
+  }
+  samples.push(SEGS[3][3]);
+  const acc = [0];
+  for (let i = 1; i < samples.length; i++) acc.push(acc[i - 1] + Math.hypot(samples[i][0] - samples[i - 1][0], samples[i][1] - samples[i - 1][1]));
+  const length = acc[acc.length - 1];
+  const at = (f: number): [number, number] => {
+    const want = f * length;
+    const i = Math.max(1, acc.findIndex((a) => a >= want));
+    const r = (want - acc[i - 1]) / (acc[i] - acc[i - 1] || 1);
+    return [samples[i - 1][0] + (samples[i][0] - samples[i - 1][0]) * r, samples[i - 1][1] + (samples[i][1] - samples[i - 1][1]) * r];
+  };
+  geometry = { at, length };
+  return geometry;
+}
 
 /** The quest opened up: the week as a river, a stone a day, Mado at today, the costume at the end. */
 export default function QuestRiver({ onBack, onAdd, onCards }: { onBack: () => void; onAdd: () => void; onCards: () => void }) {
@@ -35,9 +71,14 @@ export default function QuestRiver({ onBack, onAdd, onCards }: { onBack: () => v
   const days = weekDays(0);
   const today = startOfDay(new Date());
   const todayI = days.findIndex((d) => sameDay(d, today));
-  const step = 86;
-  const pts = days.map((_, i) => [W * XS[i], 40 + i * step] as [number, number]);
-
+  // The river from the design: one wide S curve down the page, scaled to the screen.
+  const k = W / 390;
+  const { at, length } = riverGeometry();
+  const AT = [0.06, 0.2, 0.35, 0.5, 0.65, 0.8, 0.96];
+  const pts = AT.map((f) => {
+    const [x, y] = at(f);
+    return [x * k, y * k + 20] as [number, number];
+  });
   // Who put something in on each day.
   const whoOn = (d: Date): Member[] => {
     const ids = new Set<string>();
@@ -46,9 +87,10 @@ export default function QuestRiver({ onBack, onAdd, onCards }: { onBack: () => v
     return family.members.filter((m) => ids.has(m.id));
   };
 
-  const pathTo = (n: number) => pts.slice(0, n + 1).reduce((acc, [x, y], i) => (i === 0 ? `M${x} ${y - 40}` + ` L${x} ${y}` : `${acc} C${pts[i - 1][0]} ${pts[i - 1][1] + step / 2}, ${x} ${y - step / 2}, ${x} ${y}`), '');
-  const H = 40 + 6 * step + 60;
-  const xml = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><path d="${pathTo(6)}" fill="none" stroke="${K.pale}" stroke-width="54" stroke-linecap="round"/><path d="${pathTo(Math.max(0, todayI))}" fill="none" stroke="${C.lightGreen}" stroke-width="54" stroke-linecap="round"/></svg>`;
+  const H = 600 * k + 70;
+  const done = todayI < 0 ? 0 : AT[todayI];
+  const ripples = [[300, 40], [120, 190], [260, 360], [180, 470], [150, 530]].map(([x, y]) => `M${x * k} ${y * k + 20} q ${8 * k} -5 ${16 * k} 0`).join(' ');
+  const xml = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><g transform="translate(0 20) scale(${k})"><path d="${RIVER}" fill="none" stroke="${K.pale}" stroke-width="58" stroke-linecap="round"/><path d="${RIVER}" fill="none" stroke="${C.lightGreen}" stroke-width="58" stroke-linecap="round" stroke-dasharray="${done * length} ${length * 2}"/></g><path d="${ripples}" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"/></svg>`;
 
   return (
     <View style={{ flex: 1, backgroundColor: C.mint }}>
@@ -140,7 +182,9 @@ export default function QuestRiver({ onBack, onAdd, onCards }: { onBack: () => v
           {fact ? (
             <>
               <Mado mood="happy" width={88} />
-              <Chip text={`${q.done} of ${q.goal} together`} bg={C.leaf} color={C.white} />
+              <View style={{ alignSelf: 'center' }}>
+                <Chip text={`${q.done} of ${q.goal} together`} bg={C.leaf} color={C.white} />
+              </View>
               <T w="bold" size={S.title} center>
                 Did you know?
               </T>

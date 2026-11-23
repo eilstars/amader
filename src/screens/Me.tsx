@@ -8,6 +8,7 @@ import { sendOnWhatsApp } from '../nudge';
 import { shareText } from '../share';
 import { Btn, Chip, Eyebrow, GOAL_FOODS, PageHead, Row, T, TimeRow, Toggle } from '../ui';
 import { Face, Pill } from '../design';
+import { HomeDays } from './HomeDays';
 import { FAST_KINDS, dayName, roleName, spacedCode } from '../words';
 
 const WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -162,15 +163,11 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
           <TimeRow icon="partly-sunny-outline" label="Lunch" hour={prefs.times.lunch} min={11} max={16} onChange={(h) => remind({ times: { ...prefs.times, lunch: h } })} />
           <TimeRow icon="moon-outline" label="Dinner" hour={prefs.times.dinner} min={17} max={23} onChange={(h) => remind({ times: { ...prefs.times, dinner: h } })} />
           <View style={{ height: 1, backgroundColor: '#EDF0EA', marginVertical: 4 }} />
-          <T w="semibold">Do you live together?</T>
-          <T size={14} color={C.muted}>
-            On days you're home, one photo can cover a meal you eat together.
-          </T>
-          <Row gap={8} style={{ flexWrap: 'wrap' }}>
-            <Pill label="Yes" on={prefs.sameHome} onPress={() => store.setPrefs({ sameHome: true, homeWeekends: false })} />
-            <Pill label="Weekends" on={!prefs.sameHome && prefs.homeWeekends} onPress={() => store.setPrefs({ sameHome: false, homeWeekends: true })} />
-            <Pill label="No" on={!prefs.sameHome && !prefs.homeWeekends} onPress={() => store.setPrefs({ sameHome: false, homeWeekends: false })} />
-          </Row>
+          <T w="semibold">Which days are you home together?</T>
+          <HomeDays
+            value={prefs.homeDays?.length ? prefs.homeDays : prefs.sameHome ? [0, 1, 2, 3, 4, 5, 6] : prefs.homeWeekends ? [5, 6] : []}
+            onChange={(days) => store.setPrefs({ homeDays: days, sameHome: days.length === 7, homeWeekends: false })}
+          />
         </View>
 
         <Eyebrow>Fasting</Eyebrow>
