@@ -35,9 +35,9 @@ export const fontFiles = {
 
 export const images = {
   logo: require('../assets/brand/logo.png'),
-  putiHello: require('../assets/brand/puti-hello.png'),
-  putiHappy: require('../assets/brand/puti-happy.png'),
-  putiSleep: require('../assets/brand/puti-sleep.png'),
+  madoHello: require('../assets/brand/mado-hello.png'),
+  madoHappy: require('../assets/brand/mado-happy.png'),
+  madoSleep: require('../assets/brand/mado-sleep.png'),
 };
 
 export const shadow = {

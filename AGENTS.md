@@ -32,4 +32,4 @@ npx expo prebuild --no-install    # checks the config plugins run; delete ios/ a
 - Not a medical app: no A1C, no readings, no projections, no advice.
 - Parent setup stays near zero: a code, a name, one button.
 - Brand: leaf green, deep green, rice white, Hind Siliguri. Steel only for plates, pink only for hearts and talk prompts. No red, no heavy yellow.
-- Plain English first, broadly South Asian ("Did you eat?", "Ammi"). Puti never scolds and never comments on someone's numbers.
+- Plain English first, broadly South Asian ("Did you eat?", "Ammi"). Mado never scolds and never comments on someone's numbers.

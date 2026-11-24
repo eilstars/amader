@@ -1,178 +1,194 @@
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
-import { C, F } from '../theme';
-import { Btn, Card, RoundButton, Row, T } from '../ui';
-import { amountText } from '../words';
+import { C } from '../theme';
+import { Row, T, field } from '../ui';
+import { BigButton, Dropdown, Icon, Mado, RoundIcon, S, card } from '../design';
+import { HomeDays } from './HomeDays';
 
-const PARENT_NAMES = ['Ammi', 'Amma', 'Abbu', 'Mummy', 'Papa', 'Mom', 'Dad'];
-export const GOAL_FOODS = ['Rice', 'Roti', 'Sweets', 'Chai'];
+const HELPERS = ['Sister', 'Brother', 'Husband or wife', 'Cousin', 'Aunt', 'Uncle', 'Friend', 'Other'];
+const RELATIONS = ['Mother', 'Father', 'Grandmother', 'Grandfather', 'Aunt', 'Uncle', 'Mother-in-law', 'Father-in-law', 'Other'];
+type Person = { name: string; relation: string | null };
 
-export function Chip({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: on }} style={[s.chip, on && { backgroundColor: C.leaf, borderColor: C.leaf }]}>
-      <T w="medium" size={14} color={on ? C.white : C.ink}>
-        {label}
-      </T>
-    </Pressable>
-  );
-}
-
-export function Stepper({ value, onChange, food }: { value: number; onChange: (n: number) => void; food: string }) {
-  return (
-    <Row gap={10}>
-      <Pressable style={s.step} onPress={() => onChange(Math.max(1, value - 1))} accessibilityLabel="Less">
-        <Ionicons name="remove" size={18} color={C.ink} />
-      </Pressable>
-      <T w="semibold" style={{ minWidth: 92, textAlign: 'center' }}>
-        {amountText(value, food)}
-      </T>
-      <Pressable style={s.step} onPress={() => onChange(Math.min(4, value + 1))} accessibilityLabel="More">
-        <Ionicons name="add" size={18} color={C.ink} />
-      </Pressable>
-    </Row>
-  );
-}
-
+/**
+ * A caregiver sets the table in two steps. Each person they look after is a name
+ * (what they call them at home) and a relation picked from a list. The person
+ * they look after only ever enters a code and lands on the camera.
+ */
 export default function SetupFamily({ onBack }: { onBack: () => void }) {
   const store = useStore();
   const insets = useSafeAreaInsets();
+  const [step, setStep] = useState(0);
+  const [people, setPeople] = useState<Person[]>([{ name: '', relation: null }]);
   const [myName, setMyName] = useState('');
-  const [parentName, setParentName] = useState('Ammi');
-  const [food, setFood] = useState('Rice');
-  const [handfuls, setHandfuls] = useState(2);
+  const [homeDays, setHomeDays] = useState<number[]>([]);
+  // Others at the table who aren't looked after: siblings, a spouse, a cousin who helps.
+  const [helpers, setHelpers] = useState<Person[]>([]);
   const [adult, setAdult] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const parent = parentName.trim() || 'your parent';
-  const canGo = myName.trim().length > 0 && parentName.trim().length > 0 && adult && !busy;
+  const named = people.filter((p) => p.name.trim());
+  // One person by name; with more than one, just "them".
+  const them = named.length === 1 ? named[0].name.trim() : 'them';
+  const setHelper = (i: number, change: Partial<Person>) => setHelpers(helpers.map((p, n) => (n === i ? { ...p, ...change } : p)));
+  const helpersNamed = helpers.filter((h) => h.name.trim());
+  const set = (i: number, change: Partial<Person>) => setPeople(people.map((p, n) => (n === i ? { ...p, ...change } : p)));
 
   async function go() {
     setBusy(true);
     setError(null);
     try {
-      await store.createFamily({ myName: myName.trim(), parentName: parentName.trim(), goalFood: food, goalHandfuls: handfuls });
+      store.setPrefs({
+        homeDays,
+        sameHome: homeDays.length === 7,
+        homeWeekends: false,
+        relations: Object.fromEntries([...named, ...helpersNamed].map((p) => [p.name.trim(), p.relation ?? 'Other'])),
+      });
+      const [first, ...rest] = named;
+      await store.createFamily({ myName: myName.trim(), parentName: first.name.trim(), goalFood: 'Rice', goalHandfuls: 2 });
+      for (const p of rest) await store.addPerson(p.name.trim()).catch(() => undefined);
+      for (const h of helpersNamed) await store.addPerson(h.name.trim(), 'child').catch(() => undefined);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
       setBusy(false);
     }
   }
 
-  return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={{ padding: 24, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24, gap: 18 }} keyboardShouldPersistTaps="handled">
-        <RoundButton icon="chevron-back" label="Back" onPress={onBack} />
-        <View style={{ gap: 6 }}>
-          <T w="bold" size={28}>
-            Set the table for {parent}
-          </T>
-          <T color={C.muted} size={14}>
-            You fill this in. {parent} only enters a code and lands on the camera.
-          </T>
+  const screens = [
+    {
+      title: 'Who are you looking after?',
+      lead: 'Use the name you call them at home.',
+      body: (
+        <View style={{ gap: 12 }}>
+          {people.map((p, i) => (
+            <View key={i} style={[card, { padding: 14, gap: 10 }]}>
+              <Row style={{ justifyContent: 'space-between' }}>
+                <T w="bold" size={S.small} color={C.deep}>
+                  {people.length > 1 ? `Person ${i + 1}` : 'Their name'}
+                </T>
+                {people.length > 1 ? (
+                  <Pressable onPress={() => setPeople(people.filter((_, n) => n !== i))} accessibilityRole="button" accessibilityLabel={`Remove person ${i + 1}`} hitSlop={8}>
+                    <Icon name="close" size={18} color={C.muted} />
+                  </Pressable>
+                ) : null}
+              </Row>
+              <TextInput
+                value={p.name}
+                onChangeText={(t) => set(i, { name: t })}
+                placeholder="Ammi, Mom, Nani..."
+                placeholderTextColor="#9AA79F"
+                style={field}
+                autoCapitalize="words"
+                maxLength={24}
+                autoFocus={i === people.length - 1}
+                accessibilityLabel={`Name of person ${i + 1}`}
+              />
+              <Dropdown label={`Who is ${p.name.trim() || 'this'} to you?`} placeholder="They are my..." value={p.relation} options={RELATIONS} onChange={(r) => set(i, { relation: r })} />
+            </View>
+          ))}
+          {people.length < 4 ? (
+            <Pressable onPress={() => setPeople([...people, { name: '', relation: null }])} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, alignSelf: 'flex-start' }}>
+              <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: C.mint, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="plus" size={18} />
+              </View>
+              <T w="bold" size={S.body} color={C.deep}>
+                I look after someone else too
+              </T>
+            </Pressable>
+          ) : null}
         </View>
-
-        <View style={{ gap: 6 }}>
-          <T w="semibold" size={13} color="#3B4B42">
-            Your name
-          </T>
-          <TextInput value={myName} onChangeText={setMyName} placeholder="Nadia" placeholderTextColor="#9AA79F" style={s.field} autoCapitalize="words" maxLength={24} />
-        </View>
-
-        <View style={{ gap: 8 }}>
-          <T w="semibold" size={13} color="#3B4B42">
-            What you call them
-          </T>
-          <TextInput value={parentName} onChangeText={setParentName} placeholder="Ammi" placeholderTextColor="#9AA79F" style={s.field} autoCapitalize="words" maxLength={24} />
-          <Row gap={8} style={{ flexWrap: 'wrap' }}>
-            {PARENT_NAMES.map((n) => (
-              <Chip key={n} label={n} on={parentName === n} onPress={() => setParentName(n)} />
-            ))}
-          </Row>
-        </View>
-
-        <Card style={{ gap: 12 }}>
-          <View>
-            <T w="bold" size={18}>
-              One food to keep an eye on
+      ),
+      ok: people.every((p) => p.name.trim() && p.relation),
+    },
+    {
+      title: named.length === 1 ? `And what does ${them} call you?` : 'And what do they call you?',
+      lead: 'You can add brothers, sisters and anyone else who sits at the table.',
+      body: (
+        <View style={{ gap: 14 }}>
+          <TextInput value={myName} onChangeText={setMyName} placeholder="Your name" placeholderTextColor="#9AA79F" style={field} autoCapitalize="words" maxLength={24} autoFocus />
+          <View style={[card, { padding: 14, gap: 10 }]}>
+            <T w="bold" size={S.body}>
+              Which days are you home with {them}?
             </T>
-            <T color={C.muted} size={13}>
-              The only thing anyone is asked after a photo. You share yours too, so nobody is the only one being watched.
-            </T>
+            <HomeDays value={homeDays} onChange={setHomeDays} />
           </View>
-          <Row gap={8} style={{ flexWrap: 'wrap' }}>
-            {GOAL_FOODS.map((f) => (
-              <Chip key={f} label={f} on={food === f} onPress={() => setFood(f)} />
+          <View style={[card, { padding: 14, gap: 10 }]}>
+            <T w="bold" size={S.body}>
+              Anyone else at the table?
+            </T>
+            <T size={S.small} color={C.muted}>
+              Siblings or anyone who helps. They get a seat and an invite. Optional.
+            </T>
+            {helpers.map((h, i) => (
+              <View key={i} style={{ gap: 8, borderTopWidth: i ? 1 : 0, borderTopColor: '#EDF0EA', paddingTop: i ? 10 : 0 }}>
+                <Row gap={8}>
+                  <TextInput value={h.name} onChangeText={(t) => setHelper(i, { name: t })} placeholder="Their name" placeholderTextColor="#9AA79F" style={[field, { flex: 1 }]} autoCapitalize="words" maxLength={24} autoFocus accessibilityLabel={`Name of helper ${i + 1}`} />
+                  <Pressable onPress={() => setHelpers(helpers.filter((_, n) => n !== i))} accessibilityRole="button" accessibilityLabel={`Remove helper ${i + 1}`} hitSlop={8}>
+                    <Icon name="close" size={18} color={C.muted} />
+                  </Pressable>
+                </Row>
+                <Dropdown label={`Who is ${h.name.trim() || 'this'} to you?`} placeholder="They are my..." value={h.relation} options={HELPERS} onChange={(r) => setHelper(i, { relation: r })} />
+              </View>
+            ))}
+            {named.length + helpers.length < 7 ? (
+              <Pressable onPress={() => setHelpers([...helpers, { name: '', relation: null }])} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start' }}>
+                <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: C.mint, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name="plus" size={18} />
+                </View>
+                <T w="bold" size={S.body} color={C.deep}>
+                  Add a sibling or helper
+                </T>
+              </Pressable>
+            ) : null}
+          </View>
+          <Pressable onPress={() => setAdult(!adult)} accessibilityRole="checkbox" accessibilityState={{ checked: adult }}>
+            <Row gap={10}>
+              <View style={{ width: 30, height: 30, borderRadius: 8, borderWidth: 1.5, borderColor: adult ? C.leaf : C.line, backgroundColor: adult ? C.leaf : C.white, alignItems: 'center', justifyContent: 'center' }}>
+                {adult ? <Icon name="check" size={18} color={C.white} /> : null}
+              </View>
+              <T>I'm 18 or older</T>
+            </Row>
+          </Pressable>
+        </View>
+      ),
+      ok: myName.trim().length > 0 && adult && !busy,
+    },
+  ];
+  const screen = screens[step];
+  const last = step === screens.length - 1;
+
+  return (
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.rice }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24, gap: 16, flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+        <Row style={{ justifyContent: 'space-between' }}>
+          <RoundIcon name="back" label="Back" onPress={() => (step === 0 ? onBack() : setStep(step - 1))} />
+          <Row gap={6}>
+            {screens.map((_, n) => (
+              <View key={n} style={{ width: n === step ? 26 : 8, height: 8, borderRadius: 4, backgroundColor: n <= step ? C.leaf : '#BFDCCB' }} />
             ))}
           </Row>
-          <Row style={{ justifyContent: 'space-between', backgroundColor: C.soft, borderRadius: 14, padding: 12 }}>
-            <T color={C.muted} size={14}>
-              A usual plate
-            </T>
-            <Stepper value={handfuls} onChange={setHandfuls} food={food} />
-          </Row>
-        </Card>
-
-        <Pressable onPress={() => setAdult(!adult)} accessibilityRole="checkbox" accessibilityState={{ checked: adult }}>
-          <Row gap={10}>
-            <View style={[s.check, adult && { backgroundColor: C.leaf, borderColor: C.leaf }]}>{adult ? <Ionicons name="checkmark" size={16} color={C.white} /> : null}</View>
-            <T size={14}>I'm 18 or older</T>
-          </Row>
-        </Pressable>
-
+          <View style={{ width: 44 }} />
+        </Row>
+        <Row gap={10} style={{ alignItems: 'flex-end' }}>
+          <T w="bold" size={27} style={{ flex: 1, lineHeight: 33 }}>
+            {screen.title}
+          </T>
+          <Mado mood="hello" width={84} />
+        </Row>
+        <T size={17} color={C.muted}>
+          {screen.lead}
+        </T>
+        {screen.body}
+        <View style={{ flex: 1 }} />
         {error ? (
-          <T color="#8A2942" size={14}>
+          <T color="#8A2942" size={15}>
             {error}
           </T>
         ) : null}
-        <Btn label={busy ? 'Setting the table...' : 'Set the table'} disabled={!canGo} onPress={go} />
+        <BigButton label={last ? (busy ? 'Setting the table...' : 'Set the table') : 'Next'} disabled={!screen.ok} onPress={() => (last ? go() : setStep(step + 1))} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
-
-export const s = StyleSheet.create({
-  field: {
-    height: 52,
-    borderWidth: 1.5,
-    borderColor: C.line,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    fontFamily: F.regular,
-    fontSize: 16,
-    backgroundColor: C.white,
-    color: C.ink,
-  },
-  chip: {
-    minHeight: 40,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    borderWidth: 1.5,
-    borderColor: C.line,
-    backgroundColor: C.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  step: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: C.white,
-    borderWidth: 1.5,
-    borderColor: C.line,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  check: {
-    width: 26,
-    height: 26,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: C.line,
-    backgroundColor: C.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
