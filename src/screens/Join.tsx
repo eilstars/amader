@@ -6,6 +6,7 @@ import { C } from '../theme';
 import { Role } from '../types';
 import { Row, Soft, T, field } from '../ui';
 import { BigButton, Mado, Pill, RoundIcon } from '../design';
+import { PolicyLinks } from '../legal';
 import { CODE_LENGTH, cleanCode, spacedCode } from '../words';
 
 /** The whole setup for the person being looked after: a code, a name that is usually already filled in, one button. */
@@ -148,7 +149,7 @@ export default function Join({ onBack, onJoined }: { onBack: () => void; onJoine
         ) : null}
         <BigButton label={busy ? 'Pulling up a chair...' : 'Agree and join'} disabled={!canGo} onPress={go} />
         <T center color={C.muted} size={12}>
-          By continuing you confirm you're 18 or older. Amader isn't a medical device and doesn't give medical advice.
+          By tapping Agree and join you confirm you're 18 or older, agree to share your meals with this family, and agree to the <PolicyLinks />. Amader isn't a medical device and doesn't give medical advice.
         </T>
       </ScrollView>
     </KeyboardAvoidingView>

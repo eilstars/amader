@@ -6,6 +6,7 @@ import { BigButton, Face, Icon, Mado, S } from '../design';
 import { useStore } from '../store';
 import { C, images } from '../theme';
 import { T } from '../ui';
+import { PolicyLinks } from '../legal';
 
 /** The first screen: the AMADER fish, the question every family asks, and three ways in. */
 export default function Welcome({ onSetup, onJoin, onTeach }: { onSetup: () => void; onJoin: () => void; onTeach: () => void }) {
@@ -77,6 +78,9 @@ export default function Welcome({ onSetup, onJoin, onTeach }: { onSetup: () => v
         </View>
         <T center color={C.muted} size={13} style={{ marginTop: 8 }}>
           Amader helps with everyday eating. It isn't a medical app and doesn't give medical advice.
+        </T>
+        <T center color={C.muted} size={12}>
+          <PolicyLinks />
         </T>
       </View>
     </ScrollView>

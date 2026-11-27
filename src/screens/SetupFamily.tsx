@@ -6,6 +6,7 @@ import { C } from '../theme';
 import { Row, T, field } from '../ui';
 import { BigButton, Dropdown, Icon, Mado, RoundIcon, S, card } from '../design';
 import { HomeDays } from './HomeDays';
+import { PolicyLinks } from '../legal';
 
 const HELPERS = ['Sister', 'Brother', 'Husband or wife', 'Cousin', 'Aunt', 'Uncle', 'Friend', 'Other'];
 const RELATIONS = ['Mother', 'Father', 'Grandmother', 'Grandfather', 'Aunt', 'Uncle', 'Mother-in-law', 'Father-in-law', 'Other'];
@@ -148,9 +149,12 @@ export default function SetupFamily({ onBack }: { onBack: () => void }) {
               <View style={{ width: 30, height: 30, borderRadius: 8, borderWidth: 1.5, borderColor: adult ? C.leaf : C.line, backgroundColor: adult ? C.leaf : C.white, alignItems: 'center', justifyContent: 'center' }}>
                 {adult ? <Icon name="check" size={18} color={C.white} /> : null}
               </View>
-              <T>I'm 18 or older</T>
+              <T style={{ flex: 1 }}>I'm 18 or older and I agree to the Terms and privacy policies</T>
             </Row>
           </Pressable>
+          <T size={13} color={C.muted}>
+            Read the <PolicyLinks />. Meals and photos are shared only with your family table.
+          </T>
         </View>
       ),
       ok: myName.trim().length > 0 && adult && !busy,

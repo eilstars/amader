@@ -11,6 +11,7 @@ import { Face, Pill } from '../design';
 import { HomeDays } from './HomeDays';
 import { PILOT } from '../pilot';
 import { LANGS } from '../i18n';
+import { IDLE_MONTHS, PolicyLinks } from '../legal';
 import { FAST_KINDS, dayName, roleName, spacedCode } from '../words';
 
 const WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -373,7 +374,7 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
           <View style={{ height: 1, backgroundColor: '#EDF0EA', marginVertical: 4 }} />
           <Toggle
             title="Help Amader learn our food"
-            help="Off unless you turn it on. If on, Amader keeps your own plate photos and the portions you chose, to recognise home cooking better. Your family's photos are not included. Turning it off removes what you shared."
+            help="Off unless you turn it on. If on, Amader keeps your own plate photos and the portions you chose, to recognise home cooking better. Your family's photos are not included. Turning it off removes what you shared. If your family stops using Amader for a year, the photos you shared here are kept without your name or family."
             on={prefs.improveOn === true}
             onChange={async (on) => {
               const ok = await store.setImproveOn(on);
@@ -410,7 +411,10 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
         </View>
 
         <T center color={C.muted} size={13}>
-          Amader helps with everyday eating. It isn't a medical device and doesn't give medical advice. We never sell your data or use it for ads.
+          Amader helps with everyday eating. It isn't a medical device and doesn't give medical advice. We never sell your data or use it for ads. Your meals stay while your family uses Amader. A family with no meals for {IDLE_MONTHS} months is deleted.
+        </T>
+        <T center color={C.muted} size={13}>
+          <PolicyLinks />
         </T>
       </ScrollView>
     </View>
