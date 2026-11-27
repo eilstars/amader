@@ -16,6 +16,10 @@ By default the app is the pilot build: a short, focused version for the 2 week p
 - The doctor page is a plain starch log by day. No nutrient numbers.
 - New phone: in Settings, a family member taps "New phone?" next to a person's name and sends the link. It puts that person back in their seat with all their meals, works once, and expires after a day.
 
+### Privacy checks for the database
+
+`supabase/tests/privacy-test.sql` runs the database rules on a throwaway local Postgres as different phones: an outsider sees nothing, nobody reads sign-in ids or push addresses, a "New phone?" link can't be used by the person who made it, and so on. Run it after any change to `schema.sql`.
+
 ### Pilot numbers
 
 After running the newest `supabase/schema.sql`, open the SQL Editor and run `select * from pilot_metrics;`. One row per family: people joined, first meal and first photo times, meals, meals that got a heart or note within 2 hours, whether they came back on day 7 and day 14, photo guesses, guesses that were fixed by hand, and how often the (?) was opened. Phones cannot read this view.
@@ -185,7 +189,7 @@ Drafts for a lawyer to review are in `legal/`. `python3 scripts/build-legal.py` 
 - Worth adding before a public launch: a CAPTCHA on anonymous sign-ins (Supabase supports Turnstile), a way to remove a family member, and a way to change the family code if it leaks.
 - Known limit: there are no accounts, so a person who clears their browser data or reinstalls the app comes back as a new member.
 
-## Where data goes (second review, 2026-11-16)
+## Where data goes (third review, 2026-11-27)
 
 | What | Where it goes | When |
 | --- | --- | --- |
@@ -194,10 +198,15 @@ Drafts for a lawyer to review are in `legal/`. `python3 scripts/build-legal.py` 
 | Voice notes, notes to family, recipes | Your Supabase project. Voice notes sit in a private `meal-voice` bucket in the family's folder | When the person shares one |
 | WhatsApp nudges | WhatsApp, only the text the person chose to send. Amader never stores phone numbers | Only when the person taps the WhatsApp button |
 | Doctor summary PDF | Made on the phone. Goes only where the person sends it | Only when the person taps "Make the PDF" |
-| Meal photos | Anthropic (Claude), through your Supabase function | Only after the person taps "Yes, guess". Asked once, off until then |
+| Meal photos | Anthropic (Claude), through your Supabase function | Only after the person taps "Yes" on the first photo. Asked once, off until then |
 | Hand position in a photo | Nowhere. Worked out on the phone and thrown away, never saved | Never leaves the device |
 | Location | Nowhere. Photos are re-saved before upload, which strips GPS. If that step fails the photo is not used | Never |
 | Family code | Supabase only. Invite links carry it after a `#`, which browsers do not send to the web host or to link previews | |
+| Starch, amount, veg first, path step | Your Supabase project. The family sees them like meals | When a meal is shared or a step is picked |
+| Usage records (app opened, photo guess made or fixed, help opened) | Your Supabase project, `events` table. Phones can add their own but never read any. Only the dashboard's `pilot_metrics` reads them, labelled by a folder id, not the joinable code | Once a day on open, and on those taps |
+| "New phone?" links | Supabase `rejoin_tokens`, random from the secure generator, one use, one day. Shared by the person who made it | When someone taps "New phone?" |
+| Family notifications | Expo's push service, then Apple or Google. Only a first name and the meal time: never what was eaten, a note's words or a photo | When someone shares a meal or sends a note, if notifications are on |
+| Language | Only on the phone | |
 
 ## Keys: which are secret
 

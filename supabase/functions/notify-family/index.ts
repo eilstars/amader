@@ -7,7 +7,9 @@
 // is built here from the database, never from text the app sends, so it cannot be used to
 // send anything else. Push addresses are read with the service key and never leave the server.
 //
-// Notifications go through Expo's push service (https://docs.expo.dev/push-notifications/sending-notifications/).
+// Notifications go through Expo's push service, then Apple or Google. They carry only a first name and the meal
+// time, never what was eaten, a note's words or a photo.
+// Expo push service (https://docs.expo.dev/push-notifications/sending-notifications/).
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -23,7 +25,8 @@ const SLOT: Record<string, string> = {
   snack: "a snack",
   suhoor: "suhoor",
   iftar: "iftar",
-  fasting: "that they're fasting today",
+  // Fasting is religious information, so a lock screen never says it.
+  fasting: "an update",
 };
 
 Deno.serve(async (req) => {
@@ -57,7 +60,8 @@ Deno.serve(async (req) => {
       const others = await admin.from("members").select("push_token").eq("family_code", meal.family_code).neq("id", owner.id).not("push_token", "is", null);
       to = others.data ?? [];
       title = `${owner.name} shared ${SLOT[meal.slot] ?? "a meal"}`;
-      body = meal.dish ? `${meal.dish}. Send a heart?` : "Send a heart?";
+      // What was eaten stays inside the app. Lock screens, Expo, Apple and Google only see who shared.
+      body = "Send a heart?";
       data = { meal: meal.id };
     } else if (typeof cheer_id === "string" && uuid.test(cheer_id)) {
       const { data: cheer } = await admin.from("cheers").select("id, from_id, to_id, meal_id, text, created_at").eq("id", cheer_id).maybeSingle();
@@ -69,7 +73,8 @@ Deno.serve(async (req) => {
       const target = await admin.from("members").select("push_token").eq("id", cheer.to_id).not("push_token", "is", null);
       to = target.data ?? [];
       title = cheer.meal_id ? `${from.name} commented on your meal` : `A note from ${from.name}`;
-      body = String(cheer.text).slice(0, 120);
+      // The note itself is read in the app, not on the lock screen or by the push services.
+      body = "Open Amader to read it.";
       data = cheer.meal_id ? { meal: cheer.meal_id } : {};
     } else {
       return json({ error: "Nothing to send." }, 400);

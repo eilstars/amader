@@ -639,7 +639,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               mealId: saved.id,
               memberId: session.meId,
               code: session.code,
-              goalFood,
+              // The label is what was really on the plate: the starch picked, or the family's goal food.
+              goalFood: saved.grain ?? goalFood,
               guess: input.guess && !input.guess.sample ? input.guess : null,
               handfuls: saved.handfuls,
               chosenBy: input.chosenBy ?? 'tap',
@@ -742,8 +743,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         await localBackend.clear();
         await AsyncStorage.multiRemove([SESSION, CHECKUP, PREFS]);
         await syncReminders({ on: false, nudges: false, times: DEFAULT_TIMES, ramadan: false, suhoorHour: 4, iftarHour: 18, doneToday: [] });
-        prefsRef.current = DEFAULT_PREFS;
-        setPrefsState(DEFAULT_PREFS);
+        // Everything goes except the language, so the next screen is still one the person can read.
+        const fresh = { ...DEFAULT_PREFS, lang: prefsRef.current.lang };
+        await AsyncStorage.setItem(PREFS, JSON.stringify(fresh)).catch(() => undefined);
+        prefsRef.current = fresh;
+        setPrefsState(fresh);
         sessionRef.current = null;
         setSession(null);
         setFamily(null);

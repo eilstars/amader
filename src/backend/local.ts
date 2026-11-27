@@ -237,7 +237,7 @@ export const localBackend: Backend & { seedDemo(): Promise<Session>; clear(): Pr
 
   async clear() {
     const keys = await AsyncStorage.getAllKeys();
-    await AsyncStorage.multiRemove(keys.filter((k) => k === FAMILY || k === MEALS || k === CHEERS || k === RECIPES || k === TICKS || k.startsWith(PHOTO)));
+    await AsyncStorage.multiRemove(keys.filter((k) => k === FAMILY || k === MEALS || k === CHEERS || k === RECIPES || k === TICKS || k === DISHES || k === 'amader.widget' || k.startsWith(PHOTO)));
   },
 
   /** A made-up family with three weeks of meals, notes and a recipe, for showing the app. */

@@ -7,7 +7,7 @@
 //   the private `dataset` bucket and `dataset` table, with no name, family or sign-in attached.
 //   This is how the learning photos outlive the family, as the privacy policy says.
 // - Anonymous sign-ins that never joined a family, or left, are deleted after 30 days.
-// - The abuse counters (wrong codes, photos read) are trimmed to 1 and 2 days.
+// - The abuse counters (wrong codes, photos read) are trimmed to 1 and 2 days, and expired new-phone links are removed.
 //
 // It runs once a day from pg_cron (see supabase/cleanup-schedule.sql). It is deployed with
 // --no-verify-jwt, so it checks its own secret instead: CLEANUP_SECRET, set with
@@ -125,6 +125,8 @@ Deno.serve(async (req) => {
   // 2. Abuse counters. The join functions already trim code_tries; this covers quiet days.
   await admin.from("code_tries").delete().lt("tried_at", new Date(Date.now() - 86_400_000).toISOString());
   await admin.from("recognitions").delete().lt("at", new Date(Date.now() - 2 * 86_400_000).toISOString());
+  // New-phone links work for one day. Expired ones are removed so they never pile up.
+  await admin.from("rejoin_tokens").delete().lt("expires_at", new Date().toISOString());
 
   // 3. Anonymous sign-ins with no seat at any family, older than 30 days.
   const seated = await admin.from("members").select("user_id").not("user_id", "is", null);

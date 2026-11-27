@@ -10,7 +10,9 @@ This policy explains how [YOUR LEGAL NAME or AMADER LLC] ("Amader") handles cons
 
 | Category | Examples | Why we collect it |
 | --- | --- | --- |
-| Meals and eating habits | Meal photos, when a meal was eaten, the amount of one goal food (for example rice) | To share meals with your family table and show weekly recaps |
+| Meals and eating habits | Meal photos, when a meal was eaten, which starch it had (for example rice or roti) and how much, whether you started with vegetables | To share meals with your family table and show weekly recaps |
+| Eating goals | The small step you picked (for example "at most 2½ handfuls at a meal"), which step you are on and since when | To show your path to you and your family |
+| App use | Days the app was opened, photo guesses made and changed, help opened | To learn what works during the pilot. Never shown to your family |
 | Information worked out from meals | Dish name, rough split of the plate, portion guess, weekly patterns | To fill in the meal and recap for you, only if you turned on photo reading |
 | A summary you can bring to a checkup | A list of your own recent meals and portions, made on your phone | So you can show your meals to your own doctor if you choose |
 | Learning examples | The app's guess and the amount you saved for a meal | To improve food recognition, only if you turned on "Help Amader learn our food" |
@@ -27,9 +29,10 @@ Directly from you, through the app. Some of it (the dish name and plate split) i
 
 | Who | What | Why |
 | --- | --- | --- |
-| The members of your family table, who you invite with your family code | Your meals, photos, portions, dish names and hearts | This is what the app is for |
+| The members of your family table, who you invite with your family code | Your meals, photos, portions, dish names, hearts and your path | This is what the app is for |
 | Supabase (our database and storage provider) | All of the above | To store it and run the app for us |
 | Anthropic (our AI service provider) | Meal photos and the name of your goal food | To read the photo, only after you said yes |
+| Expo, then Apple or Google (notification delivery) | A first name and the meal time, never what was eaten | To deliver family notifications, only if you turned them on |
 
 We do not have affiliates. We do not sell consumer health data, and we never will without the signed authorization the law requires. We do not use it for advertising.
 

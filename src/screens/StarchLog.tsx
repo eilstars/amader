@@ -79,6 +79,7 @@ export default function StarchLog({ onClose, onPath }: { onClose: () => void; on
   const askVeg = state.level >= 2;
   const usual = usualFor(meals, meId, starch);
   const others = (family?.members ?? []).filter((m) => m.id !== meId && m.joined).map((m) => m.name);
+  const askGuess = store.cloud && !store.session?.demo && store.prefs.guessOn === null;
 
   function pickStarch(id: StarchId) {
     touched.current = true;
@@ -86,11 +87,11 @@ export default function StarchLog({ onClose, onPath }: { onClose: () => void; on
     setAmount(id === 'none' ? 0 : usualFor(meals, meId, id));
   }
 
-  function look(at: Photo) {
-    if (!store.session?.demo && store.prefs.guessOn !== true) return;
+  function look(at: Photo, justAgreed = false) {
+    if (!store.session?.demo && store.prefs.guessOn !== true && !justAgreed) return;
     setLooking(true);
     store
-      .recognize(at)
+      .recognize(at, { justAgreed })
       .then((found) => {
         setGuess(found);
         const id = starchOf(found?.starch ?? null);
@@ -194,7 +195,32 @@ export default function StarchLog({ onClose, onPath }: { onClose: () => void; on
               <RoundIcon name="close" onPress={() => { setPhoto(null); setGuess(null); }} label={t('noPhoto')} bg={C.soft} />
             </View>
           </View>
-        ) : (
+        ) : null}
+        {/* The first photo asks before anything leaves the phone for the AI. Until then, and after a no, nothing is sent. */}
+        {photo && askGuess ? (
+          <View style={[card, { gap: 10 }]}>
+            <T w="bold" size={S.body}>
+              {t('askGuessTitle')}
+            </T>
+            <T size={S.small} color={C.muted}>
+              {t('askGuessText')}
+            </T>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <BigButton label={t('noThanks')} kind="line" height={48} size={S.body} onPress={() => store.setGuessOn(false)} style={{ flex: 1 }} />
+              <BigButton
+                label={t('yes')}
+                height={48}
+                size={S.body}
+                onPress={() => {
+                  store.setGuessOn(true);
+                  look(photo, true);
+                }}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </View>
+        ) : null}
+        {photo ? null : (
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <BigButton label={t('takePhoto')} icon="camera" kind="mint" onPress={() => takePhoto(true)} style={{ flex: 1 }} height={56} size={17} />
             <RoundIcon name="image" onPress={() => takePhoto(false)} label={t('choosePhoto')} bg={C.mint} size={56} />

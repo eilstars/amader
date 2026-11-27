@@ -356,6 +356,11 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
         items: meal.items?.length ? meal.items : null,
         veg_first: meal.vegFirst ?? null,
       });
+      if (error) {
+        // The files went up first. If the meal itself was refused, take them back down so nothing is left without its meal.
+        if (photoPath) await db.storage.from(BUCKET).remove([photoPath]).catch(() => undefined);
+        if (voicePath) await db.storage.from(VOICE).remove([voicePath]).catch(() => undefined);
+      }
       fail(error);
       return { ...meal, photo: photoPath ? (linkOf(photoPath) ?? photo?.uri ?? null) : null, voice: voicePath ? (linkOf(voicePath, VOICE) ?? voice?.uri ?? null) : null };
     },

@@ -17,6 +17,7 @@ Questions or requests: [CONTACT EMAIL]. Mail: [MAILING ADDRESS, a PO box is fine
 - An AI service reads a meal photo only after you say yes, and you can turn it off.
 - "Help Amader learn our food" is off unless you turn it on.
 - When you measure with your hand, the hand is worked out on your phone and never saved or sent to us.
+- During the pilot we count simple things per family, such as which days the app was opened and how often a photo guess was fixed, to learn what works. This stays with Amader.
 - Your family's meals stay while your family uses Amader. A family with no meals for 12 months is deleted. You can delete any meal, or everything, at any time in the app.
 
 ## What we collect
@@ -24,10 +25,14 @@ Questions or requests: [CONTACT EMAIL]. Mail: [MAILING ADDRESS, a PO box is fine
 **What you type or choose**
 - Your first name or what your family calls you, and whether you are a parent or a son or daughter.
 - When you set up a family: the name you use for your parent, the one food your family keeps an eye on (rice by default), and the usual amount.
+- Your language. This is kept on your phone only.
 
 **What you share**
-- A photo of a meal, when you took it (date, time and breakfast, lunch or dinner), and the amount of the goal food you tapped.
-- Hearts you send on your family's meals.
+- For each meal: which starch it had (for example rice, roti, bread or none), how much in your own handfuls, pieces or slices, when you ate it (date, time and breakfast, lunch, dinner or snack), and, once that step is on your path, whether you started with vegetables.
+- A photo of the meal, if you add one.
+- Hearts and short notes you send to your family.
+- Your path: the small step you picked (for example "at most 2½ handfuls at a meal"), which step you are on and since when. Your family's shared grain count and the costumes it bought for Mado.
+- In the full version of the app (not the pilot), also: voice notes, family recipes, who you ate with, other food groups on the plate, quest ticks and dishes you teach the app.
 
 **What the app works out**
 - If you turn on photo reading: a short dish name (for example "Dal, rice and sabzi"), a rough split of the plate into grains, vegetables and dal, protein, and other, and a guess of the goal food amount.
@@ -38,6 +43,9 @@ Questions or requests: [CONTACT EMAIL]. Mail: [MAILING ADDRESS, a PO box is fine
 - Your family code, which lets your phone see your family's table.
 - Our service providers' servers record basic connection details such as IP address, device type and time of request, as nearly every website and app does.
 - Two small counters used only to stop abuse: wrong family codes typed (deleted after 1 day) and photos sent for reading (deleted after 2 days).
+- A few usage records, each with your seat at the family and a time: the app was opened (once a day), a photo guess was made, a photo guess was changed, and the "What is a starch?" help was opened. They are only read by Amader, never shown to your family, and are deleted with the family table.
+- If you turn on notifications: your phone's push address, so your family's "Ammi shared dinner" can reach you.
+- A "New phone?" link, if someone in your family makes one for you: a random code that works once and expires after one day.
 
 **What we do not collect**
 - Location. Photos are re-saved on your phone before upload, which removes GPS and other hidden details.
@@ -59,7 +67,11 @@ We do not use your information for advertising, we do not sell it, and we do not
 
 **Your family table.** Everyone who joined your family with the family code can see the names, meals, photos, portions, dish names and hearts shared at that table. Treat the family code like a house key.
 
-**Your checkup summary.** It is made on your phone and only leaves your phone if you choose to share it, for example with a doctor. It contains text, not photos.
+**Your checkup summary.** It is made on your phone and only leaves your phone if you choose to share it, for example with a doctor. It lists your own meals and may include a few of your own plate photos.
+
+**Your path.** The step you picked and your progress are shown to your family, like your meals.
+
+**People who run Amader.** [YOUR NAME] can open the database and photo storage to run and fix the service, keep it secure, answer your requests and, during the pilot, see the usage counts above. We do not browse your photos. We open one only to fix a problem you reported, to deal with abuse, or with your permission.
 
 **People outside your family.** Nobody else can open your family's photos. Photos are kept in private storage and open only through links that expire after an hour.
 
@@ -69,9 +81,17 @@ We do not use your information for advertising, we do not sell it, and we do not
 
 The meal photo itself may show your hand, the same as any photo. It is handled like any other meal photo in this policy.
 
+## Notifications
+
+If you allow notifications, Amader tells your family when you share a meal, and tells you when someone sends you a note. These go from our server through Expo's push service and then Apple or Google to the phone. They carry only a first name and the meal time, for example "Ammi shared dinner. Send a heart?". They never contain what you ate, a note's words or a photo. Reminders like "Did you eat?" are set on your phone and do not go through us.
+
+## Read aloud
+
+The listen buttons use your phone's or browser's own voice. They only read words that are part of the app, such as food names, never your meals or names. Some browsers use their maker's online voice service for this.
+
 ## Photo reading by AI
 
-The first time you add a photo, Amader asks whether it may read the photo to name the dish and guess the portion. If you say yes, the photo is sent from our server to Anthropic, the company that makes the Claude AI, which returns the guess. No person at Amader looks at the photo for this. You can turn it off any time under Me, "Guess what's on my plate".
+The first time you add a photo, Amader asks whether it may read the photo to guess the starch on the plate and how much, and to name the dish. Until you say yes, no photo is sent. If you say yes, the photo is sent from our server to Anthropic, the company that makes the Claude AI, which returns the guess. No person at Amader looks at the photo for this. You can turn it off any time under Me, "Guess what's on my plate".
 
 Anthropic processes these photos for us under its commercial terms. Under those terms Anthropic does not use them to train its AI models, and deletes them from its systems within 30 days, except that it may keep information longer (up to 2 years) if it is flagged for a possible violation of Anthropic's usage policies, or where the law requires. [CONFIRM current Anthropic terms before publishing.]
 
@@ -92,9 +112,10 @@ We use a small number of service providers. They may only use your information t
 | Company | What it does for us | What it receives |
 | --- | --- | --- |
 | Supabase | Database, photo storage, sign-in and server functions | Everything the app stores, as listed above. Hosted in [REGION, for example the United States] |
-| Anthropic | Reads meal photos to guess the dish and portion | Meal photos and the name of your goal food, only if you said yes |
+| Anthropic | Reads meal photos to guess the starch, amount and dish | Meal photos and the name of your goal food, only if you said yes |
+| Expo (650 Industries) | Passes family notifications on to Apple and Google | Your phone's push address, a first name and the meal time |
 | Netlify | Hosts the web version of the app | Connection details such as IP address when you open the web app |
-| Apple and Google | App stores and phone software | What they collect under their own policies. Amader's reminders are set on your phone and are not sent through us |
+| Apple and Google | App stores, phone software and delivering notifications | The notification text described above, and what they collect under their own policies. Amader's reminders are set on your phone and are not sent through us |
 
 We may also share information if the law requires it, to protect someone's safety, or as part of a sale or merger of Amader, in which case this policy keeps applying to your information.
 
@@ -109,6 +130,9 @@ We may also share information if the law requires it, to protect someone's safet
 | Sign-in ids not linked to any family | Deleted after 30 days |
 | Wrong-code and photo-reading counters | 1 day and 2 days |
 | Hand positions | Never kept |
+| Usage records (app opened, photo guesses, help opened) | With the family table, and deleted with it |
+| Push address | Until you leave, turn notifications off or move to a new phone |
+| "New phone?" links | One day, or until used |
 | Server backups made by Supabase | Copies are overwritten within [7] days [CONFIRM for your Supabase plan] |
 | Copies held by Anthropic | See "Photo reading by AI" |
 
@@ -122,6 +146,10 @@ We may also share information if the law requires it, to protect someone's safet
 Depending on where you live, you may have rights to access, correct, delete or get a copy of your information, to withdraw consent, and to appeal if we say no. We honour these requests for everyone, wherever they live. If we turn down a request you may appeal by replying to our answer; if you are still unhappy you may contact your state attorney general.
 
 We will not treat you differently for using these rights.
+
+## The pilot
+
+During the first pilot, families who take part get $30 as a thank-you. Amader uses the usage counts above, and anything you choose to tell us in conversation, to learn what works. We do not publish anything that names you or your family. If we want to quote you, we ask first.
 
 ## Age
 

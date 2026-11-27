@@ -8,6 +8,25 @@
 
 create extension if not exists pgcrypto;
 
+-- Family codes and new-phone links come from the secure random source, never random(), so they cannot be predicted.
+-- 31 letters and digits that are easy to read aloud (no 0/O, 1/I/L). Bytes of 248 and up are skipped so every letter is equally likely.
+create or replace function public.random_code(p_length int) returns text
+language plpgsql volatile set search_path = public, extensions as $$
+declare
+  v_letters constant text := 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  v_out text := '';
+  v_byte int;
+begin
+  while char_length(v_out) < p_length loop
+    v_byte := get_byte(gen_random_bytes(1), 0);
+    if v_byte < 248 then
+      v_out := v_out || substr(v_letters, 1 + (v_byte % 31), 1);
+    end if;
+  end loop;
+  return v_out;
+end;
+$$;
+
 create table if not exists public.families (
   code text primary key,
   goal_food text not null default 'Rice',
@@ -357,7 +376,6 @@ returns json language plpgsql security definer set search_path = public as $$
 declare
   v_code text;
   v_me uuid;
-  v_letters constant text := 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 begin
   if auth.uid() is null then
     raise exception 'Not signed in';
@@ -366,8 +384,7 @@ begin
     raise exception 'This phone is already in the most families allowed.';
   end if;
   loop
-    select string_agg(substr(v_letters, 1 + floor(random() * length(v_letters))::int, 1), '')
-      into v_code from generate_series(1, 8);
+    v_code := public.random_code(8);
     exit when not exists (select 1 from public.families where code = v_code);
   end loop;
   insert into public.families (code, goal_food, goal_handfuls)
@@ -683,8 +700,7 @@ alter table public.rejoin_tokens enable row level security;
 create or replace function public.make_rejoin(p_code text, p_member uuid)
 returns text language plpgsql security definer set search_path = public as $$
 declare
-  v_token text := '';
-  v_letters constant text := 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  v_token text;
 begin
   if not exists (select 1 from public.members where family_code = p_code and user_id = auth.uid() and joined) then
     raise exception 'Not in this family';
@@ -693,9 +709,7 @@ begin
     raise exception 'That seat is not taken yet. Send the family code instead.';
   end if;
   delete from public.rejoin_tokens where member_id = p_member or expires_at < now();
-  for i in 1..12 loop
-    v_token := v_token || substr(v_letters, 1 + floor(random() * length(v_letters))::int, 1);
-  end loop;
+  v_token := public.random_code(12);
   insert into public.rejoin_tokens (token, member_id, made_by, expires_at) values (v_token, p_member, auth.uid(), now() + interval '1 day');
   return v_token;
 end;
@@ -715,6 +729,10 @@ begin
   if v_member is null then
     insert into public.code_tries (user_id) values (auth.uid());
     return null;
+  end if;
+  -- The person who made the link can't use it to take someone else's seat from their own phone.
+  if exists (select 1 from public.rejoin_tokens where member_id = v_member and made_by = auth.uid()) then
+    raise exception 'This link is for the person it was made for. Send it to them.';
   end if;
   if (select count(*) from public.members where user_id = auth.uid()) >= 5 then
     raise exception 'This phone is already in the most families allowed.';
@@ -736,7 +754,8 @@ with act as (
   union all select family_code, created_at from public.cheers
 )
 select
-  f.code as family,
+  -- Not the family code: that code lets people join, so it never goes in a table that might be screenshotted.
+  substr(f.folder::text, 1, 8) as family,
   f.created_at as started,
   (select count(*) from public.members m where m.family_code = f.code and m.joined) as people_joined,
   (select min(m.created_at) from public.meals m where m.family_code = f.code) as first_meal_at,
@@ -763,3 +782,32 @@ revoke execute on function public.claim_rejoin(text) from public, anon;
 grant execute on function public.set_path(text, uuid, int, numeric, date) to authenticated;
 grant execute on function public.make_rejoin(text, uuid) to authenticated;
 grant execute on function public.claim_rejoin(text) to authenticated;
+
+-- ---------------------------------------------------------------------------------------------
+-- Round six (2026-11-27): privacy and data-flow review.
+
+-- Removing your own photos and voice notes. Before, only the phone that uploaded a file could remove it,
+-- so after a new-phone link the person could no longer delete photos taken on the old phone.
+-- Now a file can be removed by whoever uploaded it, or by the person whose meal or recipe it belongs to.
+drop policy if exists "photos: remove my own" on storage.objects;
+create policy "photos: remove my own" on storage.objects
+  for delete to authenticated
+  using (
+    bucket_id in ('meal-photos', 'meal-voice')
+    and (
+      owner_id = (select auth.uid())::text
+      or name in (
+        select x.photo_url from public.meals x where x.member_id in (select public.my_member_ids()) and x.photo_url is not null
+        union all select x.voice_url from public.meals x where x.member_id in (select public.my_member_ids()) and x.voice_url is not null
+        union all select r.photo_url from public.recipes r where r.added_by in (select public.my_member_ids()) and r.photo_url is not null
+        union all select r.voice_url from public.recipes r where r.added_by in (select public.my_member_ids()) and r.voice_url is not null
+      )
+    )
+  );
+
+-- The learning set keeps half amounts and the starch, like meals and examples now do.
+alter table public.dataset drop constraint if exists dataset_handfuls_check;
+alter table public.dataset alter column handfuls type numeric(3,1) using handfuls::numeric;
+alter table public.dataset add constraint dataset_handfuls_check check (handfuls is null or handfuls between 0 and 6);
+
+revoke execute on function public.random_code(int) from public, anon, authenticated;
