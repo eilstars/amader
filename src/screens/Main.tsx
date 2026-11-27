@@ -20,8 +20,11 @@ import MealSheet from './MealSheet';
 import QuestRiver, { Celebration } from './QuestRiver';
 import Us, { PastWeeks, Person, WeekRecap } from './Us';
 import MedsPage from './MedsPage';
+import StarchLog from './StarchLog';
+import Path from './Path';
+import { PILOT } from '../pilot';
 
-type Over = 'add' | 'me' | 'checkup' | 'teach' | 'widget' | 'cards' | 'quest' | 'past' | 'meds' | 'recipes' | { person: string } | { week: number } | null;
+type Over = 'add' | 'path' | 'me' | 'checkup' | 'teach' | 'widget' | 'cards' | 'quest' | 'past' | 'meds' | 'recipes' | { person: string } | { week: number } | null;
 type Tab = 'table' | 'us';
 
 /**
@@ -73,7 +76,8 @@ export default function Main({ openCamera }: { openCamera: boolean }) {
   }, [toast]);
 
   const simple = store.simple;
-  const canComment = !simple || store.daysShared >= UNLOCK.comments;
+  // The pilot keeps one thing on a plate: hearts. Comments come back after the pilot.
+  const canComment = !PILOT && (!simple || store.daysShared >= UNLOCK.comments);
   const close = () => setOver(null);
 
   return (
@@ -84,7 +88,7 @@ export default function Main({ openCamera }: { openCamera: boolean }) {
         ) : tab === 'table' ? (
           <Home onAdd={() => setOver('add')} onMeal={setMealId} onPerson={person} onQuest={() => setOver('quest')} onRecap={() => setOver({ week: new Date().getDay() === 1 ? 1 : 0 })} />
         ) : (
-          <Us onMe={() => setOver('me')} onPerson={person} onPast={() => setOver('past')} onRecap={() => setOver({ week: 0 })} onRecipes={() => setOver('recipes')} onMeal={setMealId} />
+          <Us onMe={() => setOver('me')} onPerson={person} onPast={() => setOver('past')} onRecap={() => setOver({ week: 0 })} onRecipes={() => setOver('recipes')} onMeal={setMealId} onPath={() => setOver('path')} />
         )}
       </FadeUp>
 
@@ -160,7 +164,8 @@ export default function Main({ openCamera }: { openCamera: boolean }) {
       <Modal visible={over !== null} animationType="slide" onRequestClose={close} presentationStyle="fullScreen">
         <View style={{ flex: 1, backgroundColor: C.rice, alignItems: 'center' }}>
           <View style={{ flex: 1, width: '100%', maxWidth: 480 }}>
-            {over === 'add' ? <AddMeal onClose={close} /> : null}
+            {over === 'add' ? PILOT ? <StarchLog onClose={close} onPath={() => setOver('path')} /> : <AddMeal onClose={close} /> : null}
+            {over === 'path' || (PILOT && over === 'quest') ? <Path onBack={close} /> : null}
             {over === 'me' ? <Me onClose={close} onCheckup={() => setOver('checkup')} onTeach={() => setOver('teach')} onPerson={person} onWidget={() => setOver('widget')} /> : null}
             {over === 'widget' ? (
               <View style={{ flex: 1 }}>
@@ -178,7 +183,7 @@ export default function Main({ openCamera }: { openCamera: boolean }) {
             {over === 'teach' ? <Teach onClose={close} /> : null}
             {over === 'cards' ? <Learn onTeach={() => setOver('teach')} onClose={() => setOver('quest')} /> : null}
             {over === 'checkup' ? <Checkup onClose={close} /> : null}
-            {over === 'quest' ? <QuestRiver onBack={close} onAdd={() => setOver('add')} onCards={() => setOver('cards')} /> : null}
+            {over === 'quest' && !PILOT ? <QuestRiver onBack={close} onAdd={() => setOver('add')} onCards={() => setOver('cards')} /> : null}
             {over === 'past' ? <PastWeeks onBack={close} onWeek={(n) => setOver({ week: n })} /> : null}
             {over === 'meds' ? <MedsPage onBack={close} onSettings={() => setOver('me')} /> : null}
             {over === 'recipes' ? (

@@ -2,7 +2,9 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { cloudBackend, localBackend, webUrl } from './backend';
-import { Backend, Cheer, Family, FamilyDish, Guess, Meal, Member, NewMeal, NewRecipe, Photo, Recipe, Role, Session, Tick } from './types';
+import { Backend, Cheer, Family, FamilyDish, Guess, Meal, Member, NewMeal, NewRecipe, Photo, PilotEvent, Recipe, Role, Session, Tick } from './types';
+import { Translate, translator } from './i18n';
+import { COSTUME_COST, PathState, clampAmount, familyGrains } from './starch';
 import { setFamilyDishes } from './foods';
 import { QuestProgress, dayKey, questById, questProgress, weekKey } from './quests';
 import { MedSlot, pushAddress, syncReminders } from './reminders';
@@ -73,6 +75,10 @@ export interface Prefs {
   wear: string | null;
   /** Family plates already played in Guess the plate. */
   guessed: string[];
+  /** The language picked on the first screen. Null until picked. */
+  lang: string | null;
+  /** The last day this phone noted "opened the app" for the pilot, so it is noted once a day. */
+  openedOn: string | null;
 }
 const DEFAULT_PREFS: Prefs = {
   guessOn: null,
@@ -102,6 +108,8 @@ const DEFAULT_PREFS: Prefs = {
   celebrated: [],
   wear: null,
   guessed: [],
+  lang: null,
+  openedOn: null,
 };
 
 /** Today is a day this person eats at home with the people they look after. */
@@ -244,6 +252,19 @@ interface Store {
   onBreak: boolean;
   /** Days of quiet from meal reminders, or null to come back. */
   takeBreak(days: number | null): Promise<void>;
+  /** Words in the language the person picked. */
+  t: Translate;
+  lang: string;
+  /** Moves someone along their path. */
+  setPath(memberId: string, state: PathState): Promise<void>;
+  /** Spends family grains on one of Mado's costumes. Resolves false if there aren't enough. */
+  buyCostume(costume: string): Promise<boolean>;
+  /** Notes something the pilot measures. Never throws. */
+  logEvent(kind: PilotEvent): void;
+  /** A link for someone who lost or changed phones, made by someone else at the table. */
+  rejoinLink(memberId: string): Promise<string>;
+  /** Takes your own seat back on a new phone. Resolves false if the link is wrong or old. */
+  claimRejoin(token: string): Promise<boolean>;
 }
 
 export type PendingAction = { kind: 'add' } | { kind: 'quick'; handfuls: number };
@@ -358,6 +379,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       .then((token) => (token ? backendFor(session).savePushToken(session.code, session.meId, token) : undefined))
       .catch(() => undefined);
   }, [ready, session, prefs.familyAlerts, prefs.reminderOn]);
+
+  // The pilot counts days the app was opened: once a day per phone, never blocking anything.
+  useEffect(() => {
+    if (!ready || !session || session.demo) return;
+    const today = new Date().toISOString().slice(0, 10);
+    if (prefsRef.current.openedOn === today) return;
+    const next = { ...prefsRef.current, openedOn: today };
+    prefsRef.current = next;
+    setPrefsState(next);
+    AsyncStorage.setItem(PREFS, JSON.stringify(next));
+    backendFor(session).logEvent(session.code, session.meId, 'open').catch(() => undefined);
+  }, [ready, session]);
 
   // Keep reminders and widgets in step with what the family has shared.
   useEffect(() => {
@@ -579,7 +612,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           date: when,
           slot: input.slot,
           photo: null,
-          handfuls: p ? p.grains : null,
+          handfuls: input.starchAmount !== undefined && input.starchAmount !== null ? clampAmount(input.starchAmount) : p ? clampAmount(p.grains) : null,
           protein: p ? p.protein : null,
           veg: p ? p.veg : null,
           fruit: p ? (p.fruit ?? 0) : null,
@@ -594,6 +627,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           party: !!input.party,
           grain: input.grain?.trim() || null,
           sameAs: input.sameAs ?? null,
+          vegFirst: input.vegFirst ?? null,
           items: input.items?.length ? input.items.slice(0, 12).map((i) => ({ name: i.name.trim().slice(0, 40), kind: i.kind, amount: Math.max(0, Math.min(6, i.amount)), ...(i.food ? { food: i.food.slice(0, 60) } : {}) })) : null,
         };
         const saved = await backendFor(session).addMeal(session.code, draft, input.photo, input.voice ?? null);
@@ -752,6 +786,37 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       simple: prefs.simple ?? me?.role === 'parent',
       daysShared,
       onBreak: onBreak(prefs),
+      t: translator(prefs.lang),
+      lang: prefs.lang ?? 'en',
+      async setPath(memberId, state) {
+        if (!session || !family) return;
+        setFamily({ ...family, path: { ...(family.path ?? {}), [memberId]: state } });
+        await backendFor(session).setPath(session.code, memberId, state).catch(() => pull(session));
+      },
+      async buyCostume(costume) {
+        if (!session || !family || family.costumes?.includes(costume)) return false;
+        const pot = familyGrains(family, meals, cheers.length).pot;
+        if (pot < COSTUME_COST) return false;
+        setFamily({ ...family, costumes: [...(family.costumes ?? []), costume] });
+        await backendFor(session).addCostume(session.code, costume).catch(() => pull(session));
+        return true;
+      },
+      logEvent(kind) {
+        if (!session || session.demo) return;
+        backendFor(session).logEvent(session.code, session.meId, kind).catch(() => undefined);
+      },
+      async rejoinLink(memberId) {
+        if (!session) throw new Error('No family yet.');
+        const token = await backendFor(session).makeRejoin(session.code, memberId);
+        const who = family?.members.find((m) => m.id === memberId)?.name ?? '';
+        return webUrl ? `${who ? `${who}, this` : 'This'} link puts Amader back on your new phone with all your meals. It works for one day.\n${webUrl}/#rejoin=${token}` : `New phone code: ${token}`;
+      },
+      async claimRejoin(token) {
+        const s = await (cloudBackend ?? localBackend).claimRejoin(token).catch(() => null);
+        if (!s) return false;
+        await start(s);
+        return true;
+      },
       async takeBreak(days) {
         const breakUntil = days ? new Date(Date.now() + days * 86_400_000).toISOString() : null;
         const next = { ...prefsRef.current, breakUntil };

@@ -9,6 +9,8 @@ import { shareText } from '../share';
 import { Btn, Chip, Eyebrow, GOAL_FOODS, PageHead, Row, T, TimeRow, Toggle } from '../ui';
 import { Face, Pill } from '../design';
 import { HomeDays } from './HomeDays';
+import { PILOT } from '../pilot';
+import { LANGS } from '../i18n';
 import { FAST_KINDS, dayName, roleName, spacedCode } from '../words';
 
 const WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -27,6 +29,7 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
   const [addFailed, setAddFailed] = useState<string | null>(null);
   const [alertsRefused, setAlertsRefused] = useState(false);
   const [medsRefused, setMedsRefused] = useState(false);
+  const [rejoinNote, setRejoinNote] = useState<{ id: string; text: string } | null>(null);
   const { family, me, prefs } = store;
   if (!family || !me) return null;
 
@@ -72,7 +75,8 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
         <Eyebrow>Our family</Eyebrow>
         <View style={section}>
           {family.members.map((m) => (
-            <Row key={m.id} style={{ paddingVertical: 4 }}>
+            <React.Fragment key={m.id}>
+            <Row style={{ paddingVertical: 4 }}>
               <Pressable onPress={() => onPerson(m.id)} accessibilityRole="button" style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 <Face member={m} size={40} ring={C.white} />
                 <View style={{ flex: 1 }}>
@@ -84,7 +88,28 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
                 </View>
               </Pressable>
               {store.session?.demo && m.id !== me.id ? <Chip label="Be them" on={false} onPress={() => store.viewAs(m.id)} /> : null}
+              {!store.session?.demo && m.joined && m.id !== me.id ? (
+                <Chip
+                  label="New phone?"
+                  on={false}
+                  onPress={async () => {
+                    try {
+                      const text = await store.rejoinLink(m.id);
+                      const how = await shareText(text);
+                      setRejoinNote({ id: m.id, text: how === 'copied' ? 'Link copied. Send it to them. It works once, for one day.' : 'Sent. The link works once, for one day.' });
+                    } catch {
+                      setRejoinNote({ id: m.id, text: "We couldn't make a link. Check the connection and try again." });
+                    }
+                  }}
+                />
+              ) : null}
             </Row>
+            {rejoinNote?.id === m.id ? (
+              <T size={14} color={C.deep} w="semibold">
+                {rejoinNote.text}
+              </T>
+            ) : null}
+            </React.Fragment>
           ))}
           {adding ? (
             <View style={{ gap: 8, borderTopWidth: 1, borderTopColor: '#EDF0EA', paddingTop: 10 }}>
@@ -173,6 +198,8 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
           />
         </View>
 
+        {PILOT ? null : (
+          <>
         <Eyebrow>Fasting</Eyebrow>
         <View style={section}>
           <Toggle
@@ -230,6 +257,9 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
           ) : null}
         </View>
 
+          </>
+        )}
+
         <Eyebrow>Reminders</Eyebrow>
         <View style={section}>
           <Toggle
@@ -267,6 +297,8 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
           )}
         </View>
 
+        {PILOT ? null : (
+          <>
         <Eyebrow>Medicine with meals</Eyebrow>
         <View style={section}>
           <Toggle
@@ -319,11 +351,22 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
           </Row>
         </View>
 
+          </>
+        )}
+
+        <Eyebrow>Language</Eyebrow>
+        <View style={section}>
+          <Row style={{ justifyContent: 'space-between' }}>
+            <T w="semibold">{LANGS.find((l) => l.code === prefs.lang)?.native ?? 'English'}</T>
+            <Chip label="Change" on={false} onPress={() => store.setPrefs({ lang: null })} />
+          </Row>
+        </View>
+
         <Eyebrow>Photos</Eyebrow>
         <View style={section}>
           <Toggle
             title="Mado guesses what's on my plate"
-            help="Your meal photo is sent to an AI service (Claude, made by Anthropic) that names the dish and guesses the portions. No person at Amader looks at it. Off means photos only go to your family."
+            help={PILOT ? "Your meal photo is sent to an AI service (Claude, made by Anthropic) that guesses the rice, roti or other starch and how much. You can always fix the guess. No person at Amader looks at it. Off means photos only go to your family." : "Your meal photo is sent to an AI service (Claude, made by Anthropic) that names the dish and guesses the portions. No person at Amader looks at it. Off means photos only go to your family."}
             on={prefs.guessOn === true}
             onChange={(on) => store.setGuessOn(on)}
           />
@@ -347,7 +390,7 @@ export default function Me({ onClose, onCheckup, onTeach, onPerson, onWidget }: 
         <Eyebrow>More</Eyebrow>
         <View style={[section, { gap: 10 }]}>
           <Btn kind="ghost" icon="document-text-outline" label="Meal summary PDF for the doctor" onPress={onCheckup} />
-          <Btn kind="ghost" icon="hand-left-outline" label="Fix the plate: a quick game" onPress={onTeach} />
+          {PILOT ? null : <Btn kind="ghost" icon="hand-left-outline" label="Fix the plate: a quick game" onPress={onTeach} />}
           {confirming ? (
             <View style={{ gap: 8 }}>
               <T>{store.session?.demo ? 'Leave the sample family?' : 'This removes your meals, notes, recipes and photos for good. Your family will no longer see them.'}</T>

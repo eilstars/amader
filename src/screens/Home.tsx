@@ -11,6 +11,9 @@ import { webUrl } from '../backend';
 import { nudgeText, sendOnWhatsApp } from '../nudge';
 import { BigButton, Chip, Face, Icon, K, Mado, River, RoundTable, S, Seat, card } from '../design';
 import { greeting, sameDay } from '../words';
+import { PILOT } from '../pilot';
+import { focusMembers } from '../starch';
+import { PathCard } from './Path';
 
 /** Today's newest plate for a person, if they shared one. */
 export function todaysPlate(meals: ReturnType<typeof useStore>['meals'], id: string) {
@@ -79,6 +82,7 @@ export function QuestHeader({ onOpen, big }: { onOpen: () => void; big?: boolean
  */
 export default function Home({ onAdd, onMeal, onPerson, onQuest, onRecap }: { onAdd: () => void; onMeal: (id: string) => void; onPerson: (id: string) => void; onQuest: () => void; onRecap: () => void }) {
   const store = useStore();
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [refreshing, setRefreshing] = useState(false);
   const [nudged, setNudged] = useState<string | null>(null);
@@ -132,7 +136,15 @@ export default function Home({ onAdd, onMeal, onPerson, onQuest, onRecap }: { on
         />
       }
     >
-      <QuestHeader onOpen={onQuest} />
+      {PILOT ? (
+        <View style={{ backgroundColor: C.mint, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, paddingTop: insets.top + 14, paddingHorizontal: 16, paddingBottom: 16, gap: 10 }}>
+          {(family ? focusMembers(family.members) : []).slice(0, 2).map((m, i) => (
+            <PathCard key={m.id} memberId={m.id} onPress={onQuest} showGrains={i === 0} />
+          ))}
+        </View>
+      ) : (
+        <QuestHeader onOpen={onQuest} />
+      )}
       <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
         <T w="medium" size={S.small} color={C.muted}>
           {greeting()}, {me.name}
@@ -168,7 +180,7 @@ export default function Home({ onAdd, onMeal, onPerson, onQuest, onRecap }: { on
           </View>
         ) : null}
 
-        {recapDay && store.questLive ? (
+        {recapDay && store.questLive && !PILOT ? (
           <Pressable onPress={onRecap} accessibilityRole="button" style={[card, { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: K.white }]}>
             <Mado width={40} mood="happy" />
             <T w="bold" size={S.body} style={{ flex: 1 }}>

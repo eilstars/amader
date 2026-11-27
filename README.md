@@ -4,6 +4,26 @@ Same food, right amount, with family. One app for iPhone, Android and the web.
 
 Each person shares one photo of a meal a day, taps how much of one goal food (rice by default) was on the plate, and the family sends hearts. There is a weekly recap and a plain meal summary a parent can bring to a checkup. Amader is not a medical app: no health readings, no projections, no advice.
 
+## The pilot build (starch first)
+
+By default the app is the pilot build: a short, focused version for the 2 week pilot (families get $30 as a thank-you).
+
+- Language comes first, before any words: 37 languages to pick from, with a "From your phone" choice. English, Bangla and Hindi have text so far; the rest fall back to English until the professional translations are in (`src/i18n.ts`).
+- Logging is starch first: pick the starch with pictures (rice, roti, bread, noodles, potato, other, none), then the amount in handfuls, pieces or slices, in halves. A photo fills both in as Mado's guess, and the person can fix it right there. The (?) opens a tap-the-food game that shows what a starch is.
+- The path: share 5 days so Mado learns the usual, pick a small step, then sabzi first, another step, then easy weeks. Each stop is 5 of 7 days, and two quiet days a week are forgiven.
+- One family pot of grains (meals, hearts, days at the step, stops reached, a kept weekly bowl). Grains buy Mado's costumes. No personal points.
+- Hidden in the pilot: quests, medicine reminders, fasting mode, recipes, comments, "I ate this too", the old dish logging and the food database. Build with `EXPO_PUBLIC_FULL=1` to bring them all back.
+- The doctor page is a plain starch log by day. No nutrient numbers.
+- New phone: in Settings, a family member taps "New phone?" next to a person's name and sends the link. It puts that person back in their seat with all their meals, works once, and expires after a day.
+
+### Pilot numbers
+
+After running the newest `supabase/schema.sql`, open the SQL Editor and run `select * from pilot_metrics;`. One row per family: people joined, first meal and first photo times, meals, meals that got a heart or note within 2 hours, whether they came back on day 7 and day 14, photo guesses, guesses that were fixed by hand, and how often the (?) was opened. Phones cannot read this view.
+
+### Check the photo guesses on real plates
+
+Before the pilot, run 20 to 30 real plate photos through the photo guess and see how often it is right. Instructions are at the top of `tools/photo-check.mjs`. It uses the deployed function, so no Anthropic key is needed on your computer.
+
 ## What works today
 
 - Welcome, and a sample family you can click through with no setup
@@ -48,7 +68,7 @@ Without this step the app keeps everything on one phone.
 
 Now set the table on one phone, and enter the family code on another.
 
-How privacy works: nobody makes an account. Each phone signs in anonymously and the database only shows a phone the families it has joined. The family code is the only way in. The rules are in `supabase/schema.sql` and were tested on a local Postgres. Known limits for now: meal photos sit at long random web addresses that are not listed anywhere but are not password protected, and a person who deletes the app or clears their browser loses their seat and has to rejoin as a new member.
+How privacy works: nobody makes an account. Each phone signs in anonymously and the database only shows a phone the families it has joined. The family code is the only way in. The rules are in `supabase/schema.sql` and were tested on a local Postgres. Known limits for now: meal photos sit at long random web addresses that are not listed anywhere but are not password protected, and a person who deletes the app or clears their browser needs a "New phone?" link from someone in the family to get their seat back.
 
 ## Turn on food recognition (about 5 minutes, after Supabase is set up)
 

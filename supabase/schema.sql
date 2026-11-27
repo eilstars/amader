@@ -572,3 +572,157 @@ grant select, insert, delete on public.recipes to authenticated;
 grant select, insert, delete on public.family_dishes to authenticated;
 -- A phone that is not signed in can run nothing.
 revoke execute on all functions in schema public from anon, public;
+
+-- ---------------------------------------------------------------------------------------------
+-- Round five (2026-11-27): starch-first logging, each person's path, what the pilot measures,
+-- and a link to take your own seat back on a new phone.
+
+-- Starch amounts go in halves ("2½ handfuls", "1½ roti"), up to 6.
+alter table public.meals drop constraint if exists meals_handfuls_check;
+alter table public.meals alter column handfuls type numeric(3,1) using handfuls::numeric;
+alter table public.meals add constraint meals_handfuls_check
+  check (handfuls is null or (handfuls between 0 and 6 and handfuls * 2 = floor(handfuls * 2)));
+alter table public.examples drop constraint if exists examples_handfuls_check;
+alter table public.examples alter column handfuls type numeric(3,1) using handfuls::numeric;
+alter table public.examples add constraint examples_handfuls_check check (handfuls is null or handfuls between 0 and 6);
+-- "Started with a few bites of sabzi", only asked once that stop is on the person's path.
+alter table public.meals add column if not exists veg_first boolean;
+
+-- Where each person the family looks after is on their path: {"<member id>": {"level": 1, "step": 2.5, "since": "2026-11-27"}}.
+alter table public.families add column if not exists path jsonb not null default '{}'::jsonb;
+alter table public.families drop constraint if exists families_path_check;
+alter table public.families add constraint families_path_check check (jsonb_typeof(path) = 'object' and pg_column_size(path) <= 4000);
+
+-- Anyone at the table can move someone's path along, like the quest. Only through this function,
+-- so one person's change never overwrites another's.
+create or replace function public.set_path(p_code text, p_member uuid, p_level int, p_step numeric, p_since date)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from public.members where family_code = p_code and user_id = auth.uid() and joined) then
+    raise exception 'Not in this family';
+  end if;
+  if not exists (select 1 from public.members where id = p_member and family_code = p_code) then
+    raise exception 'Unknown person';
+  end if;
+  if p_level < 0 or p_level > 4 or (p_step is not null and (p_step < 0 or p_step > 6)) or p_since > current_date + 1 then
+    raise exception 'Out of range';
+  end if;
+  update public.families
+    set path = coalesce(path, '{}'::jsonb) || jsonb_build_object(p_member::text,
+      jsonb_build_object('level', p_level, 'step', p_step, 'since', to_char(p_since, 'YYYY-MM-DD')))
+    where code = p_code;
+end;
+$$;
+
+-- What the pilot measures that the other tables can't show: opening the app, and how photo guesses go.
+-- Phones can add their own rows but never read any. Read them in the Supabase dashboard (pilot_metrics below).
+create table if not exists public.events (
+  id bigint generated always as identity primary key,
+  family_code text not null references public.families (code) on delete cascade,
+  member_id uuid not null references public.members (id) on delete cascade,
+  kind text not null check (kind in ('open', 'photo_guess', 'photo_fixed', 'help_opened')),
+  at timestamptz not null default now()
+);
+create index if not exists events_family on public.events (family_code, at);
+alter table public.events enable row level security;
+drop policy if exists "events: add my own" on public.events;
+create policy "events: add my own" on public.events
+  for insert to authenticated
+  with check (
+    member_id in (select public.my_member_ids())
+    and family_code in (select m.family_code from public.members m where m.id = member_id)
+  );
+
+-- A new phone: someone already at the table makes a one-day link for the person who lost or changed theirs.
+-- The person opens it and gets their own seat, meals and path back. The old phone loses access.
+create table if not exists public.rejoin_tokens (
+  token text primary key,
+  member_id uuid not null references public.members (id) on delete cascade,
+  made_by uuid not null,
+  expires_at timestamptz not null
+);
+alter table public.rejoin_tokens enable row level security;
+
+create or replace function public.make_rejoin(p_code text, p_member uuid)
+returns text language plpgsql security definer set search_path = public as $$
+declare
+  v_token text := '';
+  v_letters constant text := 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+begin
+  if not exists (select 1 from public.members where family_code = p_code and user_id = auth.uid() and joined) then
+    raise exception 'Not in this family';
+  end if;
+  if not exists (select 1 from public.members where id = p_member and family_code = p_code and joined and user_id is distinct from auth.uid()) then
+    raise exception 'That seat is not taken yet. Send the family code instead.';
+  end if;
+  delete from public.rejoin_tokens where member_id = p_member or expires_at < now();
+  for i in 1..12 loop
+    v_token := v_token || substr(v_letters, 1 + floor(random() * length(v_letters))::int, 1);
+  end loop;
+  insert into public.rejoin_tokens (token, member_id, made_by, expires_at) values (v_token, p_member, auth.uid(), now() + interval '1 day');
+  return v_token;
+end;
+$$;
+
+create or replace function public.claim_rejoin(p_token text)
+returns json language plpgsql security definer set search_path = public as $$
+declare
+  v_member uuid;
+  v_code text;
+begin
+  perform public.check_code_tries();
+  select r.member_id, m.family_code into v_member, v_code
+    from public.rejoin_tokens r join public.members m on m.id = r.member_id
+    where r.token = upper(trim(p_token)) and r.expires_at > now()
+    for update of r;
+  if v_member is null then
+    insert into public.code_tries (user_id) values (auth.uid());
+    return null;
+  end if;
+  if (select count(*) from public.members where user_id = auth.uid()) >= 5 then
+    raise exception 'This phone is already in the most families allowed.';
+  end if;
+  update public.members set user_id = auth.uid(), push_token = null, joined = true where id = v_member;
+  delete from public.rejoin_tokens where member_id = v_member;
+  return json_build_object('code', v_code, 'me_id', v_member);
+end;
+$$;
+
+-- The pilot at a glance, one row per family. Only visible in the Supabase dashboard, never to phones.
+-- "Answered" = someone else hearted or commented within 2 hours. "Back on day 7/14" = anyone in the family
+-- opened the app, shared, hearted or commented on that day give or take one, counted from when the family started.
+create or replace view public.pilot_metrics with (security_invoker = true) as
+with act as (
+  select family_code, at from public.events
+  union all select family_code, created_at from public.meals
+  union all select m.family_code, h.created_at from public.hearts h join public.members m on m.id = h.member_id
+  union all select family_code, created_at from public.cheers
+)
+select
+  f.code as family,
+  f.created_at as started,
+  (select count(*) from public.members m where m.family_code = f.code and m.joined) as people_joined,
+  (select min(m.created_at) from public.meals m where m.family_code = f.code) as first_meal_at,
+  (select min(m.created_at) from public.meals m where m.family_code = f.code and m.photo_url is not null) as first_photo_at,
+  (select count(*) from public.meals m where m.family_code = f.code and m.slot <> 'fasting') as meals,
+  (select count(*) from public.meals m where m.family_code = f.code and m.slot <> 'fasting' and (
+      exists (select 1 from public.hearts h where h.meal_id = m.id and h.member_id <> m.member_id and h.created_at <= m.created_at + interval '2 hours')
+      or exists (select 1 from public.cheers c where c.meal_id = m.id and c.from_id <> m.member_id and c.created_at <= m.created_at + interval '2 hours')
+  )) as meals_answered_within_2h,
+  exists (select 1 from act a where a.family_code = f.code and a.at >= f.created_at + interval '6 days' and a.at < f.created_at + interval '9 days') as back_on_day_7,
+  exists (select 1 from act a where a.family_code = f.code and a.at >= f.created_at + interval '13 days' and a.at < f.created_at + interval '16 days') as back_on_day_14,
+  (select count(*) from public.events e where e.family_code = f.code and e.kind = 'photo_guess') as photo_guesses,
+  (select count(*) from public.events e where e.family_code = f.code and e.kind = 'photo_fixed') as photo_guesses_fixed,
+  (select count(*) from public.events e where e.family_code = f.code and e.kind = 'help_opened') as starch_help_opened
+from public.families f;
+
+revoke all on public.pilot_metrics from anon, authenticated;
+revoke all on public.events from anon, authenticated;
+revoke all on public.rejoin_tokens from anon, authenticated;
+grant insert on public.events to authenticated;
+revoke execute on function public.set_path(text, uuid, int, numeric, date) from public, anon;
+revoke execute on function public.make_rejoin(text, uuid) from public, anon;
+revoke execute on function public.claim_rejoin(text) from public, anon;
+grant execute on function public.set_path(text, uuid, int, numeric, date) to authenticated;
+grant execute on function public.make_rejoin(text, uuid) to authenticated;
+grant execute on function public.claim_rejoin(text) to authenticated;

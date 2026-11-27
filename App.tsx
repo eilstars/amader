@@ -14,10 +14,17 @@ import SetupFamily from './src/screens/SetupFamily';
 import Join from './src/screens/Join';
 import Main from './src/screens/Main';
 import Onboarding from './src/screens/Onboarding';
+import Language from './src/screens/Language';
 
 function codeFromUrl(url: string | null): string | null {
   const match = url ? /[?&#]join=([A-Za-z0-9]+)/.exec(url) : null;
   return match ? cleanCode(match[1]) : null;
+}
+
+/** A new-phone link (…#rejoin=TOKEN) puts a person back in their seat after a lost phone or a reinstall. */
+function rejoinFromUrl(url: string | null): string | null {
+  const match = url ? /[?&#]rejoin=([A-Za-z0-9]{8,32})/.exec(url) : null;
+  return match ? match[1] : null;
 }
 
 function actionFromUrl(url: string | null): PendingAction | null {
@@ -33,6 +40,7 @@ function Root() {
   const store = useStore();
   const [step, setStep] = useState<'welcome' | 'setup' | 'join' | 'teach'>('welcome');
   const [justJoined, setJustJoined] = useState(false);
+  const [rejoin, setRejoin] = useState<{ token: string; state: 'waiting' | 'failed' } | null>(null);
 
   // After leaving a family, start again from the first screen, not the screen used to join.
   const hasSession = !!store.session;
@@ -52,6 +60,13 @@ function Root() {
       if (code) {
         store.setPendingCode(code);
         // On the web, take the code back out of the address bar so it is not passed on in a copied link or a screenshot.
+        if (Platform.OS === 'web' && typeof window !== 'undefined' && window.history?.replaceState) {
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+      }
+      const token = rejoinFromUrl(url);
+      if (token) {
+        setRejoin({ token, state: 'waiting' });
         if (Platform.OS === 'web' && typeof window !== 'undefined' && window.history?.replaceState) {
           window.history.replaceState(null, '', window.location.pathname);
         }
@@ -83,10 +98,35 @@ function Root() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!store.ready) {
+  // Claim the new-phone link once the saved state has loaded, so loading can't overwrite the claimed seat.
+  const ready = store.ready;
+  useEffect(() => {
+    if (!ready || !rejoin || rejoin.state !== 'waiting') return;
+    store.claimRejoin(rejoin.token).then((ok) => setRejoin(ok ? null : { ...rejoin, state: 'failed' }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, rejoin]);
+
+  if (!store.ready || rejoin?.state === 'waiting') {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.mint }}>
         <Image source={images.logo} style={{ width: 200, height: 139 }} resizeMode="contain" />
+      </View>
+    );
+  }
+
+  // Language comes first, before any words, for people who don't read English.
+  if (!store.prefs.lang) return <Language />;
+
+  if (rejoin?.state === 'failed') {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 16, backgroundColor: C.rice }}>
+        <T center w="bold" size={22}>
+          This link has already been used or is too old.
+        </T>
+        <T center color={C.muted}>
+          Ask your family for a new one. In Settings, they tap "New phone?" next to your name.
+        </T>
+        <Btn label="OK" onPress={() => setRejoin(null)} />
       </View>
     );
   }

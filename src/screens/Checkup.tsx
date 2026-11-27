@@ -5,7 +5,10 @@ import { PlateCard } from '../food';
 import { useStore } from '../store';
 import { C } from '../theme';
 import { sharePdf } from '../pdf';
-import { summaryHtml } from '../summary';
+import { starchSummaryHtml, summaryHtml } from '../summary';
+import { PILOT } from '../pilot';
+import { doctorSummary, lastStarch, usualFor } from '../starch';
+import { AmountArt } from '../starchArt';
 import { plateAverage } from '../game';
 import { Btn, Chip, PageHead, Row, T } from '../ui';
 import { dateText, daysBetween, handsText, slotName } from '../words';
@@ -40,7 +43,7 @@ export default function Checkup({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setStatus(null);
     try {
-      const html = summaryHtml({ me: me!, meals: mine, since, now, grain: store.goalFood, checkup });
+      const html = (PILOT ? starchSummaryHtml : summaryHtml)({ me: me!, meals: mine, since, now, grain: store.goalFood, checkup });
       const how = await sharePdf(html, `Meal summary for ${me!.name}`);
       setStatus(how === 'printed' ? 'Choose "Save as PDF" in the print window to keep a copy.' : null);
     } catch {
@@ -90,6 +93,16 @@ export default function Checkup({ onClose }: { onClose: () => void }) {
             <Chip label="Month" on={range === 30} onPress={() => setRange(30)} />
             <Chip label="3 months" on={range === 90} onPress={() => setRange(90)} />
           </Row>
+          {PILOT ? (
+            <View style={{ gap: 8 }}>
+              <AmountArt starch={lastStarch(store.meals, me.id) ?? 'rice'} amount={usualFor(store.meals, me.id, lastStarch(store.meals, me.id) ?? 'rice')} size={40} />
+              {doctorSummary(store.meals, me.id, now).map((l) => (
+                <T key={l} size={14} color={C.muted}>
+                  {l}
+                </T>
+              ))}
+            </View>
+          ) : (
           <Row gap={14}>
             <PlateCard size={92} grains={avg.counted ? avg.grains : 0} protein={avg.protein} veg={avg.veg} grain={store.goalFood} />
             <View style={{ flex: 1, gap: 2 }}>
@@ -99,11 +112,12 @@ export default function Checkup({ onClose }: { onClose: () => void }) {
               </T>
             </View>
           </Row>
+          )}
           {[
             ['Meals shared', String(real.length)],
             ['Days with something logged', `${daysLogged} of ${range}`],
             ['Snacks', String(real.filter((m) => m.slot === 'snack').length)],
-            ['Fasting days', String(mine.filter((m) => m.slot === 'fasting').length)],
+            ...(PILOT ? [] : [['Fasting days', String(mine.filter((m) => m.slot === 'fasting').length)]]),
             ['Eaten with others', String(real.filter((m) => (m.withIds?.length ?? 0) > 0 || m.withOthers).length)],
           ].map(([k, v]) => (
             <Row key={k} style={{ justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#EDF0EA', paddingTop: 8 }}>
@@ -123,7 +137,7 @@ export default function Checkup({ onClose }: { onClose: () => void }) {
             </View>
           ) : null}
           <T size={12} color={C.muted}>
-            Plus a full meal log. Hand measures, not weighed amounts. Not a medical record.
+            {PILOT ? 'Plus the starch for each day. Hand measures, not weighed amounts. Not a medical record.' : 'Plus a full meal log. Hand measures, not weighed amounts. Not a medical record.'}
           </T>
         </View>
 
@@ -136,7 +150,7 @@ export default function Checkup({ onClose }: { onClose: () => void }) {
 
         <View style={{ gap: 8 }}>
           <T w="semibold">Questions you might ask</T>
-          {[`Is ${handsText(avg.grains || store.goalHandfuls, 'fist', 'fists')} of ${store.goalFood.toLowerCase()} a meal right for me?`, 'Is there anything I should change about when I eat?', "Anything to change when I'm fasting?"].map((q) => (
+          {[PILOT ? 'Is the amount of rice or roti I usually eat right for me?' : `Is ${handsText(avg.grains || store.goalHandfuls, 'fist', 'fists')} of ${store.goalFood.toLowerCase()} a meal right for me?`, 'Is there anything I should change about when I eat?', ...(PILOT ? [] : ["Anything to change when I'm fasting?"])].map((q) => (
             <View key={q} style={{ backgroundColor: C.soft, borderRadius: 14, padding: 12 }}>
               <T size={15}>{q}</T>
             </View>

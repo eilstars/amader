@@ -85,6 +85,22 @@ export const localBackend: Backend & { seedDemo(): Promise<Session>; clear(): Pr
     return { family, meals, cheers, recipes, ticks, dishes };
   },
 
+  async setPath(_code, memberId, state) {
+    const family = await read<Family>(FAMILY);
+    if (!family) return;
+    await write(FAMILY, { ...family, path: { ...(family.path ?? {}), [memberId]: state } });
+  },
+
+  async logEvent() {},
+
+  async makeRejoin() {
+    throw new Error('A new-phone link needs the family to be online.');
+  },
+
+  async claimRejoin() {
+    return null;
+  },
+
   async setQuest(_code, quest) {
     const family = await read<Family>(FAMILY);
     if (!family) return;
@@ -134,6 +150,8 @@ export const localBackend: Backend & { seedDemo(): Promise<Session>; clear(): Pr
     if (party) {
       return {
         dish: 'Dawat plate',
+        starch: 'Rice',
+        starchAmount: 3,
         parts: { grain: 45, veg: 15, protein: 30, other: 10 },
         amount: 3,
         protein: 2,
@@ -149,7 +167,7 @@ export const localBackend: Backend & { seedDemo(): Promise<Session>; clear(): Pr
         sample: true,
       };
     }
-    return { dish: 'Dal, rice and sabzi', parts: { grain: 40, veg: 35, protein: 15, other: 10 }, amount: 2, protein: 1, veg: 1, dishes: [{ name: 'Rice', kind: 'base', amount: 2 }, { name: 'Dal', kind: 'main', amount: 1 }, { name: 'Sabzi', kind: 'side', amount: 1 }], sample: true };
+    return { dish: 'Dal, rice and sabzi', starch: 'Rice', starchAmount: 2, parts: { grain: 40, veg: 35, protein: 15, other: 10 }, amount: 2, protein: 1, veg: 1, dishes: [{ name: 'Rice', kind: 'base', amount: 2 }, { name: 'Dal', kind: 'main', amount: 1 }, { name: 'Sabzi', kind: 'side', amount: 1 }], sample: true };
   },
 
   async setHeart(mealId, memberId, on) {
@@ -299,6 +317,21 @@ export const localBackend: Backend & { seedDemo(): Promise<Session>; clear(): Pr
         date: at(5, 18, 0),
       },
     ];
+    // Starch-first: Ammi logged her usual (about 3 handfuls of rice) for a week, then chose 2½ six days ago.
+    const stepSince = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 5);
+    const sinceKey = `${stepSince.getFullYear()}-${String(stepSince.getMonth() + 1).padStart(2, '0')}-${String(stepSince.getDate()).padStart(2, '0')}`;
+    const pattern = [2.5, 2.5, 3, 2.5, 2, 2.5, 3, 3, 3.5, 3, 2.5, 3, 3, 3.5, 3, 3, 2.5, 3, 3, 3, 3];
+    for (const m of meals) {
+      if (m.slot === 'snack' || m.slot === 'fasting') continue;
+      const back = Math.round((now.getTime() - new Date(m.date).getTime()) / 86_400_000);
+      if (m.memberId === ammi.id && m.slot === 'dinner') m.handfuls = pattern[Math.min(back, pattern.length - 1)];
+      if (m.memberId === ammi.id && m.slot === 'breakfast') {
+        m.grain = 'Roti';
+        m.handfuls = 1;
+      }
+      if (m.memberId === ammi.id && back <= 3 && back % 2 === 0) m.vegFirst = true;
+    }
+    family.path = { [ammi.id]: { level: 1, step: 2.5, since: sinceKey } };
     await write(FAMILY, family);
     await write(MEALS, meals);
     await write(CHEERS, cheers);
