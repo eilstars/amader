@@ -4,7 +4,7 @@ DRAFT for lawyer review. Not legal advice. Washington's My Health My Data Act ex
 
 Effective date: [DATE]
 
-This policy explains how [YOUR LEGAL NAME or AMADER LLC] ("Amader") handles consumer health data, as defined by Washington's My Health My Data Act and similar laws in other states such as Nevada. Amader is not a medical app, but some of what families share about their meals could be treated as health information under these laws, so we treat it that way.
+This policy explains how Eiliyah Sarowar ("Amader") handles consumer health data, as defined by Washington's My Health My Data Act and similar laws in other states such as Nevada. Amader is not a medical app, but some of what families share about their meals could be treated as health information under these laws, so we treat it that way.
 
 ## Consumer health data we collect, and why
 
@@ -46,7 +46,7 @@ You have the right to:
 
 How to do this:
 - In the app: Me, "Delete my meals and leave" deletes everything. Me, Photos turns off photo reading and learning examples. "Remove" under any meal deletes that meal.
-- By email: [CONTACT EMAIL]. We will answer within 45 days. If we need more time we will tell you why, and we may take up to 45 more days.
+- By email: [eiliyahsa@gmail.com](mailto:eiliyahsa@gmail.com). We will answer within 45 days. If we need more time we will tell you why, and we may take up to 45 more days.
 
 If we turn down your request, you can appeal by replying to our answer. We will answer the appeal within 45 days. If you are not satisfied you can contact the Washington State Attorney General at https://www.atg.wa.gov/file-complaint.
 
@@ -56,4 +56,4 @@ We ask for your consent before we collect consumer health data, when you set up 
 
 ## Contact
 
-[YOUR LEGAL NAME or AMADER LLC], [MAILING ADDRESS], [CONTACT EMAIL]
+Eiliyah Sarowar, PMB 351466, 2301 Vanderbilt Place, Nashville, TN 37235-1466, [eiliyahsa@gmail.com](mailto:eiliyahsa@gmail.com)

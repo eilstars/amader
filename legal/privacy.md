@@ -4,11 +4,11 @@ DRAFT for lawyer review. Not legal advice. Fill in everything in [brackets] befo
 
 Effective date: [DATE]
 
-Amader is run by [YOUR LEGAL NAME, or AMADER LLC once formed] ("Amader", "we", "us"). Amader helps families share one meal a day and keep an eye on one food together. It is not a medical app. It does not ask for health readings, diagnoses or medicines, and it does not give medical advice.
+Amader is run by Eiliyah Sarowar ("Amader", "we", "us"). Amader helps families share one meal a day and keep an eye on one food together. It is not a medical app. It does not ask for health readings, diagnoses or medicines, and it does not give medical advice.
 
 This policy covers the Amader app on iPhone and Android and the web version of the app. If you live in Washington State or Nevada, please also read our [Consumer Health Data Privacy Policy](health-data.html), which says the same things in the form those states require.
 
-Questions or requests: [CONTACT EMAIL]. Mail: [MAILING ADDRESS, a PO box is fine].
+Questions or requests: [eiliyahsa@gmail.com](mailto:eiliyahsa@gmail.com). Mail: Eiliyah Sarowar, PMB 351466, 2301 Vanderbilt Place, Nashville, TN 37235-1466.
 
 ## The short version
 
@@ -71,7 +71,7 @@ We do not use your information for advertising, we do not sell it, and we do not
 
 **Your path.** The step you picked and your progress are shown to your family, like your meals.
 
-**People who run Amader.** [YOUR NAME] can open the database and photo storage to run and fix the service, keep it secure, answer your requests and, during the pilot, see the usage counts above. We do not browse your photos. We open one only to fix a problem you reported, to deal with abuse, or with your permission.
+**People who run Amader.** Eiliyah Sarowar can open the database and photo storage to run and fix the service, keep it secure, answer your requests and, during the pilot, see the usage counts above. We do not browse your photos. We open one only to fix a problem you reported, to deal with abuse, or with your permission.
 
 **People outside your family.** Nobody else can open your family's photos. Photos are kept in private storage and open only through links that expire after an hour.
 
@@ -141,7 +141,7 @@ We may also share information if the law requires it, to protect someone's safet
 - **Delete a meal:** tap "Remove" under your meal on Our Table. The photo is deleted too.
 - **Delete everything:** Me, "Delete my meals and leave". This removes your meals, photos, hearts, learning examples and your seat at the table.
 - **Turn off photo reading or learning examples:** Me, Photos.
-- **Get a copy or ask a question:** email [CONTACT EMAIL]. Because Amader has no accounts, we will ask for your family code and name to find your information, and may ask you to confirm from the app.
+- **Get a copy or ask a question:** email [eiliyahsa@gmail.com](mailto:eiliyahsa@gmail.com). Because Amader has no accounts, we will ask for your family code and name to find your information, and may ask you to confirm from the app.
 
 Depending on where you live, you may have rights to access, correct, delete or get a copy of your information, to withdraw consent, and to appeal if we say no. We honour these requests for everyone, wherever they live. If we turn down a request you may appeal by replying to our answer; if you are still unhappy you may contact your state attorney general.
 
@@ -165,6 +165,6 @@ If we change this policy we will update the date at the top and show a notice in
 
 ## Contact
 
-[YOUR LEGAL NAME or AMADER LLC]
-[MAILING ADDRESS]
-[CONTACT EMAIL]
+Eiliyah Sarowar
+PMB 351466, 2301 Vanderbilt Place, Nashville, TN 37235-1466
+[eiliyahsa@gmail.com](mailto:eiliyahsa@gmail.com)

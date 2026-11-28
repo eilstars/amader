@@ -4,7 +4,7 @@ DRAFT for lawyer review. Not legal advice. Fill in everything in [brackets].
 
 Effective date: [DATE]
 
-These terms are an agreement between you and [YOUR LEGAL NAME or AMADER LLC] ("Amader", "we", "us"). By setting up or joining a family table, you agree to them and to our [Privacy Policy](privacy.html) and [Consumer Health Data Privacy Policy](health-data.html).
+These terms are an agreement between you and Eiliyah Sarowar ("Amader", "we", "us"). By setting up or joining a family table, you agree to them and to our [Privacy Policy](privacy.html) and [Consumer Health Data Privacy Policy](health-data.html).
 
 ## 1. Who can use Amader
 
@@ -16,7 +16,7 @@ Amader helps families share meals and keep an eye on one food together. It is no
 
 ## 3. Your family table
 
-Anyone with your family code can join your family table and see what is shared there. Keep the code private and share it only with family. You are responsible for who you invite. If a code reaches someone it should not, email us at [CONTACT EMAIL] and we will help.
+Anyone with your family code can join your family table and see what is shared there. Keep the code private and share it only with family. You are responsible for who you invite. If a code reaches someone it should not, email us at [eiliyahsa@gmail.com](mailto:eiliyahsa@gmail.com) and we will help.
 
 ## 4. What you share
 
@@ -63,4 +63,4 @@ To the extent the law allows, Amader is not liable for indirect, incidental, spe
 
 ## 13. Contact
 
-[YOUR LEGAL NAME or AMADER LLC], [MAILING ADDRESS], [CONTACT EMAIL]
+Eiliyah Sarowar, PMB 351466, 2301 Vanderbilt Place, Nashville, TN 37235-1466, [eiliyahsa@gmail.com](mailto:eiliyahsa@gmail.com)
