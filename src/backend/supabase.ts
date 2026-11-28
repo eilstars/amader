@@ -29,6 +29,7 @@ type MealRow = {
   grain: string | null;
   items: PlateItem[] | null;
   same_as: string | null;
+  veg_first: boolean | null;
   hearts: { member_id: string }[] | null;
 };
 type CheerRow = { id: string; from_id: string; to_id: string; meal_id: string | null; text: string; created_at: string };
@@ -181,7 +182,7 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
 
     async load(code) {
       await signedIn();
-      const fam = await db.from('families').select('code, goal_food, goal_handfuls, folder, quest, costumes').eq('code', code).maybeSingle();
+      const fam = await db.from('families').select('code, goal_food, goal_handfuls, folder, quest, costumes, path').eq('code', code).maybeSingle();
       fail(fam.error);
       if (!fam.data) return null;
       folders.set(code, fam.data.folder as string);
@@ -192,7 +193,7 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
       const [mealRows, cheerRows, recipeRows, tickRows, dishRows] = await Promise.all([
         db
           .from('meals')
-          .select('id, member_id, eaten_at, slot, photo_url, handfuls, protein, veg, fruit, dairy, dish, parts, note, voice_url, with_ids, with_others, party, grain, same_as, items, hearts(member_id)')
+          .select('id, member_id, eaten_at, slot, photo_url, handfuls, protein, veg, fruit, dairy, dish, parts, note, voice_url, with_ids, with_others, party, grain, same_as, items, veg_first, hearts(member_id)')
           .eq('family_code', code)
           .gte('eaten_at', since)
           .order('eaten_at', { ascending: false }),
@@ -207,7 +208,7 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
       fail(cheerRows.error);
       fail(recipeRows.error);
       const members: Member[] = ((mem.data ?? []) as MemberRow[]).map((m) => ({ id: m.id, name: m.name, role: m.role, tint: m.tint, joined: m.joined }));
-      const family: Family = { code: fam.data.code, members, goalFood: fam.data.goal_food, goalHandfuls: fam.data.goal_handfuls, quest: (fam.data.quest as string | null) ?? null, costumes: (fam.data.costumes as string[] | null) ?? [] };
+      const family: Family = { code: fam.data.code, members, goalFood: fam.data.goal_food, goalHandfuls: fam.data.goal_handfuls, quest: (fam.data.quest as string | null) ?? null, costumes: (fam.data.costumes as string[] | null) ?? [], path: (fam.data.path as Family['path'] | null) ?? {} };
       const rows = (mealRows.data ?? []) as unknown as MealRow[];
       const recipeList = (recipeRows.data ?? []) as RecipeRow[];
       await Promise.all([
@@ -220,7 +221,6 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
         date: m.eaten_at,
         slot: m.slot,
         photo: linkOf(m.photo_url),
-        handfuls: m.handfuls,
         protein: m.protein,
         veg: m.veg,
         fruit: m.fruit,
@@ -235,6 +235,9 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
         grain: m.grain,
         items: Array.isArray(m.items) ? m.items : null,
         sameAs: m.same_as,
+        vegFirst: m.veg_first,
+        // Amounts are stored as numeric so halves fit; some drivers hand them back as text.
+        handfuls: m.handfuls === null ? null : Number(m.handfuls),
         hearts: (m.hearts ?? []).map((h) => h.member_id),
       }));
       const cheers: Cheer[] = ((cheerRows.data ?? []) as CheerRow[]).map((c) => ({ id: c.id, fromId: c.from_id, toId: c.to_id, mealId: c.meal_id, text: c.text, date: c.created_at }));
@@ -255,6 +258,36 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
         ? []
         : ((dishRows.data ?? []) as { id: string; added_by: string; name: string; parts: FamilyDish['parts']; created_at: string }[]).map((d) => ({ id: d.id, addedBy: d.added_by, name: d.name, parts: Array.isArray(d.parts) ? d.parts : [], date: d.created_at }));
       return { family, meals, cheers, recipes, ticks, dishes };
+    },
+
+    async setPath(code, memberId, state) {
+      await signedIn();
+      const { error } = await db.rpc('set_path', { p_code: code, p_member: memberId, p_level: state.level, p_step: state.step, p_since: state.since });
+      fail(error);
+    },
+
+    async logEvent(code, meId, kind) {
+      try {
+        await signedIn();
+        await db.from('events').insert({ family_code: code, member_id: meId, kind });
+      } catch {
+        // Measuring the pilot must never get in anyone's way.
+      }
+    },
+
+    async makeRejoin(code, memberId) {
+      await signedIn();
+      const { data, error } = await db.rpc('make_rejoin', { p_code: code, p_member: memberId });
+      fail(error);
+      return String(data);
+    },
+
+    async claimRejoin(token) {
+      await signedIn();
+      const { data, error } = await db.rpc('claim_rejoin', { p_token: token });
+      if (error || !data) return null;
+      const row = data as { code: string; me_id: string };
+      return { code: row.code, meId: row.me_id };
     },
 
     async setQuest(code, quest) {
@@ -321,7 +354,13 @@ export function makeSupabaseBackend(url: string, anonKey: string): Backend {
         grain: meal.grain ?? null,
         same_as: meal.sameAs ?? null,
         items: meal.items?.length ? meal.items : null,
+        veg_first: meal.vegFirst ?? null,
       });
+      if (error) {
+        // The files went up first. If the meal itself was refused, take them back down so nothing is left without its meal.
+        if (photoPath) await db.storage.from(BUCKET).remove([photoPath]).catch(() => undefined);
+        if (voicePath) await db.storage.from(VOICE).remove([voicePath]).catch(() => undefined);
+      }
       fail(error);
       return { ...meal, photo: photoPath ? (linkOf(photoPath) ?? photo?.uri ?? null) : null, voice: voicePath ? (linkOf(voicePath, VOICE) ?? voice?.uri ?? null) : null };
     },

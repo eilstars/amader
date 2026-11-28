@@ -51,12 +51,19 @@ const Guess = z.object({
       }),
     )
     .describe("Each separate dish on the plate, at most 10."),
+  starch: z
+    .enum(["Rice", "Roti", "Bread", "Noodles", "Potato", "Other", "None"])
+    .describe("The main starch on the plate. Rice includes biryani, pulao and khichuri. Roti includes naan, paratha, chapati, tortilla, pita, dosa and pizza. Bread is sliced bread, toast, buns and sandwiches. Noodles includes pasta. Potato includes fries and sweet potato. None if there is no starch."),
+  starch_amount: z
+    .number()
+    .describe("How much of that starch is on the plate. For Rice, Noodles, Potato and Other: cupped handfuls, where one cupped handful of cooked rice is about half a cup. For Roti: whole pieces. For Bread: slices. Use halves (0.5, 1, 1.5 ... 6). For starch mixed into a dish like biryani, count only the rice part."),
   confident: z.boolean().describe("False if the photo is too dark, blurry or far away to judge."),
 });
 
 const SYSTEM = `You look at a photo of a home meal and describe what is on the plate for a family meal-sharing app.
 Many of the families are South Asian, so expect dishes like biryani, khichdi, dal, sabzi, roti, paratha, curry, raita and mithai, and name them the way a family would.
 List each dish the way a family would name it, with its kind and amount. Curries often hold dairy, dal or vegetables cooked in; name the dish, not its ingredients.
+Most important: name the main starch on the plate and how much of it there is, in cupped handfuls (loose starch like rice), pieces (roti, naan, tortilla, pizza slices) or slices (bread). Halves are fine. Be careful and realistic about amount: compare with the plate size (a dinner plate is about 25 cm across).
 Also estimate portions by food group: grains in closed fists (about half a cup each), protein in palms, vegetables in open handfuls, fruit in pieces, dairy in cups.
 If the user says it is a party or buffet plate, list each separate food in items.
 The four percentages describe the food you can see and should add up to about 100.
@@ -145,6 +152,8 @@ Deno.serve(async (req) => {
               .filter((d) => d.name)
               .slice(0, 10)
           : [],
+        starch: guess.starch,
+        starchAmount: guess.confident ? Math.max(0, Math.min(6, Math.round(guess.starch_amount * 2) / 2)) : null,
         confident: guess.confident,
       },
     });

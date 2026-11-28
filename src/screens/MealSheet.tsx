@@ -1,3 +1,7 @@
+import { PILOT } from '../pilot';
+import { starchOf } from '../starch';
+import { starchText } from './StarchLog';
+import { AmountArt, FoodArt } from '../starchArt';
 import React, { useState } from 'react';
 import { Beat } from '../motion';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
@@ -66,6 +70,7 @@ export default function MealSheet({ mealId, onPerson, canComment = true }: { mea
         ['cup', meal.dairy],
       ] as [IconName, number | null | undefined][]).filter(([, n]) => (n ?? 0) > 0);
   const canJoin =
+    !PILOT &&
     !!meId && !own && !fasting && !meal.sameAs && (meal.withIds ?? []).includes(meId) && daysBetween(new Date(meal.date), new Date()) <= 1 && !store.meals.some((m) => m.memberId === meId && m.sameAs === meal.id);
 
   async function send(text: string) {
@@ -118,7 +123,15 @@ export default function MealSheet({ mealId, onPerson, canComment = true }: { mea
             <T w="bold" size={S.title} style={{ lineHeight: 26 }}>
               {fasting ? 'Fasting today' : meal.dish || `${slotName(meal.slot)} plate`}
             </T>
-            {meal.items?.length ? (
+            {PILOT && !fasting ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {meal.handfuls !== null && starchOf(meal.grain) ? <AmountArt starch={starchOf(meal.grain) ?? 'rice'} amount={meal.handfuls} size={30} /> : null}
+                <T w="bold" size={S.small} color={C.deep}>
+                  {starchText(store.t, store.lang, meal.grain, meal.handfuls)}
+                </T>
+                {meal.vegFirst ? <FoodArt art="sabzi" size={24} /> : null}
+              </View>
+            ) : meal.items?.length ? (
               <View style={{ gap: 2 }}>
                 {meal.items.map((it, i) => (
                   <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -142,7 +155,7 @@ export default function MealSheet({ mealId, onPerson, canComment = true }: { mea
               </View>
             ) : null}
             <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-              {isBalanced(meal) ? <Chip text="Balanced plate" icon="check" bg={C.mint} /> : null}
+              {!PILOT && isBalanced(meal) ? <Chip text="Balanced plate" icon="check" bg={C.mint} /> : null}
               {meal.party ? <Chip text="Party plate" icon="sparkle" bg={C.mint} /> : null}
             </View>
           </View>

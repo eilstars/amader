@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CostumeArt, isCostume } from "../costumes";
+import { PILOT } from "../pilot";
 import {
   BigButton,
   DayDots,
@@ -56,6 +57,7 @@ export default function Us({
   onRecap,
   onRecipes,
   onMeal,
+  onPath,
 }: {
   onMe: () => void;
   onPerson: (id: string) => void;
@@ -63,6 +65,7 @@ export default function Us({
   onRecap: () => void;
   onRecipes: () => void;
   onMeal: (id: string) => void;
+  onPath?: () => void;
 }) {
   const store = useStore();
   const insets = useSafeAreaInsets();
@@ -333,7 +336,7 @@ export default function Us({
                   </Pressable>
                 );
               })}
-              {q && !costumes.includes(q.quest.costume) ? (
+              {!PILOT && q && !costumes.includes(q.quest.costume) ? (
                 <View style={{ width: 80, alignItems: "center" }}>
                   <View
                     style={{
@@ -354,7 +357,12 @@ export default function Us({
                   </T>
                 </View>
               ) : null}
-              <View style={{ width: 80, alignItems: "center" }}>
+              <Pressable
+                onPress={PILOT ? onPath : undefined}
+                disabled={!PILOT}
+                accessibilityRole={PILOT ? "button" : undefined}
+                style={{ width: 80, alignItems: "center" }}
+              >
                 <View
                   style={{
                     width: 64,
@@ -372,12 +380,13 @@ export default function Us({
                   </T>
                 </View>
                 <T w="bold" size={S.small} center style={{ marginTop: 4 }}>
-                  Next week
+                  {PILOT ? store.t("spend") : "Next week"}
                 </T>
-              </View>
+              </Pressable>
             </ScrollView>
           </View>
 
+          {PILOT ? null : (
           <View style={card}>
             <View
               style={{
@@ -437,6 +446,7 @@ export default function Us({
               </T>
             )}
           </View>
+          )}
         </>
       ) : null}
     </ScrollView>

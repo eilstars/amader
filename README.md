@@ -4,6 +4,30 @@ Same food, right amount, with family. One app for iPhone, Android and the web.
 
 Each person shares one photo of a meal a day, taps how much of one goal food (rice by default) was on the plate, and the family sends hearts. There is a weekly recap and a plain meal summary a parent can bring to a checkup. Amader is not a medical app: no health readings, no projections, no advice.
 
+## The pilot build (starch first)
+
+By default the app is the pilot build: a short, focused version for the 2 week pilot (families get $30 as a thank-you).
+
+- Language comes first, before any words: 37 languages to pick from, with a "From your phone" choice. English, Bangla and Hindi have text so far; the rest fall back to English until the professional translations are in (`src/i18n.ts`).
+- Logging is starch first: pick the starch with pictures (rice, roti, bread, noodles, potato, other, none), then the amount in handfuls, pieces or slices, in halves. A photo fills both in as Mado's guess, and the person can fix it right there. The (?) opens a tap-the-food game that shows what a starch is.
+- The path: share 5 days so Mado learns the usual, pick a small step, then sabzi first, another step, then easy weeks. Each stop is 5 of 7 days, and two quiet days a week are forgiven.
+- One family pot of grains (meals, hearts, days at the step, stops reached, a kept weekly bowl). Grains buy Mado's costumes. No personal points.
+- Hidden in the pilot: quests, medicine reminders, fasting mode, recipes, comments, "I ate this too", the old dish logging and the food database. Build with `EXPO_PUBLIC_FULL=1` to bring them all back.
+- The doctor page is a plain starch log by day. No nutrient numbers.
+- New phone: in Settings, a family member taps "New phone?" next to a person's name and sends the link. It puts that person back in their seat with all their meals, works once, and expires after a day.
+
+### Privacy checks for the database
+
+`supabase/tests/privacy-test.sql` runs the database rules on a throwaway local Postgres as different phones: an outsider sees nothing, nobody reads sign-in ids or push addresses, a "New phone?" link can't be used by the person who made it, and so on. Run it after any change to `schema.sql`.
+
+### Pilot numbers
+
+After running the newest `supabase/schema.sql`, open the SQL Editor and run `select * from pilot_metrics;`. One row per family: people joined, first meal and first photo times, meals, meals that got a heart or note within 2 hours, whether they came back on day 7 and day 14, photo guesses, guesses that were fixed by hand, and how often the (?) was opened. Phones cannot read this view.
+
+### Check the photo guesses on real plates
+
+Before the pilot, run 20 to 30 real plate photos through the photo guess and see how often it is right. Instructions are at the top of `tools/photo-check.mjs`. It uses the deployed function, so no Anthropic key is needed on your computer.
+
 ## What works today
 
 - Welcome, and a sample family you can click through with no setup
@@ -48,7 +72,7 @@ Without this step the app keeps everything on one phone.
 
 Now set the table on one phone, and enter the family code on another.
 
-How privacy works: nobody makes an account. Each phone signs in anonymously and the database only shows a phone the families it has joined. The family code is the only way in. The rules are in `supabase/schema.sql` and were tested on a local Postgres. Known limits for now: meal photos sit at long random web addresses that are not listed anywhere but are not password protected, and a person who deletes the app or clears their browser loses their seat and has to rejoin as a new member.
+How privacy works: nobody makes an account. Each phone signs in anonymously and the database only shows a phone the families it has joined. The family code is the only way in. The rules are in `supabase/schema.sql` and were tested on a local Postgres. Known limits for now: meal photos sit at long random web addresses that are not listed anywhere but are not password protected, and a person who deletes the app or clears their browser needs a "New phone?" link from someone in the family to get their seat back.
 
 ## Turn on food recognition (about 5 minutes, after Supabase is set up)
 
@@ -128,6 +152,33 @@ npx eas-cli@latest submit
 - The photo is not copied. Each row points at the family's own photo and is removed when the meal is removed, when the person turns the setting off, or when they leave.
 - The checkup screen shows the person's recent plate photos to hold up at an appointment. The shared text summary has no photos in it.
 
+## Automatic deletion (about 10 minutes, after Supabase is set up)
+
+Nothing is deleted by age while a family uses Amader. People remove meals themselves, or leave. A small function runs once a day and deletes:
+
+- family tables with no meals and no new members for 12 months, with their members, meals, photos and hearts. First, the photos people shared with "Help Amader learn our food" are copied into the private `dataset` bucket and `dataset` table, under a new random id with no name, family or sign-in. That is the lasting learning set
+- anonymous sign-ins that are not in any family, after 30 days
+- the wrong-code and photo-reading counters, after 1 and 2 days
+
+1. Make a long random secret, for example with `openssl rand -hex 32`.
+2. In this folder:
+
+   ```bash
+   npx supabase secrets set CLEANUP_SECRET=the-secret-from-step-1
+   npx supabase functions deploy cleanup --no-verify-jwt
+   ```
+
+   (`--no-verify-jwt` is needed because the daily job calls it with that secret instead of a sign-in. The function refuses any call without the secret.)
+3. Run `supabase/schema.sql` again (it adds the `dataset` table and bucket and a lookup the function uses).
+4. Open `supabase/cleanup-schedule.sql`, put in your project ref and the same secret, and run it in the SQL editor. Do not save the filled-in copy in this repo.
+5. Check the next day: `select * from cron.job_run_details order by start_time desc limit 5;`
+
+To change the idle time, set `IDLE_DAYS` with `npx supabase secrets set IDLE_DAYS=...`, change `IDLE_MONTHS` in `src/legal.tsx`, and update the privacy policy. Untested against a real Supabase project so far; the database part was tested on a local Postgres.
+
+## Privacy policy and terms
+
+Drafts for a lawyer to review are in `legal/`. `python3 scripts/build-legal.py` (needs `pip install markdown`) turns them into `public/privacy.html`, `public/terms.html` and `public/health-data.html`, which are published next to the web app. The app links to them from the welcome, setup, join and Me screens (`src/legal.tsx`). Fill in every `[bracket]` before real families use the app. On the phone app the links need `EXPO_PUBLIC_WEB_URL` set; without it they show as plain text.
+
 ## Security notes (review of 2026-11-16)
 
 - Family codes are 8 letters. A phone that types 10 wrong codes in an hour is locked out for an hour (`code_tries`).
@@ -138,7 +189,7 @@ npx eas-cli@latest submit
 - Worth adding before a public launch: a CAPTCHA on anonymous sign-ins (Supabase supports Turnstile), a way to remove a family member, and a way to change the family code if it leaks.
 - Known limit: there are no accounts, so a person who clears their browser data or reinstalls the app comes back as a new member.
 
-## Where data goes (second review, 2026-11-16)
+## Where data goes (third review, 2026-11-27)
 
 | What | Where it goes | When |
 | --- | --- | --- |
@@ -147,10 +198,15 @@ npx eas-cli@latest submit
 | Voice notes, notes to family, recipes | Your Supabase project. Voice notes sit in a private `meal-voice` bucket in the family's folder | When the person shares one |
 | WhatsApp nudges | WhatsApp, only the text the person chose to send. Amader never stores phone numbers | Only when the person taps the WhatsApp button |
 | Doctor summary PDF | Made on the phone. Goes only where the person sends it | Only when the person taps "Make the PDF" |
-| Meal photos | Anthropic (Claude), through your Supabase function | Only after the person taps "Yes, guess". Asked once, off until then |
-| Hand position in a photo | Nowhere. Worked out on the phone and thrown away | Never leaves the device |
+| Meal photos | Anthropic (Claude), through your Supabase function | Only after the person taps "Yes" on the first photo. Asked once, off until then |
+| Hand position in a photo | Nowhere. Worked out on the phone and thrown away, never saved | Never leaves the device |
 | Location | Nowhere. Photos are re-saved before upload, which strips GPS. If that step fails the photo is not used | Never |
 | Family code | Supabase only. Invite links carry it after a `#`, which browsers do not send to the web host or to link previews | |
+| Starch, amount, veg first, path step | Your Supabase project. The family sees them like meals | When a meal is shared or a step is picked |
+| Usage records (app opened, photo guess made or fixed, help opened) | Your Supabase project, `events` table. Phones can add their own but never read any. Only the dashboard's `pilot_metrics` reads them, labelled by a folder id, not the joinable code | Once a day on open, and on those taps |
+| "New phone?" links | Supabase `rejoin_tokens`, random from the secure generator, one use, one day. Shared by the person who made it | When someone taps "New phone?" |
+| Family notifications | Expo's push service, then Apple or Google. Only a first name and the meal time: never what was eaten, a note's words or a photo | When someone shares a meal or sends a note, if notifications are on |
+| Language | Only on the phone | |
 
 ## Keys: which are secret
 

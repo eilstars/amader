@@ -3,6 +3,7 @@ import { isBalanced, plateAverage } from './game';
 import { dateText, handsText, plateLine, slotName, startOfDay, timeText } from './words';
 import { amountText } from './dishes';
 import { FOOD_SOURCE, Nutrients, estimate } from './foods';
+import { doctorRows, doctorSummary } from './starch';
 
 const esc = (text: string) => text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 
@@ -163,5 +164,55 @@ ${photos.length ? `<h2>Recent plates</h2><div class="grid">${photos.map((m) => `
 ${meals.length > log.length ? `<p class="muted">Showing the newest ${log.length} of ${meals.length} entries.</p>` : ''}
 
 <div class="note">A simple log of meals shared in the Amader app by ${esc(me.name)}. Portions are rough hand measures, not weighed amounts. Nutrition figures are rough estimates. It is not a medical record and has no readings or advice.</div>
+</body></html>`;
+}
+
+/**
+ * The pilot's doctor page: a plain starch log. What starch, how much in the person's own hand, by day.
+ * No nutrient numbers, no scores, no advice. A short list of plain sentences on top, then the days.
+ */
+export function starchSummaryHtml({ me, meals, since, now, checkup }: SummaryInput): string {
+  const days = Math.max(1, Math.round((startOfDay(now).getTime() - startOfDay(since).getTime()) / 86_400_000) + 1);
+  const rows = doctorRows(meals, me.id, now, days);
+  const lines = doctorSummary(meals, me.id, now);
+  const real = meals.filter((m) => m.slot !== 'fasting');
+  const photos = real.filter((m) => printable(m.photo)).slice(0, 9);
+  const dayText = (key: string) => {
+    const [y, mo, d] = key.split('-').map(Number);
+    const date = new Date(y, mo - 1, d);
+    return `${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()]} ${dateText(date)}`;
+  };
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Meal summary for ${esc(me.name)}</title>
+<style>
+  @page { margin: 18mm 16mm; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1D2B24; font-size: 12pt; line-height: 1.45; }
+  h1 { font-size: 22pt; margin: 0 0 2pt; color: #145A41; }
+  h2 { font-size: 13pt; margin: 18pt 0 6pt; color: #145A41; border-bottom: 1.5pt solid #D5DDD6; padding-bottom: 3pt; }
+  .muted { color: #56675E; font-size: 10.5pt; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 5pt 4pt; border-bottom: 0.5pt solid #E3E8E4; vertical-align: top; font-size: 11pt; }
+  td.d { white-space: nowrap; font-weight: 600; width: 28%; }
+  .head { display: flex; justify-content: space-between; align-items: flex-end; }
+  .brand { color: #1F7A5A; font-weight: 700; font-size: 14pt; }
+  .grid { display: flex; flex-wrap: wrap; gap: 8pt; }
+  .ph { width: 30%; font-size: 9.5pt; color: #56675E; }
+  .ph img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6pt; display: block; margin-bottom: 2pt; }
+  ul { margin: 0; padding-left: 16pt; }
+  .note { margin-top: 18pt; padding: 8pt 10pt; background: #F1F4EE; border-radius: 6pt; font-size: 10pt; color: #56675E; }
+</style></head><body>
+<div class="head"><div><h1>Meal summary for ${esc(me.name)}</h1>
+<div class="muted">${dateText(since)} to ${dateText(now)}, ${now.getFullYear()}${checkup ? ` · for the checkup on ${dateText(checkup)}` : ''}</div></div>
+<div class="brand">Amader</div></div>
+
+<h2>At a glance</h2>
+<ul>${lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>
+<p class="muted">A handful is the person's own cupped hand, about half a cup of cooked rice. Roti and bread are counted in pieces and slices.</p>
+
+<h2>Starch by day</h2>
+${rows.length ? `<table>${rows.map((r) => `<tr><td class="d">${esc(dayText(r.day))}</td><td>${r.meals.map((m) => `${esc(slotName(m.slot))}: ${esc(m.text)}`).join('<br>')}</td></tr>`).join('')}</table>` : '<p class="muted">Nothing logged in this time.</p>'}
+
+${photos.length ? `<h2>Recent plates</h2><div class="grid">${photos.map((m) => `<div class="ph"><img src="${esc(m.photo as string)}" alt=""><b>${dateText(new Date(m.date))}</b>, ${esc(slotName(m.slot).toLowerCase())}</div>`).join('')}</div>` : ''}
+
+<div class="note">A simple log of meals shared in the Amader app by ${esc(me.name)}. Amounts are the person's own hand estimates, not weighed. It is not a medical record and has no readings, nutrient figures or advice.</div>
 </body></html>`;
 }

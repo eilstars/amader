@@ -10,6 +10,8 @@ import { Member } from '../types';
 import { T } from '../ui';
 import { dayName, fastingToday, greeting, hourText, sameDay } from '../words';
 import { todaysPlate } from './Home';
+import { PILOT } from '../pilot';
+import { PathCard } from './Path';
 
 /** Days of sharing before comments, then the family quest, show up in the simple view. */
 export const UNLOCK = { comments: 4, quest: 7 };
@@ -40,7 +42,7 @@ export default function ParentHome({ onAdd, onMe, onMeal, onPerson, onQuest, onM
 
   const today = new Date();
   const mine = todaysPlate(meals, me.id);
-  const fasting = fastingToday(prefs);
+  const fasting = !PILOT && fastingToday(prefs);
   const costume = wornCostume(family.costumes, prefs.wear);
   const note = cheers.find((c) => c.toId === me.id && !c.mealId && today.getTime() - new Date(c.date).getTime() < 4 * 86_400_000);
   const from = note ? store.member(note.fromId) : undefined;
@@ -110,7 +112,11 @@ export default function ParentHome({ onAdd, onMe, onMeal, onPerson, onQuest, onM
       <T w="bold" size={36} style={{ lineHeight: 42 }}>
         {mine ? 'Thank you for sharing!' : 'Did you eat?'}
       </T>
-      {questOpen && store.quest ? (
+      {PILOT ? (
+        <View style={{ marginTop: 8 }}>
+          <PathCard onPress={onQuest} />
+        </View>
+      ) : questOpen && store.quest ? (
         <Pressable onPress={onQuest} accessibilityRole="button" accessibilityLabel={`${store.quest.quest.name}. Open the quest`}>
           <River done={store.quest.done} goal={store.quest.goal} width={w} goalArt={<CostumeArt id={store.quest.quest.costume} size={34} />} />
           <T w="bold" size={S.small} color={C.deep}>
@@ -162,7 +168,7 @@ export default function ParentHome({ onAdd, onMe, onMeal, onPerson, onQuest, onM
             </View>
           ) : null}
 
-          {prefs.meds.on && prefs.meds.slots.length ? (
+          {!PILOT && prefs.meds.on && prefs.meds.slots.length ? (
             <Pressable onPress={onMeds} accessibilityRole="button" accessibilityLabel="My medicine week" style={[card, { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 }]}>
               <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: C.mint, alignItems: 'center', justifyContent: 'center' }}>
                 <Icon name="pill" size={24} />

@@ -70,6 +70,8 @@ export interface Meal {
   sameAs?: string | null;
   /** The dishes on the plate, each in its own measure ("Rice, 2 fists"). The food group counts above come from these. */
   items?: PlateItem[] | null;
+  /** Started the meal with a few bites of vegetables (only asked once that stop is on the path). */
+  vegFirst?: boolean | null;
 }
 
 /** Rough share of the plate, in percent. */
@@ -97,6 +99,10 @@ export interface Guess {
   dishes?: PlateItem[];
   /** True when this is canned sample data, not a real reading of the photo. */
   sample?: boolean;
+  /** The starch Mado sees ("Rice", "Roti"...), or "None". Starch-first logging uses only this and the amount below. */
+  starch?: string | null;
+  /** How much of it, in that starch's measure (handfuls, pieces or slices), in halves. Null when unsure. */
+  starchAmount?: number | null;
 }
 
 /** A note from one family member to another: "You're doing great, Ammi!" */
@@ -161,6 +167,8 @@ export interface Family {
   quest?: string | null;
   /** Mado's costumes the family has earned by finishing quests, oldest first. */
   costumes?: string[];
+  /** Each looked-after person's place on their path, by member id. See src/starch.ts. */
+  path?: Record<string, { level: number; step: number | null; since: string }>;
 }
 
 /** A real-life quest tick a photo can't show, like "we walked after dinner". */
@@ -205,7 +213,13 @@ export type NewMeal = {
   sameAs?: string | null;
   /** The dishes, when the person logged them as dishes. */
   items?: PlateItem[] | null;
+  vegFirst?: boolean | null;
+  /** Starch-first: the amount of the starch named in grain, in its own measure. Portions can then be null. */
+  starchAmount?: number | null;
 };
+
+/** Things the pilot measures that the meals table can't show on its own. */
+export type PilotEvent = 'open' | 'photo_guess' | 'photo_fixed' | 'help_opened';
 
 export type NewRecipe = Omit<Recipe, 'id' | 'addedBy' | 'date' | 'photo' | 'voice'> & { photo: Photo | null; voice: Voice | null };
 
@@ -245,4 +259,12 @@ export interface Backend {
   deleteMeal(code: string, mealId: string): Promise<void>;
   /** Removes this person's meals and photos. */
   deleteMe(code: string, meId: string): Promise<void>;
+  /** Saves where someone is on their path. Anyone in the family can move it, like the quest. */
+  setPath(code: string, memberId: string, state: { level: number; step: number | null; since: string }): Promise<void>;
+  /** Notes something the pilot measures. Never throws and never holds anything up. */
+  logEvent(code: string, meId: string, kind: PilotEvent): Promise<void>;
+  /** A one-day link that lets someone who lost or changed phones take their own seat back. */
+  makeRejoin(code: string, memberId: string): Promise<string>;
+  /** Uses that link on the new phone. Null when it is wrong or too old. */
+  claimRejoin(token: string): Promise<Session | null>;
 }
