@@ -99,7 +99,7 @@ Anthropic processes these photos for us under its commercial terms. Under those 
 
 This is off unless you turn it on, under Me. If you turn it on, each new meal photo you share also adds a learning example: what the app guessed, the amount you saved, and whether you kept the guess, tapped a number or measured with your hand. The example points at your own photo. Your family's photos are never included.
 
-We use these examples only to improve how Amader recognises home cooking. We do not sell them or give them to anyone else. In the future we may use them to train our own recognition model; that model would not contain your photos or your name. [If you ever want to share examples with a researcher or partner, ask again first.]
+We use these examples only to improve how Amader recognises home cooking. We do not sell them or give them to anyone else. In the future we may use them to train our own recognition model; that model would not contain your photos or your name.
 
 Turn it off and your examples are deleted. Deleting a meal deletes its example too, and so does "Delete my meals and leave".
 
